@@ -27,6 +27,13 @@
         haskellPackages.callCabal2nix "settei-env" ../packages/settei-env {
           settei = setteiPackage;
         };
+      setteiOptparseApplicativePackage =
+        haskellPackages.callCabal2nix
+          "settei-optparse-applicative"
+          ../packages/settei-optparse-applicative
+          {
+            settei = setteiPackage;
+          };
 
       baseDevPackages = [
         pkgs.zlib
@@ -48,6 +55,7 @@
     {
       packages.default = setteiPackage;
       packages.settei-env = setteiEnvPackage;
+      packages.settei-optparse-applicative = setteiOptparseApplicativePackage;
 
       devShells.default = mkProjectShell "ghc9124";
       devShells."ghc9124" = mkProjectShell "ghc9124";

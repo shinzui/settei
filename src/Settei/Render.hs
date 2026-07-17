@@ -15,10 +15,12 @@ module Settei.Render
   )
 where
 
+import Control.Applicative ((<|>))
 import Data.Char (ord)
 import Data.Generics.Labels ()
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
+import Data.Maybe (fromMaybe)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Numeric (showHex)
@@ -121,10 +123,16 @@ originDescription origin =
           ("environment variable " <>)
           (origin ^. #annotations . at "environment.variable")
       CommandLineSource ->
-        maybe
-          ("command-line source " <> origin ^. #name)
-          ("command-line option " <>)
-          (origin ^. #annotations . at "command-line.option")
+        "command-line option "
+          <> fromMaybe
+            (origin ^. #name)
+            ( origin ^. #annotations . at "command-line.spelling"
+                <|> origin ^. #annotations . at "command-line.option"
+            )
+          <> maybe
+            ""
+            (" occurrence " <>)
+            (origin ^. #annotations . at "command-line.occurrence")
       DerivedSource -> "default rule " <> origin ^. #name
       CustomSource customKind -> customKind <> " source " <> origin ^. #name
 

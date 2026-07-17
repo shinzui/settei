@@ -33,6 +33,11 @@ tests =
       testCase "reversing source order predictably reverses precedence" $ do
         result <- expectSuccess (resolve defaultResolveOptions (reverse layeredSources) serviceConfig)
         result ^. #value @?= ("built-in.example", 8080),
+      testCase "shadowed origins are ordered from highest to lowest precedence" $ do
+        result <- expectSuccess (resolve defaultResolveOptions (fmap snd lawSources) (required portSetting))
+        case result ^. #report . #nodes . at servicePort of
+          Just node -> fmap (^. #name) (node ^. #shadowed) @?= ["two", "one"]
+          Nothing -> fail "expected the port resolution node",
       testCase "rightmost-wins law holds for every three-source ordering" $
         mapM_ checkOrdering (permutations lawSources),
       testCase "malformed winner does not fall back" $ do

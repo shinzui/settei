@@ -26,7 +26,8 @@ position, not to a field or annotation on `Source`; the same source can therefor
 placed differently by different applications. For each evaluated setting, the resolver
 traverses every source structurally by `Key` segments, collects present candidates in
 source order, and chooses the rightmost candidate. Earlier candidates become shadowed
-origins.
+origins. Shadowed origins are retained from highest to lowest losing precedence, so the
+first entry is the candidate that would have won if the actual winner were absent.
 
 Resolution is leaf-wise. Objects are traversed only to reach independently declared
 keys. A scalar or array is a whole value at its exact key, arrays never concatenate, and
@@ -55,7 +56,10 @@ precedence when names overlap. This lets one environment snapshot or parsed docu
 retain distinct metadata for each candidate without being split into artificial sources.
 The text renderer recognizes core's Kubernetes annotation vocabulary and appends the
 asserted object kind, namespace, name, and key; deterministic JSON retains the complete
-ordered annotation map.
+ordered annotation map. Adapter annotations must never copy raw candidate values. In
+particular, the command-line adapter records a safe option-and-key spelling plus an
+occurrence number, while the potentially secret assignment remains only in `RawValue`
+until setting sensitivity is known.
 
 Defaults are syntax nodes with a `RuleName`, explanation, and either a constant value or
 an explicit `Config` dependency. A finite case default is the same named dependency form

@@ -35,9 +35,9 @@ interface.
 
 - [x] (2026-07-17 07:34 PDT) Add and register the `settei-env` package.
 - [x] (2026-07-17 07:34 PDT) Implement explicit bindings, prefix helpers, injected snapshots, and origin metadata.
-- [ ] Add and register the `settei-optparse-applicative` package.
-- [ ] Implement generic overrides, direct option bindings, config-path and explain options.
-- [ ] Test repeated options, precedence, redaction, and Kubernetes annotations.
+- [x] (2026-07-17 07:41 PDT) Add and register the `settei-optparse-applicative` package.
+- [x] (2026-07-17 07:41 PDT) Implement generic overrides, direct option bindings, config-path and explain options.
+- [x] (2026-07-17 07:41 PDT) Test repeated options, precedence, redaction, and Kubernetes annotations.
 - [ ] Document migration from small `envparse` configurations.
 
 
@@ -64,6 +64,14 @@ interface.
   `renderResolutionJson` but not `renderResolutionText`.
   Impact: the shared text renderer now adds a Kubernetes object suffix for any annotated
   origin, including future mounted-file adapters.
+
+- Observation: preserving the complete `KEY=VALUE` token as command-line origin metadata
+  would copy a secret value into otherwise safe reports.
+  Evidence: the adapter's redaction test resolves a secret `--set` value and audits text
+  and JSON output for the sentinel while still requiring an exact key and occurrence.
+  Impact: `CliOverride` has a private constructor and retains the safe spelling
+  `--set KEY`; value text remains only in constructor-private `RawValue` until core applies
+  setting sensitivity.
 
 
 ## Decision Log
@@ -102,6 +110,13 @@ interface.
   Kubernetes annotations in the core text explanation.
   Rationale: exact provenance belongs to each candidate, and every adapter must receive
   identical JSON and text behavior without adding format-specific renderers.
+  Date: 2026-07-17
+
+- Decision: Keep `CliOverride` construction private, omit values from origin spellings,
+  and order shadowed origins from highest to lowest losing precedence.
+  Rationale: private construction preserves the redaction invariant, while descending
+  shadow order makes repeated command-line overrides explainable from nearest loser to
+  oldest fallback.
   Date: 2026-07-17
 
 
@@ -251,6 +266,10 @@ data CliOverride = CliOverride
 overrideOptions :: Parser [CliOverride]
 cliSources :: Text -> [CliOverride] -> [Source]
 ```
+
+The production constructor remains private. `cliOverride`, `cliOverrideKey`,
+`cliOverrideValue`, and `cliOverrideSpelling` provide safe construction and inspection;
+the spelling records `--set KEY` and never repeats `VALUE` into origin metadata.
 
 `overrideOptions` preserves list order. `cliSources` enumerates that list and stores an
 occurrence number in each origin; it does not depend on an undocumented absolute argument
@@ -414,3 +433,7 @@ pattern to the reusable command-line parser.
 2026-07-17: Reconciled the plan with the implemented core and refreshed dependency source.
 The environment adapter now uses core `KubernetesRef`, per-key source annotations, and
 `execParserPure`, the actual optparse-applicative 0.19 pure runner.
+
+2026-07-17: Kept `CliOverride` construction private and clarified that its origin spelling
+omits the raw value. This preserves core redaction while still recording the exact key and
+occurrence number.

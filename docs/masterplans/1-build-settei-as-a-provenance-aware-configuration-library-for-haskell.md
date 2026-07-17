@@ -242,6 +242,13 @@ are annotations supplied by the application or deployment, not discovered by the
   that extension for key-specific format metadata instead of splitting one document into
   artificial sources.
 
+- Observation: an exact command-line assignment is unsafe provenance because its value
+  may belong to a secret setting whose sensitivity is not known at parse time.
+  Evidence: EP-3's adversarial CLI test requires the winning key and occurrence in both
+  report formats while proving the raw secret sentinel is absent.
+  Impact: CLI origins retain `--set KEY` plus an occurrence number, never `KEY=VALUE`;
+  future adapters must likewise keep raw candidate values out of annotations.
+
 
 ## Decision Log
 
@@ -318,6 +325,12 @@ are annotations supplied by the application or deployment, not discovered by the
   winning name collisions, and let the core text renderer describe Kubernetes references.
   Rationale: adapters need honest candidate-level provenance and consistent text/JSON
   explanations without format-specific rendering paths.
+  Date: 2026-07-17
+
+- Decision: Treat origin annotations as secret-safe metadata and order shadowed origins
+  from highest to lowest losing precedence.
+  Rationale: reports can explain the nearest overridden candidate first without risking
+  values being copied around core redaction through adapter metadata.
   Date: 2026-07-17
 
 

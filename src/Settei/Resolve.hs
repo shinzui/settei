@@ -349,7 +349,7 @@ evaluateSetting sources settingSpec =
                 sensitivity = settingSensitivity settingSpec,
                 outcome = Resolved (reportedValue (settingSensitivity settingSpec) rawValue),
                 origin = Just (candidateOrigin winner),
-                shadowed = fmap candidateOrigin lower,
+                shadowed = fmap candidateOrigin (reverse lower),
                 derivation = Nothing
               }
        in case decodeSetting settingSpec rawValue of

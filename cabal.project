@@ -1,9 +1,13 @@
 packages:
   .
   packages/settei-env
+  packages/settei-optparse-applicative
 
 package settei
   tests: True
 
 package settei-env
+  tests: True
+
+package settei-optparse-applicative
   tests: True
