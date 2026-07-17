@@ -42,8 +42,9 @@ Settei is being designed around these requirements:
   derived defaults, and report rendering.
 - `settei-env` translates explicitly mapped environment variables into Settei sources.
 - `settei-optparse-applicative` provides reusable command-line configuration options.
-- The planned `settei-yaml`, `settei-kdl`, and `settei-dhall` packages provide format-specific file sources
-  without moving merge semantics out of the core.
+- `settei-yaml` translates a strict, location-preserving YAML subset into Settei sources.
+- The planned `settei-kdl` and `settei-dhall` packages provide further format-specific
+  file sources without moving merge semantics out of the core.
 
 The public configuration language is planned to support Functor, Applicative, and
 Selective composition without exposing a Monad instance. Selective branches allow Settei
@@ -58,10 +59,11 @@ not treated as a provenance system.
 The root `settei` package now provides validated hierarchical keys, parser-neutral raw
 values, secret-safe decoders, typed setting declarations, selective composition,
 source-free schema inspection, deterministic precedence, provenance reports, named
-defaults, and text and JSON explanations. `settei-env` and
-`settei-optparse-applicative` provide the first source adapters; see the
+defaults, and text and JSON explanations. `settei-env`,
+`settei-optparse-applicative`, and `settei-yaml` provide the first source adapters; see the
 [environment and command-line guide](docs/guides/environment-and-cli.md) for a migration
-and precedence example. File-format adapters remain under active implementation. The
+and precedence example and the [YAML guide](docs/guides/yaml.md) for strict file input.
+KDL and Dhall adapters remain under active implementation. The
 architecture and implementation sequence are documented in the
 [Settei MasterPlan](docs/masterplans/1-build-settei-as-a-provenance-aware-configuration-library-for-haskell.md).
 The child ExecPlans in [`docs/plans/`](docs/plans/) define independently verifiable work for
