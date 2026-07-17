@@ -4,6 +4,7 @@ slug: build-settei-as-a-provenance-aware-configuration-library-for-haskell
 title: "Build Settei as a provenance-aware configuration library for Haskell"
 kind: master-plan
 created_at: 2026-07-16T23:49:52Z
+intention: intention_01kxr36cqgem8tmxjjtnq0t6ns
 ---
 
 # Build Settei as a provenance-aware configuration library for Haskell
@@ -94,7 +95,7 @@ separate declarations.
 
 | # | Title | Path | Hard Deps | Soft Deps | Status |
 |---|---|---|---|---|---|
-| EP-1 | Bootstrap Settei and prove the inspectable configuration algebra | `docs/plans/1-bootstrap-settei-and-prove-the-inspectable-configuration-algebra.md` | None | None | Not Started |
+| EP-1 | Bootstrap Settei and prove the inspectable configuration algebra | `docs/plans/1-bootstrap-settei-and-prove-the-inspectable-configuration-algebra.md` | None | None | In Progress |
 | EP-2 | Implement hierarchical resolution, provenance, and derived defaults | `docs/plans/2-implement-hierarchical-resolution-provenance-and-derived-defaults.md` | EP-1 | None | Not Started |
 | EP-3 | Add environment and optparse-applicative configuration sources | `docs/plans/3-add-environment-and-optparse-applicative-configuration-sources.md` | EP-2 | None | Not Started |
 | EP-4 | Add YAML configuration support | `docs/plans/4-add-yaml-configuration-support.md` | EP-2 | None | Not Started |
@@ -179,7 +180,7 @@ are annotations supplied by the application or deployment, not discovered by the
 
 ## Progress
 
-- [ ] EP-1: make the repository build and test as a convention-compliant Cabal/Nix
+- [x] EP-1: make the repository build and test as a convention-compliant Cabal/Nix
   Haskell project.
 - [ ] EP-1: prove and document the inspectable selective configuration algebra.
 - [ ] EP-2: implement deterministic hierarchical resolution and structured provenance.
@@ -202,6 +203,14 @@ are annotations supplied by the application or deployment, not discovered by the
   `core-standards`, `core-custom-prelude`, and `core-record-patterns` guides.
   Impact: EP-1 must establish the baseline, and every child plan's illustrative API and
   dependency guidance must conform to it.
+
+- Observation: nixpkgs' GHC 9.12.4 package set carries `generic-lens` 2.2.2.0 while the
+  refreshed Mori source checkout carries 2.3.0.0.
+  Evidence: the initial Nix build rejected an `>=2.3` bound, and the same build succeeded
+  after widening the bound to `>=2.2 && <2.4`.
+  Impact: every Settei package that uses the local `Data.Generics.Labels` instance must
+  retain a bound compatible with both package environments until the Nix package set
+  advances.
 
 
 ## Decision Log
@@ -277,3 +286,6 @@ extensions, custom prelude, record style, deriving strategies, lens usage, impor
 and option grouping explicit while preserving Settei's intentional source-merging model.
 It also records the durable cross-plan policy in
 `docs/adr/0001-haskell-project-conventions.md`.
+
+2026-07-17: Recorded EP-1's reproducible-package milestone and propagated the Nix/Cabal
+`generic-lens` compatibility constraint to later packages.

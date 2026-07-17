@@ -4,6 +4,7 @@ slug: bootstrap-settei-and-prove-the-inspectable-configuration-algebra
 title: "Bootstrap Settei and prove the inspectable configuration algebra"
 kind: exec-plan
 created_at: 2026-07-16T23:49:58Z
+intention: intention_01kxr36cqgem8tmxjjtnq0t6ns
 master_plan: "docs/masterplans/1-build-settei-as-a-provenance-aware-configuration-library-for-haskell.md"
 ---
 
@@ -32,8 +33,9 @@ precedence or user-facing provenance; those are the subject of Plan 2.
 
 ## Progress
 
-- [ ] Add the convention-compliant Cabal project, root `settei` package, test suite, and
-  Nix integration.
+- [x] (2026-07-17 06:20 PDT) Add the convention-compliant Cabal project, root `settei`
+  package, test suite, and Nix integration. `cabal build all`, the bootstrap test, Nix
+  flake evaluation, and `nix build .#` all succeed.
 - [ ] Define keys, raw values, decoders, setting metadata, and the public declaration API.
 - [ ] Prototype free-selective interpretation and compare it with a small explicit AST.
 - [ ] Implement schema inspection and conditional execution tests.
@@ -42,7 +44,12 @@ precedence or user-facing provenance; those are the subject of Plan 2.
 
 ## Surprises & Discoveries
 
-(None yet.)
+- Observation: nixpkgs' GHC 9.12.4 package set currently provides `generic-lens` 2.2.2.0,
+  while the refreshed Mori checkout contains 2.3.0.0.
+  Evidence: direct Nix evaluation returned 2.2.2.0 and the first `nix build .#` rejected
+  the initial `>=2.3` bound; the repeated build succeeded with `>=2.2 && <2.4`.
+  Impact: the canonical dependency bound must cover both versions because Settei uses
+  only the stable `Data.Generics.Labels` interface documented by the convention corpus.
 
 
 ## Decision Log
@@ -371,3 +378,7 @@ generic-lens boundaries, strict unprefixed records, explicit deriving, postposit
 qualified imports, and validation that future packages can inherit the same conventions.
 The durable baseline is recorded in `docs/adr/0001-haskell-project-conventions.md`, so the
 implementation-time algebra ADR moves to number 0002.
+
+2026-07-17: Recorded completion of the reproducible-package milestone and the compatible
+`generic-lens` bound discovered by validating both the local Cabal build and nixpkgs' GHC
+9.12.4 package set.

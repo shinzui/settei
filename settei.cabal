@@ -1,0 +1,52 @@
+cabal-version:      3.8
+name:               settei
+version:            0.1.0.0
+synopsis:           Typed, layered, explainable configuration
+description:
+  Settei provides an inspectable declaration language for typed configuration.
+  Later packages add source adapters while this core package owns shared semantics.
+
+homepage:           https://github.com/shinzui/settei
+bug-reports:        https://github.com/shinzui/settei/issues
+license:            BSD-3-Clause
+author:             shinzui
+maintainer:         shinzui
+category:           Configuration
+build-type:         Simple
+extra-source-files: README.md
+
+common common
+  default-language:   GHC2024
+  default-extensions:
+    DeriveAnyClass
+    DuplicateRecordFields
+    OverloadedLabels
+    OverloadedStrings
+
+  ghc-options:        -Wall -Wcompat
+
+library
+  import:          common
+  hs-source-dirs:  src
+  exposed-modules:
+    Settei
+    Settei.Prelude
+
+  build-depends:
+    , base          >=4.21  && <5
+    , containers    >=0.6.8 && <0.8
+    , generic-lens  >=2.2   && <2.4
+    , lens          >=5.3   && <5.4
+    , selective     >=0.7   && <0.8
+    , text          >=2.1   && <2.2
+
+test-suite settei-tests
+  import:         common
+  type:           exitcode-stdio-1.0
+  hs-source-dirs: test
+  main-is:        Main.hs
+  build-depends:
+    , base         >=4.21   && <5
+    , settei
+    , tasty        >=1.5    && <1.6
+    , tasty-hunit  >=0.10.2 && <0.11
