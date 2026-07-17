@@ -1,0 +1,146 @@
+# ADR 0003: Define leaf-wise resolution, provenance, and default semantics
+
+Status: Accepted
+
+Date: 2026-07-17
+
+
+## Context
+
+Settei adapters need one shared answer to precedence, malformed overrides, hierarchical
+shape conflicts, unknown keys, derived defaults, selective branches, and explanation
+safety. If file, environment, and command-line packages each interpret those concerns,
+their behavior will drift and an application cannot reason about one ordered source
+stack.
+
+The declaration algebra from ADR 0002 provides complete static inspection plus actual
+Selective control flow. It does not itself define how a raw source tree becomes a typed
+request or how a particular run is explained. Raw candidates may also contain secrets,
+so provenance cannot be designed as an unrestricted debug dump.
+
+
+## Decision
+
+Applications pass sources from lowest to highest precedence. Precedence belongs to list
+position, not to a field or annotation on `Source`; the same source can therefore be
+placed differently by different applications. For each evaluated setting, the resolver
+traverses every source structurally by `Key` segments, collects present candidates in
+source order, and chooses the rightmost candidate. Earlier candidates become shadowed
+origins.
+
+Resolution is leaf-wise. Objects are traversed only to reach independently declared
+keys. A scalar or array is a whole value at its exact key, arrays never concatenate, and
+traversing through a scalar, array, or null is a structural conflict. Structural conflicts
+are validated for every statically possible key before runtime branch evaluation because
+they are source-document shape errors. Missing and decode errors remain branch-local.
+
+Only the winning candidate is decoded. If it is malformed, resolution returns a
+`DecodeError` at that origin and never falls back to a valid lower candidate. Independent
+Applicative errors accumulate in declaration order. Selective evaluates the selector
+first and evaluates only the chosen effectful branch; the runtime report records the
+branch decision and marks omitted possible settings as not selected rather than missing.
+
+Leaves that are not beneath any statically declared key are unknown. The default policy
+returns them as warnings so an application can consume one section of a mixed document.
+Strict resolution promotes the same structured problems to errors. Candidate contents are
+not retained in unknown-key diagnostics.
+
+Origins contain a source kind, stable source name, logical key, optional exact-key
+location, and ordered annotations. Annotations are descriptive and never affect
+precedence. Core supplies shared Kubernetes ConfigMap and Secret reference annotations;
+adapter packages may add environment-variable, command-line-option, path, span, or import
+metadata without introducing format cases into the resolver.
+
+Defaults are syntax nodes with a `RuleName`, explanation, and either a constant value or
+an explicit `Config` dependency. A finite case default is the same named dependency form
+with a non-empty table and optional fallback. An explicit source candidate for the target
+wins and the default dependency is not evaluated. If the target is absent, successful
+dependency nodes remain in the report and the target receives a derived origin and
+dependency edges. An unmatched case without a fallback is a structured error that does
+not retain the rejected dependency value.
+
+Before schema inspection or source lookup, the resolver walks default syntax with an
+active `RuleName` stack. Re-entering an active name is a cycle. This validates mutually
+recursive Haskell declarations without pointer identity and reports the ordered rule path.
+A repeated name in an independent, non-nested declaration is not a cycle.
+
+The static `Schema` and runtime `ResolutionReport` answer different questions. Schema is
+the conservative set of every possible setting and condition. A report contains only the
+actual evaluated nodes plus explicit not-selected placeholders, chosen and shadowed
+origins, derivation edges, and branch decisions for one successful run.
+
+Redaction is applied before data enters a report or structured error. `RawValue` and
+`Candidate` have no `Show` instance. The constructors of `ReportedValue` are private;
+public reporting functions can render it but cannot recover a redacted secret. Source
+decode errors retain only an expected description and a sensitivity-aware rejected-value
+representation. A public `Setting` may opt into a renderer for typed default values,
+because an arbitrary `a` has no format-independent display. Secret settings ignore such
+rendering and always store a redaction marker.
+
+Text renderers use stable key order for human explanations. JSON renderers are compact,
+deterministic documents with top-level `schemaVersion: 1` and a document type. Core emits
+JSON directly from the closed safe report and error types; it does not add a parser or
+Aeson dependency solely for serialization.
+
+
+## Observable Laws
+
+The EP-2 unit, exhaustive law, golden, and adversarial tests enforce these behaviors:
+
+- For every permutation of three present sources, the rightmost candidate wins.
+- Reversing a source stack predictably reverses the relevant winners.
+- A high malformed candidate fails at its own origin without decoding a lower candidate.
+- Arrays replace wholesale, and scalar/object traversal conflicts fail structurally.
+- Independent missing settings accumulate in declaration order.
+- Unknown leaves warn by default and become errors under strict policy.
+- An unselected Selective branch has no missing or decode errors and is reported as not
+  selected; a selected branch enforces its requests.
+- Explicit target values skip default dependencies; derived and case defaults retain
+  their actual dependency keys.
+- Mutual default cycles fail before a source location function can be called.
+- Text and JSON snapshots have stable ordering and JSON schema version 1.
+- A secret sentinel containing quotes, backslashes, control characters, punctuation, and
+  non-ASCII text is absent from schema, report, error, warning, JSON, text, and `Show`
+  outputs.
+
+
+## Consequences
+
+Every adapter only parses input into `RawValue`, constructs `Source`, and attaches honest
+origin metadata. It must not merge layers or decode settings. Applications can combine
+adapters freely because source position has the same meaning for all of them.
+
+Structural validation inspects possible key paths even when Selective later skips their
+requests. This intentionally catches malformed documents early, while missing credentials
+and malformed leaf values remain conditional on actual execution.
+
+Reports do not contain application values. The typed result remains in `ResolveResult a`,
+while the report carries only public display text, `<derived>`, or `<redacted>`. Consumers
+that want an exact public typed-default display provide a renderer when declaring the
+setting.
+
+Versioned JSON can gain additive fields while preserving version 1 ordering and meaning.
+A breaking representation change requires a new schema version and updated goldens.
+
+
+## Rejected Alternatives
+
+Assigning numeric precedence to a source was rejected because it duplicates list order
+and makes source reuse surprising. Deep-merging whole raw trees was rejected because it
+obscures per-leaf origins and gives arrays an arbitrary meaning. Falling back after a bad
+winner was rejected because it hides deployment mistakes and can reactivate stale values.
+
+Decoding every candidate was rejected because shadowed malformed or secret values do not
+affect the result. Treating every unknown key as fatal was rejected because mixed
+documents are useful; silently ignoring all unknown keys was rejected because typos need
+diagnostics.
+
+Defaults over a completed application record were rejected because their dependencies
+cannot be inspected or explained. Pointer-identity cycle detection was rejected because
+stable rule names already define the user-facing identity and permit a pure preflight.
+
+Renderer-only redaction was rejected because an unsafe intermediate report, derived
+`Show`, JSON encoder, or failed golden could leak a credential. Retaining raw values in
+reports was rejected for the same reason. Adding Aeson only to emit four small closed JSON
+documents was rejected in favor of the dependency-free deterministic encoder; adapter
+plans may independently use parser libraries at their input boundaries.

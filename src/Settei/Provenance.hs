@@ -32,12 +32,15 @@ data Candidate = Candidate
   }
   deriving stock (Generic, Eq)
 
+-- | Pair one raw source value with its exact origin.
 candidate :: RawValue -> Origin -> Candidate
 candidate value origin = Candidate {value, origin}
 
+-- | Return the candidate's raw value for core decoding.
 candidateValue :: Candidate -> RawValue
 candidateValue value = value ^. #value
 
+-- | Return the candidate's structured origin.
 candidateOrigin :: Candidate -> Origin
 candidateOrigin value = value ^. #origin
 

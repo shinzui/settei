@@ -68,15 +68,19 @@ data KubernetesRef = KubernetesRef
 kubernetesRef :: KubernetesObjectKind -> Maybe Text -> Text -> Maybe Text -> KubernetesRef
 kubernetesRef kind namespace name key = KubernetesRef {kind, namespace, name, key}
 
+-- | Return the referenced Kubernetes object kind.
 kubernetesRefKind :: KubernetesRef -> KubernetesObjectKind
 kubernetesRefKind value = value ^. #kind
 
+-- | Return the optional Kubernetes namespace.
 kubernetesRefNamespace :: KubernetesRef -> Maybe Text
 kubernetesRefNamespace value = value ^. #namespace
 
+-- | Return the Kubernetes object name.
 kubernetesRefName :: KubernetesRef -> Text
 kubernetesRefName value = value ^. #name
 
+-- | Return the optional key within the Kubernetes object.
 kubernetesRefKey :: KubernetesRef -> Maybe Text
 kubernetesRefKey value = value ^. #key
 

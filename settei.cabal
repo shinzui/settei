@@ -13,7 +13,10 @@ author:             shinzui
 maintainer:         shinzui
 category:           Configuration
 build-type:         Simple
-extra-source-files: README.md
+extra-source-files:
+  README.md
+  test/golden/*.json
+  test/golden/*.txt
 
 source-repository head
   type:     git
@@ -41,6 +44,7 @@ library
     Settei.Origin
     Settei.Prelude
     Settei.Provenance
+    Settei.Render
     Settei.Report
     Settei.Resolve
     Settei.Schema
@@ -80,6 +84,8 @@ test-suite settei-tests
     Settei.Prelude
     Settei.Prototype.Free
     Settei.Provenance
+    Settei.Render
+    Settei.RenderTest
     Settei.Report
     Settei.Resolve
     Settei.ResolveTest

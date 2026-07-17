@@ -1,0 +1,9 @@
+database.password = <redacted>
+  from environment variable DATABASE_PASSWORD
+runtime.environment = "Production"
+  from environment variable HASKELL_ENV
+service.port = 443
+  from default rule service-port-by-environment
+  because runtime.environment = "Production"
+    from environment variable HASKELL_ENV
+  shadowed: built-in source built-in

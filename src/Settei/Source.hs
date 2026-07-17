@@ -57,12 +57,15 @@ annotateSource annotations sourceValue = sourceValue & #annotations .~ annotatio
 locateSource :: (Key -> Maybe SourceLocation) -> Source -> Source
 locateSource locationAt sourceValue = sourceValue & #locationAt .~ locationAt
 
+-- | Return a source's stable descriptive name.
 sourceName :: Source -> Text
 sourceName value = value ^. #name
 
+-- | Return a source's format-independent category.
 sourceKind :: Source -> SourceKind
 sourceKind value = value ^. #kind
 
+-- | Return descriptive annotations shared by every candidate from the source.
 sourceAnnotations :: Source -> Map Text Text
 sourceAnnotations value = value ^. #annotations
 

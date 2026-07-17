@@ -1,0 +1,1 @@
+{"schemaVersion":1,"type":"settei.schema","settings":[{"key":"database.password","description":"Database password","sensitivity":"secret","requirement":"required","presence":"necessary"}],"conditions":[]}

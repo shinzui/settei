@@ -73,6 +73,7 @@ data ResolveResult a = ResolveResult
   }
   deriving stock (Generic)
 
+-- | Warn about unknown keys while retaining all other default resolver semantics.
 defaultResolveOptions :: ResolveOptions
 defaultResolveOptions = ResolveOptions {unknownKeyPolicy = WarnUnknownKeys}
 

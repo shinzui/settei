@@ -61,8 +61,10 @@ data ResolutionReport = ResolutionReport
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Return resolution nodes in stable key order.
 reportNodes :: ResolutionReport -> [ResolutionNode]
 reportNodes value = value ^. #nodes . to Map.elems
 
+-- | Return branch decisions in evaluation order.
 reportBranches :: ResolutionReport -> [BranchTrace]
 reportBranches value = value ^. #branches

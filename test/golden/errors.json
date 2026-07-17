@@ -1,0 +1,1 @@
+{"schemaVersion":1,"type":"settei.errors","errors":[{"kind":"decode-error","key":"database.password","expected":"boolean","origin":{"kind":"environment","kindDetail":null,"name":"environment","key":"database.password","location":null,"annotations":{}},"rejected":"<redacted>"}]}

@@ -3,6 +3,7 @@ module Main (main) where
 import Settei.ConfigTest qualified as ConfigTest
 import Settei.DefaultTest qualified as DefaultTest
 import Settei.KeyTest qualified as KeyTest
+import Settei.RenderTest qualified as RenderTest
 import Settei.ResolveTest qualified as ResolveTest
 import Settei.SourceTest qualified as SourceTest
 import Settei.ValueTest qualified as ValueTest
@@ -18,5 +19,6 @@ main =
         ConfigTest.tests,
         SourceTest.tests,
         ResolveTest.tests,
-        DefaultTest.tests
+        DefaultTest.tests,
+        RenderTest.tests
       ]

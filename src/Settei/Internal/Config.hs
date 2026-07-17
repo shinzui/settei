@@ -100,6 +100,7 @@ caseDefaultConfig = CaseDefault
 withDefaultConfig :: Setting a -> Default a -> Config a
 withDefaultConfig = DefaultConfig
 
+-- | Render the stable textual identity of a default rule.
 renderRuleName :: RuleName -> Text
 renderRuleName (RuleName value) = value
 

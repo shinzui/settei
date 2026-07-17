@@ -4,6 +4,7 @@ module Settei.ResolveTest (tests) where
 
 import Control.Selective (select)
 import Data.Generics.Labels ()
+import Data.List (permutations)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Settei
@@ -32,6 +33,8 @@ tests =
       testCase "reversing source order predictably reverses precedence" $ do
         result <- expectSuccess (resolve defaultResolveOptions (reverse layeredSources) serviceConfig)
         result ^. #value @?= ("built-in.example", 8080),
+      testCase "rightmost-wins law holds for every three-source ordering" $
+        mapM_ checkOrdering (permutations lawSources),
       testCase "malformed winner does not fall back" $ do
         let lower = treeSource "lower" (RawNumber 8080) Map.empty
             higher = treeSource "higher" (RawText "not-a-port") Map.empty
@@ -102,6 +105,20 @@ tests =
             _ -> fail "expected one structural conflict"
           Right _ -> fail "source shape validation should fail"
     ]
+
+checkOrdering :: [(Int, Source)] -> IO ()
+checkOrdering orderedSources = do
+  result <-
+    expectSuccess
+      (resolve defaultResolveOptions (fmap snd orderedSources) (required portSetting))
+  result ^. #value @?= fst (last orderedSources)
+
+lawSources :: [(Int, Source)]
+lawSources =
+  [ (1001, treeSource "one" (RawNumber 1001) Map.empty),
+    (2002, treeSource "two" (RawNumber 2002) Map.empty),
+    (3003, treeSource "three" (RawNumber 3003) Map.empty)
+  ]
 
 expectSuccess :: Either (NonEmpty ConfigError) a -> IO a
 expectSuccess = \case

@@ -53,6 +53,19 @@ tests =
               problem ^. #rule @?= RuleName "service-port-by-environment"
             _ -> fail "expected one default error"
           Right _ -> fail "expected the case default to fail",
+      testCase "a case fallback handles values outside the finite table" $ do
+        let withFallback =
+              withDefault
+                portSetting
+                ( caseDefault
+                    (RuleName "port-with-fallback")
+                    "Use a fallback outside known environments"
+                    (required environmentSetting)
+                    ((Development, 8080) :| [])
+                    (Just 9000)
+                )
+        result <- expectSuccess (resolve defaultResolveOptions [environmentSource Staging] withFallback)
+        result ^. #value @?= 9000,
       testCase "default dependencies remain conditional in the static schema" $ do
         let schema = describe casePort
             necessaryKeys = fmap schemaSettingKey (schemaNecessary schema)
