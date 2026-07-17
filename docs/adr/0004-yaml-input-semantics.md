@@ -1,0 +1,83 @@
+# ADR 0004: Parse a strict marked-event YAML subset
+
+Status: Accepted
+
+Date: 2026-07-17
+
+
+## Context
+
+Settei's YAML adapter must reject duplicate mapping keys before they are collapsed and
+must report honest source locations for successful candidates as well as syntax errors.
+The package must also translate into core `RawValue` without adding YAML behavior to the
+resolver or copying raw scalars into structured errors.
+
+Mori had no registered general YAML, HsYAML, or libyaml source project. The EP-4 audit
+therefore unpacked and inspected Hackage releases `yaml-0.11.11.2` and `libyaml-0.1.4`.
+The high-level `Data.Yaml.decodeEither'` path builds an Aeson key map with `M.insert` and
+discards its `DuplicateKey` warning list. By contrast, `Text.Libyaml.decodeMarked` emits
+each mapping pair before conversion and attaches zero-based start and end marks to every
+event.
+
+
+## Decision
+
+`settei-yaml` consumes `Text.Libyaml.decodeMarked` from the `libyaml` 0.1 series. It parses
+the marked event sequence directly into core `RawValue`, rejects a repeated mapping name
+before `Map.insert`, and converts each value's start mark to a one-based `SourceLocation`.
+The actual file path is used when known; otherwise the caller's stable source name is the
+logical location path.
+
+Version one accepts exactly one top-level mapping. An empty stream or empty document is an
+empty mapping. Nested mappings require scalar string keys without literal dots; a dot is
+expressed only by mapping nesting. Null is a present `RawNull`, arrays remain whole
+`RawArray` values, booleans are typed, and decimal, exponent, hexadecimal, and octal
+numbers become exact `Rational` values through `Scientific`. Non-finite floating values
+fail because core has no lossless representation for them.
+
+Duplicate block and flow keys, non-string keys, multiple documents, anchors, aliases,
+merge keys, custom tags, dotted keys, and unsupported scalar or collection tags fail with
+a stable `YamlErrorCategory`. These failures contain only source name, optional path,
+one-based mark, structural key/index context, and a fixed safe message. They never retain
+a raw scalar or source excerpt.
+
+The C binding exposes parsing through a resource-managed conduit even for an immutable
+strict `ByteString`. `decodeYamlSource` therefore has one `NOINLINE` helper using
+`unsafePerformIO` to collect marked events. This is a referentially transparent boundary:
+the bytes and options fully determine the result, asynchronous exceptions are not caught,
+and all filesystem effects remain explicit in `readYamlSource`. The inspected `yaml`
+package uses the same technique for its pure byte decoders.
+
+Caller annotations, including Kubernetes ConfigMap and Secret references for mounted
+files, are trusted descriptive metadata. They never alter source precedence or setting
+sensitivity; core resolution remains solely responsible for redaction.
+
+
+## Consequences
+
+Settei retains precise successful-leaf and parse-error locations without relying on an
+Aeson intermediate form. Strict duplicate rejection applies equally to block and flow
+syntax and also validates mappings nested inside arrays. The supported subset is smaller
+than YAML's graph model, but every accepted document has one deterministic tree meaning
+that maps directly to Settei keys and raw values.
+
+The adapter directly depends on `libyaml`, `conduit`, `attoparsec`, and `scientific`.
+Applications that require aliases, merge keys, custom tags, or multiple documents must
+normalize them outside Settei or use another source adapter. Adding one of those features
+later requires an explicit compatibility decision and tests for duplicate, provenance,
+and redaction behavior.
+
+
+## Rejected Alternatives
+
+Using `Data.Yaml.decodeEither'` was rejected because it discards duplicate warnings and
+successful-node marks. Accepting `decodeFileWithWarnings` only for files was rejected
+because in-memory and file inputs would then have different validation contracts. A
+textual duplicate-key pre-scan was rejected because YAML flow syntax, quoted keys,
+indentation, anchors, and aliases make it unsound.
+
+HsYAML was not selected because the marked libyaml API already meets the required behavior
+with the existing BSD-licensed parser family; adding a second parser and its different
+schema semantics would not improve the version-one contract. Silently applying aliases,
+merge keys, or last-key-wins semantics was rejected because it hides configuration
+ambiguity and weakens provenance.

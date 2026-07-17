@@ -2,6 +2,7 @@ packages:
   .
   packages/settei-env
   packages/settei-optparse-applicative
+  packages/settei-yaml
 
 package settei
   tests: True
@@ -10,4 +11,7 @@ package settei-env
   tests: True
 
 package settei-optparse-applicative
+  tests: True
+
+package settei-yaml
   tests: True

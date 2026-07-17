@@ -31,17 +31,41 @@ defaults.
 
 ## Progress
 
-- [ ] Inspect the current Haskell YAML parser source and prove its duplicate-key behavior.
-- [ ] Add and register the `settei-yaml` package.
-- [ ] Translate supported YAML values into the core raw tree and origin model.
-- [ ] Add strict error handling, file IO, and mounted-file annotations.
-- [ ] Test hierarchy, precedence, locations, duplicate keys, and redaction.
+- [x] (2026-07-17 08:41 PDT) Inspect the current Haskell YAML parser source and prove its duplicate-key behavior.
+- [x] (2026-07-17 08:41 PDT) Add and register the `settei-yaml` package.
+- [x] (2026-07-17 08:41 PDT) Translate supported YAML values into the core raw tree and origin model.
+- [x] (2026-07-17 08:41 PDT) Add strict error handling, file IO, and mounted-file annotations.
+- [x] (2026-07-17 08:41 PDT) Test hierarchy, precedence, locations, duplicate keys, and redaction.
 - [ ] Publish the YAML format guide and limitations.
 
 
 ## Surprises & Discoveries
 
-(None yet.)
+- Observation: no standalone YAML, HsYAML, or libyaml project is registered in Mori;
+  `dhall-yaml` is the only package found by the initial YAML search.
+  Evidence: `mori registry search yaml`, `mori registry search HsYAML`, and
+  `mori registry search libyaml` returned no general YAML parser project, so the audit
+  unpacked the exact Hackage releases `yaml-0.11.11.2` and `libyaml-0.1.4`.
+  Impact: the characterization README records the inspected release sources, while the
+  package bounds the selected parser to the compatible `libyaml` 0.1 series.
+
+- Observation: `Data.Yaml.decodeEither'` converts pairs to an Aeson key map and discards
+  the parser's duplicate-key warnings, but `Text.Libyaml.decodeMarked` exposes every event
+  together with zero-based start and end marks.
+  Evidence: `Data.Yaml.Internal.parseM` adds `DuplicateKey` only to a warning list before
+  `M.insert`, while `decodeEither'` maps away that list. The 20-test adapter suite rejects
+  duplicate block and flow mappings and reports a successful nested host at line 3,
+  column 11.
+  Impact: the adapter consumes marked events directly, rejects ambiguity before map
+  construction, and provides trustworthy one-based locations for successful candidates.
+
+- Observation: the marked parser is exposed as a `MonadResource` conduit even for an
+  immutable strict `ByteString`.
+  Evidence: `libyaml-0.1.4` defines `decodeMarked` in `ConduitM`, and `yaml-0.11.11.2`
+  implements its own pure byte decoders with `unsafePerformIO` around the same resource
+  runner.
+  Impact: `decodeYamlSource` contains one `NOINLINE` pure wrapper around event collection;
+  all file IO remains explicit in `readYamlSource`.
 
 
 ## Decision Log
@@ -57,10 +81,10 @@ defaults.
   setting decoder decides whether explicit null is valid.
   Date: 2026-07-16
 
-- Decision: Report a successful leaf as file plus logical key in version one, and report
-  line and column whenever the parser substantiates them for an error.
-  Rationale: common Aeson-oriented YAML APIs discard successful-node spans; Settei must not
-  claim locations it cannot preserve.
+- Decision: Report each successful candidate and parser error with the one-based line and
+  column substantiated by the selected marked-event parser.
+  Rationale: marked events retain exact node starts, so Settei can provide stronger honest
+  provenance than the common Aeson-oriented YAML APIs.
   Date: 2026-07-16
 
 - Decision: Inherit Plan 1's shared Haskell conventions and expose YAML option metadata
@@ -68,6 +92,27 @@ defaults.
   Rationale: `DuplicateRecordFields` and local generic-lens access let every adapter reuse
   `name` and `annotations` consistently without format-prefixed selectors.
   Date: 2026-07-16
+
+- Decision: Parse with `libyaml` 0.1.4's `decodeMarked` event API instead of converting
+  through `Data.Aeson.Value`.
+  Rationale: event pairs permit strict duplicate detection, and marked values provide the
+  successful-node provenance that the high-level map conversion discards.
+  Date: 2026-07-17
+
+- Decision: Accept exactly one top-level mapping and a strict portable YAML subset;
+  reject aliases, anchors, merge keys, custom tags, non-string or dotted mapping keys,
+  multiple documents, and non-finite numbers.
+  Rationale: the rejected features either introduce graph semantics, hide duplicate
+  precedence, cannot become Settei key segments, or cannot be represented by `RawValue`
+  without loss.
+  Date: 2026-07-17
+
+- Decision: Convert libyaml's zero-based marks to one-based public locations and isolate
+  the parser's resource effect behind a `NOINLINE` pure bytes boundary.
+  Rationale: human-facing positions conventionally start at one, and parsing an immutable
+  `ByteString` is referentially transparent even though the C binding uses resource-managed
+  IO internally.
+  Date: 2026-07-17
 
 
 ## Outcomes & Retrospective
@@ -89,10 +134,10 @@ structured errors, and redaction. Read its implementation and resolution ADR bef
 coding. This adapter must construct one source and leave all precedence and decoding to
 the core.
 
-At repository bootstrap, adapters are expected beneath `packages/` and registered in
-`cabal.project`. There is no YAML implementation yet. Rei is useful consumer prior art for
-YAML configuration and file discovery; locate its current registered source through Mori
-before reading it. Do not transplant Rei-specific search paths into this adapter.
+The adapter lives at `packages/settei-yaml`, is registered in `cabal.project`, and exposes
+`Settei.Yaml`. Rei remains useful consumer prior art for YAML configuration and file
+discovery, but its registered source is used only to verify application-boundary patterns;
+Rei-specific search paths are not part of this adapter.
 
 YAML's surface is wider than Settei's portable data model. Version one supports a single
 document composed of null, booleans, numbers, strings, sequences, and mappings with string
@@ -108,6 +153,10 @@ lenses. Qualified parser imports use postpositive syntax. The package declares
 `generic-lens` directly when it imports the label instance instead of relying on a
 transitive core dependency. [ADR 0001](../adr/0001-haskell-project-conventions.md) records
 the durable rationale and rejected alternatives for this baseline.
+[ADR 0003](../adr/0003-resolution-provenance-and-default-semantics.md) defines the
+adapter-neutral source, precedence, provenance, and redaction contract.
+[ADR 0004](../adr/0004-yaml-input-semantics.md) records the strict marked-event YAML
+subset and its rejected alternatives.
 
 
 ## Plan of Work
@@ -119,17 +168,16 @@ obtain the exact released source selected by the Cabal solver from an upstream s
 archive or repository, record its version and revision, and read the parsing and exception
 types directly. Never search `/nix/store`.
 
-Write a throwaway or test-only characterization executable before choosing an API. Feed it
-duplicate mapping keys, multiple documents, aliases, merge keys, non-string keys, very
-large integers, floats, explicit null, invalid UTF-8, and syntax errors. Capture whether
+The test-only `Settei.Yaml.CharacterizationTest` suite characterizes the selected API. It
+feeds the parser duplicate mapping keys, multiple documents, aliases, merge keys,
+non-string keys, very large integers, floats, explicit null, invalid UTF-8, and syntax errors. Capture whether
 duplicate keys are rejected before conversion to `Data.Aeson.Value` and whether errors
 retain line and column.
 
-Select the narrowest official API that permits strict duplicate rejection. If the common
-decode-to-Aeson entry point silently overwrites duplicates, use a lower-level event or
-node API from the same inspected package or choose a maintained parser that exposes the
-needed information. Do not implement a textual duplicate-key pre-scan because YAML keys,
-anchors, indentation, and flow mappings make that unsound.
+The selected narrow API is `Text.Libyaml.decodeMarked`. The common decode-to-Aeson entry
+point overwrites duplicates after returning them only as warnings, so Settei consumes the
+lower-level marked event stream. It does not implement a textual duplicate-key pre-scan;
+YAML keys, anchors, indentation, and flow mappings make that unsound.
 
 Record the characterization in `test/fixtures/characterization/README.md` and the selected
 version and behavior in this plan's Decision Log. Milestone acceptance is executable tests
@@ -147,6 +195,7 @@ Expose a pure bytes-to-source function and a file convenience:
 ```haskell
 data YamlSourceOptions = YamlSourceOptions
   { name :: !Text
+  , path :: !(Maybe FilePath)
   , annotations :: !(Map Text Text)
   }
   deriving stock (Generic, Eq)
@@ -160,6 +209,11 @@ readYamlSource
   :: YamlSourceOptions
   -> FilePath
   -> IO (Either (NonEmpty YamlSourceError) Source)
+
+yamlSourceOptions :: Text -> YamlSourceOptions
+withYamlSourcePath :: FilePath -> YamlSourceOptions -> YamlSourceOptions
+annotateYamlSourceOptions :: Map Text Text -> YamlSourceOptions -> YamlSourceOptions
+fromKubernetesMountedFile :: KubernetesRef -> YamlSourceOptions -> YamlSourceOptions
 ```
 
 If the selected parser already exposes an equivalent strict error type, wrap it rather
@@ -294,10 +348,11 @@ public `decodeYamlSource` boundary stable.
 ## Interfaces and Dependencies
 
 Package `settei-yaml` depends on `settei`, `base`, `bytestring`, `containers`, and `text`,
-plus the parser and raw-value bridge selected through source inspection. Add
-`generic-lens` directly when package modules use `#label`. If the core `RawValue` is
-Aeson-based, prefer a parser path that preserves required validation before producing
-`Data.Aeson.Value`.
+plus `libyaml` 0.1.4 for marked events, `conduit` for collecting the event stream,
+`attoparsec` for finite number syntax, and `scientific` for exact decimal conversion.
+It declares `generic-lens` directly because the module uses `#label`. Core `RawValue`
+stores exact `Rational` numbers and has no Aeson dependency, so the adapter translates
+marked events directly rather than constructing `Data.Aeson.Value`.
 
 The adapter consumes core `Source`, `Origin`, `RawValue`, `Key`, error, and report
 extension points. It must not depend on `settei-env`, `settei-optparse-applicative`, KDL,
@@ -310,3 +365,8 @@ Dhall, file-discovery libraries, or a Kubernetes client.
 The public option sketch now uses strict unprefixed fields and explicit deriving, and the
 plan carries forward the custom-prelude, local generic-lens import, lens access, direct
 dependency, and postpositive qualified-import requirements.
+
+2026-07-17: Reconciled the plan with the source-inspected `yaml-0.11.11.2` and
+`libyaml-0.1.4` implementations. The adapter now uses marked events for strict duplicate
+detection and successful-node locations, documents its strict subset and localized pure
+wrapper, and records the 20-test characterization evidence.

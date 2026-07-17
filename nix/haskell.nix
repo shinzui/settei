@@ -29,6 +29,10 @@
         haskellPackages.callCabal2nix "settei-env" ../packages/settei-env {
           settei = setteiPackage;
         };
+      setteiYamlPackage =
+        haskellPackages.callCabal2nix "settei-yaml" ../packages/settei-yaml {
+          settei = setteiPackage;
+        };
       setteiOptparseApplicativePackage =
         # Cabal runs this package's tests with one coherent solver plan. The nixpkgs
         # tasty derivation still embeds optparse-applicative 0.18, so enabling the same
@@ -65,6 +69,7 @@
       packages.default = setteiPackage;
       packages.settei-env = setteiEnvPackage;
       packages.settei-optparse-applicative = setteiOptparseApplicativePackage;
+      packages.settei-yaml = setteiYamlPackage;
 
       devShells.default = mkProjectShell "ghc9124";
       devShells."ghc9124" = mkProjectShell "ghc9124";

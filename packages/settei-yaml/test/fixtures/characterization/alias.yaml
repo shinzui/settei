@@ -1,0 +1,3 @@
+shared: &shared
+  port: 8000
+service: *shared
