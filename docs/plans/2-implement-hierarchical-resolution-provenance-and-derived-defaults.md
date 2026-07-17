@@ -4,6 +4,7 @@ slug: implement-hierarchical-resolution-provenance-and-derived-defaults
 title: "Implement hierarchical resolution, provenance, and derived defaults"
 kind: exec-plan
 created_at: 2026-07-16T23:50:01Z
+intention: intention_01kxr36cqgem8tmxjjtnq0t6ns
 master_plan: "docs/masterplans/1-build-settei-as-a-provenance-aware-configuration-library-for-haskell.md"
 ---
 
@@ -32,7 +33,7 @@ merge logic.
 
 ## Progress
 
-- [ ] Define the source tree, candidates, origin extension points, and resolution errors.
+- [x] Define the source tree, candidates, origin extension points, and resolution errors.
 - [ ] Implement deterministic leaf-wise precedence and unknown-key diagnostics.
 - [ ] Add constant and dependency-aware default declarations.
 - [ ] Interpret selective branches while recording dependency and branch traces.
@@ -42,7 +43,9 @@ merge logic.
 
 ## Surprises & Discoveries
 
-(None yet.)
+- The raw tree and candidate types cannot safely derive `Show`: both can carry a secret
+  before Settei knows the owning setting's sensitivity. Tests compare them without
+  interpolating rejected values into failures.
 
 
 ## Decision Log
@@ -83,6 +86,13 @@ merge logic.
   `annotations` are clearer under `DuplicateRecordFields`; generic-lens keeps access and
   updates unambiguous without encoding type names into the public API.
   Date: 2026-07-16
+
+- Decision: Represent origin customization as exact-key locations plus ordered source
+  annotations, with the core constructing the common `Origin` fields.
+  Rationale: adapters retain spans and domain metadata without gaining the ability to
+  change logical keys or precedence in an origin factory. Standard Kubernetes references
+  are encoded through shared typed constructors and stable annotation names.
+  Date: 2026-07-17
 
 
 ## Outcomes & Retrospective

@@ -2,6 +2,7 @@ module Main (main) where
 
 import Settei.ConfigTest qualified as ConfigTest
 import Settei.KeyTest qualified as KeyTest
+import Settei.SourceTest qualified as SourceTest
 import Settei.ValueTest qualified as ValueTest
 import Test.Tasty (defaultMain, testGroup)
 
@@ -12,5 +13,6 @@ main =
       "Settei"
       [ KeyTest.tests,
         ValueTest.tests,
-        ConfigTest.tests
+        ConfigTest.tests,
+        SourceTest.tests
       ]

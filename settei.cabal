@@ -35,10 +35,14 @@ library
   exposed-modules:
     Settei
     Settei.Config
+    Settei.Error
     Settei.Key
+    Settei.Origin
     Settei.Prelude
+    Settei.Provenance
     Settei.Schema
     Settei.Setting
+    Settei.Source
     Settei.Value
 
   other-modules:
@@ -62,14 +66,19 @@ test-suite settei-tests
     Settei
     Settei.Config
     Settei.ConfigTest
+    Settei.Error
     Settei.Internal.Config
     Settei.Internal.Schema
     Settei.Key
     Settei.KeyTest
+    Settei.Origin
     Settei.Prelude
     Settei.Prototype.Free
+    Settei.Provenance
     Settei.Schema
     Settei.Setting
+    Settei.Source
+    Settei.SourceTest
     Settei.Value
     Settei.ValueTest
 
