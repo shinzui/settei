@@ -10,6 +10,13 @@
 
     treefmt-nix.follows = "haskell-nix-dev/treefmt-nix";
 
+    # nixpkgs' GHC 9.12 package set currently predates parserOptionGroup. Keep the
+    # command-line adapter on the registered and source-inspected 0.19.0.0 API.
+    optparse-applicative = {
+      url = "https://hackage.haskell.org/package/optparse-applicative-0.19.0.0/optparse-applicative-0.19.0.0.tar.gz";
+      flake = false;
+    };
+
     pre-commit-hooks.url = "github:cachix/git-hooks.nix";
     pre-commit-hooks.inputs.nixpkgs.follows = "nixpkgs";
   };

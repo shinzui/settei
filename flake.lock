@@ -127,6 +127,19 @@
         "type": "github"
       }
     },
+    "optparse-applicative": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1000000000,
+        "narHash": "sha256-dhqvRILfdbpYPMxC+WpAyO0KUfq2nLopGk1NdSN2SDM=",
+        "type": "tarball",
+        "url": "https://hackage.haskell.org/package/optparse-applicative-0.19.0.0/optparse-applicative-0.19.0.0.tar.gz"
+      },
+      "original": {
+        "type": "tarball",
+        "url": "https://hackage.haskell.org/package/optparse-applicative-0.19.0.0/optparse-applicative-0.19.0.0.tar.gz"
+      }
+    },
     "pre-commit-hooks": {
       "inputs": {
         "flake-compat": "flake-compat",
@@ -157,6 +170,7 @@
           "haskell-nix-dev",
           "nixpkgs"
         ],
+        "optparse-applicative": "optparse-applicative",
         "pre-commit-hooks": "pre-commit-hooks",
         "treefmt-nix": [
           "haskell-nix-dev",
