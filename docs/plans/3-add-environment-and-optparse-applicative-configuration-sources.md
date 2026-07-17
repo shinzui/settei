@@ -64,11 +64,21 @@ interface.
   occurrences were shadowed.
   Date: 2026-07-16
 
+- Decision: Apply the shared Haskell record and prelude conventions to both adapter
+  packages, and use `parserOptionGroup` for the reusable Settei option parser.
+  Rationale: unprefixed labels remain readable through generic-lens, while grouping
+  configuration inputs separately from diagnostics makes generated `--help` easier to
+  scan without changing parser semantics.
+  Date: 2026-07-16
+
 
 ## Outcomes & Retrospective
 
 To be filled during and after implementation. Record any naming or origin convention that
-other adapters need in the relevant core ADR before completing this plan.
+other adapters need in the relevant core ADR before completing this plan. Confirm that
+both packages declare and import the canonical package-local GHC2024 stanza and follow the
+strict-record, explicit-deriving, custom-prelude, lens, and import conventions before
+marking the plan complete.
 
 
 ## Context and Orientation
@@ -92,6 +102,20 @@ At planning time, registered `optparse-applicative` source is version 0.19.0.0 a
 is the correct boundary for deterministic tests. Refresh that source lookup before
 implementation.
 
+Plan 1 embeds the registered `shinzui/haskell-jitsurei` core baseline. Both new `.cabal`
+files repeat the canonical package-local `common common` stanza and import it from every
+component; both packages use `Settei.Prelude`. A module using generic-lens labels imports
+`Data.Generics.Labels ()` locally and declares `generic-lens` directly in its package
+dependencies. Records use strict unprefixed fields and explicit deriving strategies,
+reads and updates use lens operators, and qualified imports are postpositive.
+For the CLI boundary, the applicable `cli-option-groups` convention requires
+`optparse-applicative >= 0.19`: group file paths and overrides under “Configuration” and
+explanation modes under “Diagnostics”. The separate hierarchical-config convention's
+“no merge between independent concerns” rule does not prohibit Settei's precedence stack,
+because these inputs are alternate sources for one declaration rather than unrelated
+configuration domains. [ADR 0001](../adr/0001-haskell-project-conventions.md) records the
+durable rationale and rejected alternatives for this baseline.
+
 
 ## Plan of Work
 
@@ -99,17 +123,23 @@ implementation.
 
 Create `packages/settei-env/settei-env.cabal` with exposed modules `Settei.Env` and, only
 if needed, `Settei.Env.Kubernetes`. Register the package in `cabal.project` and the Nix
-project build. The core transformation accepts a supplied snapshot rather than reading IO:
+project build. Repeat Plan 1's canonical `common common` stanza in this `.cabal` file and
+import it from the library and test components. The core transformation accepts a supplied
+snapshot rather than reading IO:
 
 ```haskell
 newtype EnvName = EnvName Text
+  deriving stock (Generic, Eq, Ord, Show)
+
 newtype EnvSnapshot = EnvSnapshot (Map EnvName Text)
+  deriving stock (Generic, Eq)
 
 data EnvBinding = EnvBinding
-  { envName       :: EnvName
-  , envKey        :: Key
-  , envAnnotations :: Map Text Text
+  { name :: !EnvName
+  , key :: !Key
+  , annotations :: !(Map Text Text)
   }
+  deriving stock (Generic, Eq)
 
 envSource
   :: Text
@@ -146,8 +176,9 @@ sources; its semantic shape is:
 
 ```haskell
 data KubernetesObject
-  = ConfigMapRef { objectNamespace :: Maybe Text, objectName :: Text, objectKey :: Text }
-  | SecretRef    { objectNamespace :: Maybe Text, objectName :: Text, objectKey :: Text }
+  = ConfigMapRef { namespace :: !(Maybe Text), name :: !Text, key :: !Text }
+  | SecretRef { namespace :: !(Maybe Text), name :: !Text, key :: !Text }
+  deriving stock (Generic, Eq, Show)
 
 kubernetesObjectAnnotations :: KubernetesObject -> Map Text Text
 
@@ -164,6 +195,8 @@ verified against the Kubernetes API. The package must not depend on a Kubernetes
 Create
 `packages/settei-optparse-applicative/settei-optparse-applicative.cabal` and expose
 `Settei.Optparse`. Depend on `settei` and `optparse-applicative`, not `settei-env`.
+Repeat the canonical package-local `common common` stanza and import it from every
+component in this package.
 
 Provide an applicative parser for generic overrides using repeated
 `--set KEY=VALUE`. Parse the key with the core `parseKey`; keep the value as text for the
@@ -173,10 +206,11 @@ override win while preserving shadowed occurrences.
 
 ```haskell
 data CliOverride = CliOverride
-  { overrideKey   :: Key
-  , overrideValue :: RawValue
-  , optionSpelling :: Text
+  { key :: !Key
+  , value :: !RawValue
+  , spelling :: !Text
   }
+  deriving stock (Generic)
 
 overrideOptions :: Parser [CliOverride]
 cliSources :: Text -> [CliOverride] -> [Source]
@@ -198,12 +232,14 @@ Provide reusable parser types for zero or more config paths and explanation outp
 
 ```haskell
 data ExplainMode = NoExplain | ExplainText | ExplainJson
+  deriving stock (Generic, Eq, Ord, Show)
 
 data SetteiOptions = SetteiOptions
-  { configPaths :: [FilePath]
-  , cliOverrides :: [CliOverride]
-  , explainMode :: ExplainMode
+  { configPaths :: ![FilePath]
+  , overrides :: ![CliOverride]
+  , explainMode :: !ExplainMode
   }
+  deriving stock (Generic)
 
 setteiOptions :: Parser SetteiOptions
 ```
@@ -211,7 +247,11 @@ setteiOptions :: Parser SetteiOptions
 The option names should have sensible defaults such as `--config`, `--set`,
 `--explain-config`, and `--explain-config-json`, while modifier-taking lower-level helpers
 allow an application to avoid name collisions. This package parses paths but does not open
-them.
+them. Compose `setteiOptions` from two smaller record parsers wrapped with
+`parserOptionGroup "Configuration"` and `parserOptionGroup "Diagnostics"`; group by user
+intent and keep the help option in optparse-applicative's default section. Access the
+parsed records with `#configPaths`, `#overrides`, and `#explainMode`, not generated record
+selectors.
 
 ### Milestone 4: integration tests and migration guide
 
@@ -240,6 +280,10 @@ mori registry search tan-commons-config
 mori registry search mls-service-v2
 mori registry search rei
 mori registry search seihou
+mori registry search generic-lens
+mori registry show ekmett/lens --full
+mori registry show shinzui/haskell-jitsurei --full
+mori registry docs shinzui/haskell-jitsurei
 ```
 
 For each relevant result, use its returned qualified name:
@@ -313,9 +357,20 @@ environment as a golden fixture.
 Package `settei-env` depends on `settei`, `base`, `containers`, and `text`. It exposes pure
 translation plus a thin IO snapshot function. It need not depend on `envparse`; Settei's
 core decoders and explicit binding metadata replace that role. Migration examples must be
-verified against registered `envparse` and consumer source before publication.
+verified against registered `envparse` and consumer source before publication. Add
+`generic-lens` directly when its modules use `#label`; do not rely on the core package's
+dependency visibility.
 
 Package `settei-optparse-applicative` depends on `settei`, `base`, `text`, and the inspected
 `optparse-applicative` version. Its public API uses official combinators and `Parser`; tests
-use `ParserResult` and `parsePure`. Both packages consume core `Source`, `Origin`, `Key`,
-`RawValue`, and `Sensitivity` types and must not duplicate resolution or redaction logic.
+use `ParserResult` and `parsePure`. It also declares `generic-lens` when label access is
+used. Both packages consume core `Source`, `Origin`, `Key`, `RawValue`, and `Sensitivity`
+types and must not duplicate resolution or redaction logic.
+
+
+## Revision Note
+
+2026-07-16: Updated both adapters to inherit the shared Haskell conventions, replaced
+prefixed illustrative record fields with strict reusable labels, added explicit deriving
+strategies and generic-lens dependency guidance, and applied the registered option-group
+pattern to the reusable command-line parser.

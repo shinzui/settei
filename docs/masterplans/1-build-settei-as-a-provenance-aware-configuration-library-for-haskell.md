@@ -31,6 +31,17 @@ errors, and text and JSON reports. Kubernetes support means reading environment 
 and mounted files and attaching operator-supplied ConfigMap or Secret metadata to their
 origins; it does not mean talking to the Kubernetes API.
 
+All packages follow the registered `shinzui/haskell-jitsurei` core conventions. They use
+GHC 9.12 or newer. Each `.cabal` file declares the same package-local `common common`
+stanza with `default-language: GHC2024`, `DeriveAnyClass`, `DuplicateRecordFields`,
+`OverloadedLabels`, and `OverloadedStrings`, and every component imports that stanza. The
+core exposes `Settei.Prelude`; modules import it, use postpositive `qualified` imports,
+define strict record fields without type-name prefixes, use explicit deriving strategies,
+and use generic-lens `#label` access and updates. `Data.Generics.Labels ()` is imported only
+by modules that use those labels, never re-exported from `Settei.Prelude`. Operators remain
+unqualified; a collision is resolved by hiding the unwanted operator from the
+`Settei.Prelude` import.
+
 This initiative proves the package family with a CLI reference program and a service-like
 reference program plus Kubernetes manifests. It deliberately excludes migrations of Rei,
 Mori, Seihou, `tan-commons-config`, and `mls-service-v2`; those should be separate adoption
@@ -64,9 +75,19 @@ rejected because a key computed from an earlier runtime value prevents complete 
 enumeration of possible settings. Treating each format as its own configuration engine was
 rejected because merge and provenance behavior would drift. Migrating production
 consumers in this initiative was rejected because it would couple API discovery to several
-unrelated release cycles. There is no `docs/adr/` directory or existing ADR relevant to
-this work; Plans 1 and 2 must record the durable algebra and resolution decisions there
-once the prototypes have supplied evidence.
+unrelated release cycles.
+[ADR 0001](../adr/0001-haskell-project-conventions.md) records the
+cross-plan implementation baseline adopted during this revision. Plans 1 and 2 must add
+the algebra and resolution ADRs once their prototypes have supplied evidence.
+
+The convention audit uses `mori registry show shinzui/haskell-jitsurei --full` and
+`mori registry docs shinzui/haskell-jitsurei` as the source locator. The child plans embed
+the applicable rules so implementation does not depend on remembering that external
+corpus. Its CLI option-group pattern applies to Settei's reusable option parser and
+reference CLI. Its hierarchical-config rule against merging independent concerns does not
+replace Settei's deliberate precedence merge: Settei merges multiple sources for the same
+declared settings, while genuinely independent configuration concerns should still use
+separate declarations.
 
 
 ## Exec-Plan Registry
@@ -135,6 +156,19 @@ changing the identity of the root `settei` package. EP-7 adds examples beneath `
 and is responsible for testing package interoperability, documentation navigation, and
 release readiness.
 
+EP-1 also owns the Haskell convention baseline shared by every package. It defines the
+canonical Cabal `common` stanza contents and `Settei.Prelude`, including `lens` re-exports
+but excluding the generic-lens orphan `IsLabel` instance. Because Cabal common stanzas are
+package-local, every later package repeats the canonical stanza in its own `.cabal` file
+and imports it from each component. Every later plan otherwise consumes the baseline,
+keeps record fields strict and unprefixed, derives instances with explicit `stock`,
+`newtype`, or `anyclass` strategies, imports qualified modules with postpositive
+`qualified`, and uses lenses instead of record selectors, record update syntax, or direct
+`Map.insert`/`adjust` when manipulating records. Adapter packages declare `generic-lens`
+directly whenever a module imports `Data.Generics.Labels ()`; package dependency visibility
+must not be assumed to be transitive. The durable rationale and rejected alternatives are
+recorded in [ADR 0001](../adr/0001-haskell-project-conventions.md).
+
 Format-specific provenance is owned by the corresponding adapter. YAML reports a file,
 logical key, and parse location when available; KDL additionally retains node spans;
 Dhall reports the root expression and substantiated import closure while explicitly
@@ -145,7 +179,8 @@ are annotations supplied by the application or deployment, not discovered by the
 
 ## Progress
 
-- [ ] EP-1: make the repository build and test as a Cabal/Nix Haskell project.
+- [ ] EP-1: make the repository build and test as a convention-compliant Cabal/Nix
+  Haskell project.
 - [ ] EP-1: prove and document the inspectable selective configuration algebra.
 - [ ] EP-2: implement deterministic hierarchical resolution and structured provenance.
 - [ ] EP-2: implement constant and dependency-aware defaults with safe explanations.
@@ -159,7 +194,14 @@ are annotations supplied by the application or deployment, not discovered by the
 
 ## Surprises & Discoveries
 
-(None yet.)
+- Observation: the registered `shinzui/haskell-jitsurei` corpus makes GHC2024, a shared
+  extension stanza, postpositive qualified imports, strict unprefixed records, explicit
+  deriving strategies, and the custom-prelude/generic-lens split project-wide
+  requirements rather than optional style preferences.
+  Evidence: `mori registry docs shinzui/haskell-jitsurei` resolves the relevant
+  `core-standards`, `core-custom-prelude`, and `core-record-patterns` guides.
+  Impact: EP-1 must establish the baseline, and every child plan's illustrative API and
+  dependency guidance must conform to it.
 
 
 ## Decision Log
@@ -201,10 +243,37 @@ are annotations supplied by the application or deployment, not discovered by the
   experiments to Rei, Mori, Seihou, or microservice rollout schedules.
   Date: 2026-07-16
 
+- Decision: Adopt the applicable `shinzui/haskell-jitsurei` conventions across the entire
+  package family, with EP-1 owning the shared Cabal stanza and `Settei.Prelude`.
+  Rationale: one baseline prevents the core, adapters, examples, and tests from drifting in
+  language edition, import style, record design, deriving, or field access. CLI-specific
+  patterns remain limited to packages that expose a command-line interface.
+  Date: 2026-07-16
+
+- Decision: Record the convention baseline in
+  `docs/adr/0001-haskell-project-conventions.md` and reserve the next two ADR numbers for
+  the algebra and resolution decisions produced by EP-1 and EP-2.
+  Rationale: prelude ownership and public record-label design are durable cross-plan
+  context, while the algebra and resolver decisions still require implementation evidence.
+  Date: 2026-07-16
+
 
 ## Outcomes & Retrospective
 
 To be filled during and after implementation. Before this MasterPlan is complete, distill
 the durable algebra, resolution semantics, adapter boundary, and Dhall provenance
 limitation into `docs/adr/`, and compare the shipped package family and demonstrations with
-the vision above.
+the vision above. The retrospective must also confirm that every Cabal component imports
+its package-local GHC2024 common stanza and that exposed examples and implementation
+modules follow the record, prelude, deriving, lens, and qualified-import conventions above.
+
+
+## Revision Note
+
+2026-07-16: Audited the initiative against the registered
+`shinzui/haskell-jitsurei` corpus and cascaded the applicable core and CLI conventions into
+the MasterPlan and all child ExecPlans. This revision makes the language edition, shared
+extensions, custom prelude, record style, deriving strategies, lens usage, import syntax,
+and option grouping explicit while preserving Settei's intentional source-merging model.
+It also records the durable cross-plan policy in
+`docs/adr/0001-haskell-project-conventions.md`.

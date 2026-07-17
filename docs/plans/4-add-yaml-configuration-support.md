@@ -62,12 +62,21 @@ defaults.
   claim locations it cannot preserve.
   Date: 2026-07-16
 
+- Decision: Inherit Plan 1's shared Haskell conventions and expose YAML option metadata
+  through strict unprefixed labels.
+  Rationale: `DuplicateRecordFields` and local generic-lens access let every adapter reuse
+  `name` and `annotations` consistently without format-prefixed selectors.
+  Date: 2026-07-16
+
 
 ## Outcomes & Retrospective
 
 To be filled during and after implementation. If strict duplicate detection or successful
 node spans require a parser change, record the evidence and final compatibility choice in
-this plan and a format ADR if the constraint is durable.
+this plan and a format ADR if the constraint is durable. Completion also requires the
+package to declare the canonical package-local GHC2024 common stanza, every component to
+import it, and the code to pass the shared prelude, record, deriving, lens, and
+qualified-import audit.
 
 
 ## Context and Orientation
@@ -89,6 +98,15 @@ document composed of null, booleans, numbers, strings, sequences, and mappings w
 keys. Anchors, aliases, tags, merge keys, duplicate handling, numeric precision, and
 multi-document streams must be verified against the selected parser rather than inferred
 from memory. Unsupported or lossy cases must fail with a documented error.
+
+Plan 1 owns the applicable conventions from registered project
+`shinzui/haskell-jitsurei`. Import `Settei.Prelude`, import
+`Data.Generics.Labels ()` only in modules that use `#label`, keep fields strict and free of
+type-name prefixes, use explicit deriving strategies, and read or update records through
+lenses. Qualified parser imports use postpositive syntax. The package declares
+`generic-lens` directly when it imports the label instance instead of relying on a
+transitive core dependency. [ADR 0001](../adr/0001-haskell-project-conventions.md) records
+the durable rationale and rejected alternatives for this baseline.
 
 
 ## Plan of Work
@@ -120,15 +138,17 @@ for every behavior the adapter will promise.
 
 Create `packages/settei-yaml/settei-yaml.cabal` and module `Settei.Yaml`; use `Yaml` in the
 module name to match normal Haskell capitalization. Register the package in `cabal.project`
-and the Nix project.
+and the Nix project. Repeat Plan 1's canonical package-local `common common` stanza and
+import it from the library and test components.
 
 Expose a pure bytes-to-source function and a file convenience:
 
 ```haskell
 data YamlSourceOptions = YamlSourceOptions
-  { yamlSourceName  :: Text
-  , yamlAnnotations :: Map Text Text
+  { name :: !Text
+  , annotations :: !(Map Text Text)
   }
+  deriving stock (Generic, Eq)
 
 decodeYamlSource
   :: YamlSourceOptions
@@ -197,6 +217,10 @@ mori show --full
 mori registry search yaml
 mori registry search aeson
 mori registry search rei
+mori registry search generic-lens
+mori registry show ekmett/lens --full
+mori registry show shinzui/haskell-jitsurei --full
+mori registry docs shinzui/haskell-jitsurei
 ```
 
 For every relevant result, inspect the returned qualified project before using its API:
@@ -269,10 +293,19 @@ public `decodeYamlSource` boundary stable.
 ## Interfaces and Dependencies
 
 Package `settei-yaml` depends on `settei`, `base`, `bytestring`, `containers`, and `text`,
-plus the parser and raw-value bridge selected through source inspection. If the core
-`RawValue` is Aeson-based, prefer a parser path that preserves required validation before
-producing `Data.Aeson.Value`.
+plus the parser and raw-value bridge selected through source inspection. Add
+`generic-lens` directly when package modules use `#label`. If the core `RawValue` is
+Aeson-based, prefer a parser path that preserves required validation before producing
+`Data.Aeson.Value`.
 
 The adapter consumes core `Source`, `Origin`, `RawValue`, `Key`, error, and report
 extension points. It must not depend on `settei-env`, `settei-optparse-applicative`, KDL,
 Dhall, file-discovery libraries, or a Kubernetes client.
+
+
+## Revision Note
+
+2026-07-16: Aligned the YAML adapter plan with the registered core Haskell conventions.
+The public option sketch now uses strict unprefixed fields and explicit deriving, and the
+plan carries forward the custom-prelude, local generic-lens import, lens access, direct
+dependency, and postpositive qualified-import requirements.

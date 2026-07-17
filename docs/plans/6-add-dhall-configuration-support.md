@@ -64,12 +64,20 @@ decoding, precedence, defaults, provenance edges, redaction, and report renderin
   normalization.
   Date: 2026-07-16
 
+- Decision: Inherit the shared Haskell conventions and use strict reusable labels for
+  Dhall roots and source options instead of Dhall-prefixed selectors.
+  Rationale: `DuplicateRecordFields` and local generic-lens access keep the adapter aligned
+  with the rest of the package family while avoiding ambiguous direct selectors.
+  Date: 2026-07-16
+
 
 ## Outcomes & Retrospective
 
 To be filled during and after implementation. Completion requires evidence for the
 enforceable import policies and a durable ADR or guide section documenting provenance
-precision.
+precision. It also requires the package and its tests to inherit the common GHC2024 stanza
+by declaring it package-locally and importing it from every component, and to pass the
+shared prelude, strict-record, explicit-deriving, lens, and import-style audit.
 
 
 ## Context and Orientation
@@ -90,6 +98,16 @@ closure is the set or graph of local, environment, remote, or missing imports th
 actually resolves, including integrity hashes when the library makes them available. It is
 source-level provenance, not proof that every imported resource affects every final leaf.
 
+Plan 1 owns the applicable conventions from registered project
+`shinzui/haskell-jitsurei`. Import `Settei.Prelude`, bring
+`Data.Generics.Labels ()` into only the modules that use `#label`, define strict fields
+without type-name prefixes, and derive instances with explicit strategies. Access option,
+root, and import-graph records through lenses, including `at` and `ix` for maps. Write
+qualified Dhall imports with postpositive `qualified`, and declare `generic-lens` directly
+when the adapter imports the label instance.
+[ADR 0001](../adr/0001-haskell-project-conventions.md) records the durable rationale and
+rejected alternatives for this baseline.
+
 
 ## Plan of Work
 
@@ -105,8 +123,9 @@ The public semantics must support at least:
 ```haskell
 data DhallImportPolicy
   = NoImports
-  | LocalImportsWithin FilePath
+  | LocalImportsWithin !FilePath
   | StandardImports
+  deriving stock (Generic, Eq, Show)
 ```
 
 `NoImports` rejects every import before reading it. `LocalImportsWithin root` permits local
@@ -129,19 +148,23 @@ or restrict test policies accordingly.
 ### Milestone 2: implement value conversion
 
 Create `packages/settei-dhall/settei-dhall.cabal`, expose `Settei.Dhall`, and register the
-package in Cabal and Nix. Because import resolution and cache access are effects, expose an
-IO boundary rather than falsely presenting evaluation as pure:
+package in Cabal and Nix. Repeat Plan 1's canonical package-local `common common` stanza
+and import it from the library and test components. Because import resolution and cache
+access are effects, expose an IO boundary rather than falsely presenting evaluation as
+pure:
 
 ```haskell
 data DhallRoot
-  = DhallExpression { expressionName :: Text, expressionText :: Text }
-  | DhallFile FilePath
+  = DhallExpression { name :: !Text, text :: !Text }
+  | DhallFile !FilePath
+  deriving stock (Generic, Eq)
 
 data DhallSourceOptions = DhallSourceOptions
-  { dhallSourceName   :: Text
-  , dhallImportPolicy :: DhallImportPolicy
-  , dhallAnnotations  :: Map Text Text
+  { name :: !Text
+  , importPolicy :: !DhallImportPolicy
+  , annotations :: !(Map Text Text)
   }
+  deriving stock (Generic, Eq)
 
 loadDhallSource
   :: DhallSourceOptions
@@ -211,6 +234,10 @@ Run from `/Users/shinzui/Keikaku/bokuno/settei`. Refresh the exact project and c
 ```bash
 mori show --full
 mori registry search dhall
+mori registry search generic-lens
+mori registry show ekmett/lens --full
+mori registry show shinzui/haskell-jitsurei --full
+mori registry docs shinzui/haskell-jitsurei
 ```
 
 Use the qualified project name returned by Mori:
@@ -288,8 +315,16 @@ work around import controls by pre-fetching resources outside the resolver.
 Package `settei-dhall` depends on `settei`, `base`, `containers`, `text`, and the exact
 registered `dhall` and `dhall-json` packages, plus Aeson or bytestring types used by the
 official conversion boundary. Use the version bounds established by source inspection and
-characterization tests.
+characterization tests. Add `generic-lens` directly when package modules use `#label`.
 
 The adapter consumes core `Source`, `Origin`, `RawValue`, location, error, and report
 extension points. It must not implement core merging or defaults and must not depend on
 YAML, KDL, environment, CLI, Kubernetes, or effect-system packages.
+
+
+## Revision Note
+
+2026-07-16: Aligned the Dhall adapter plan with the registered core Haskell conventions.
+The root, policy, and option sketches now use strict fields and explicit deriving without
+type-name prefixes, and the plan requires the shared prelude, local generic-lens import,
+lens-based access, a direct dependency, and postpositive qualified imports.

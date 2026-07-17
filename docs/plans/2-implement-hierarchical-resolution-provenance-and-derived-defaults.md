@@ -77,11 +77,20 @@ merge logic.
   accidentally derived `Show` instance.
   Date: 2026-07-16
 
+- Decision: Extend the convention baseline established by Plan 1 rather than introducing
+  provenance-prefixed record fields or direct record access.
+  Rationale: shared labels such as `name`, `kind`, `key`, `value`, `location`, and
+  `annotations` are clearer under `DuplicateRecordFields`; generic-lens keeps access and
+  updates unambiguous without encoding type names into the public API.
+  Date: 2026-07-16
+
 
 ## Outcomes & Retrospective
 
 To be filled during and after implementation. Completion requires a resolution-semantics
-ADR and evidence that no supported renderer or error path reveals a marked secret.
+ADR and evidence that no supported renderer or error path reveals a marked secret. It also
+requires the new modules and tests to retain Plan 1's common GHC2024 stanza, custom
+prelude, strict unprefixed records, explicit deriving, lens access, and import style.
 
 
 ## Context and Orientation
@@ -106,6 +115,17 @@ but track provenance at coarser granularity. Locate their registered paths with 
 before consulting source; do not copy consumer-specific types into Settei. The goal is the
 generalized contract required by all later adapters.
 
+Plan 1 owns the applicable `shinzui/haskell-jitsurei` baseline. Import `Settei.Prelude` in
+new modules, import `Data.Generics.Labels ()` locally wherever `#label` is used, and keep
+the orphan instance out of the prelude. Use strict fields and no type-name field prefixes;
+derive instances with explicit `stock`, `newtype`, or `anyclass` strategies. Read and
+update records with lens operators, including `at` and `ix` for maps, and write qualified
+imports as `import Module qualified as Alias`. Function-valued records may derive
+`Generic`, but must not derive `Show` when doing so could expose raw or secret-bearing
+values. The durable rationale is in
+[ADR 0001](../adr/0001-haskell-project-conventions.md); the algebra produced by Plan 1 is
+recorded in `docs/adr/0002-inspectable-configuration-algebra.md`.
+
 
 ## Plan of Work
 
@@ -126,31 +146,34 @@ equivalent to:
 ```haskell
 data SourceKind
   = BuiltInSource
-  | FileSource Text
+  | FileSource !Text
   | EnvironmentSource
   | CommandLineSource
   | DerivedSource
-  | CustomSource Text
+  | CustomSource !Text
+  deriving stock (Generic, Eq, Ord, Show)
 
 data Origin = Origin
-  { originKind        :: SourceKind
-  , originName        :: Text
-  , originKey         :: Key
-  , originLocation    :: Maybe SourceLocation
-  , originAnnotations :: Map Text Text
+  { kind :: !SourceKind
+  , name :: !Text
+  , key :: !Key
+  , location :: !(Maybe SourceLocation)
+  , annotations :: !(Map Text Text)
   }
+  deriving stock (Generic, Eq)
 
 data Source = Source
-  { sourceName :: Text
-  , sourceKind :: SourceKind
-  , sourceRoot :: RawValue
-  , sourceLocation :: Key -> Maybe SourceLocation
-  , sourceOrigin :: Key -> Maybe SourceLocation -> Origin
+  { name :: !Text
+  , kind :: !SourceKind
+  , root :: !RawValue
+  , locationAt :: !(Key -> Maybe SourceLocation)
+  , originAt :: !(Key -> Maybe SourceLocation -> Origin)
   }
+  deriving stock (Generic)
 ```
 
 Use smart constructors if this exact record would expose invalid states. Source
-annotations are descriptive, never used to alter precedence. `sourceLocation` lets an
+annotations are descriptive, never used to alter precedence. `locationAt` lets an
 adapter retain a successful node span without changing the common raw tree; returning
 `Nothing` is honest when its parser discarded that information. Keep source order outside
 `Source`, so the same source can be placed at different precedence by different apps.
@@ -187,14 +210,16 @@ The result must separate success from diagnostics:
 
 ```haskell
 data ResolveOptions = ResolveOptions
-  { unknownKeyPolicy :: UnknownKeyPolicy
+  { unknownKeyPolicy :: !UnknownKeyPolicy
   }
+  deriving stock (Generic, Eq, Show)
 
 data ResolveResult a = ResolveResult
-  { resolvedValue       :: a
-  , resolutionReport    :: ResolutionReport
-  , resolutionWarnings  :: [ConfigWarning]
+  { value :: !a
+  , report :: !ResolutionReport
+  , warnings :: ![ConfigWarning]
   }
+  deriving stock (Generic)
 
 resolve
   :: ResolveOptions
@@ -220,6 +245,7 @@ The intended interface is:
 
 ```haskell
 newtype RuleName = RuleName Text
+  deriving stock (Generic, Eq, Ord, Show)
 
 data Default a
 
@@ -259,13 +285,18 @@ required, such as a password only in production. Derived values alone do not req
 Selective; Applicative dependencies are sufficient. Keep these two concepts distinct in
 documentation and tests.
 
+Follow the record convention in production and test helpers: construct records with
+unprefixed labels, inspect them with `(^.)`, and update them with `(.~)`, `(%~)`, `(?~)`,
+`at`, or `ix`. Do not reintroduce generated selector calls or record update syntax in the
+resolver merely because many report structures share field names.
+
 ### Milestone 4: build safe reports and renderers
 
 Add `src/Settei/Report.hs` and `src/Settei/Render.hs`. Represent each evaluated setting as
 a stable node with its key, sensitivity, outcome, chosen origin, shadowed origins, and
 derivation or conditional edges. Store display values only in a redaction-aware type whose
 secret constructor cannot be unwrapped by public reporting functions. The typed
-`resolvedValue` remains available to the application.
+The `value` in `ResolveResult` remains available to the application.
 
 Provide deterministic text and JSON renderers for `Schema`, `ResolutionReport`, errors,
 and warnings. Text should optimize for `--explain-config`; JSON should be versioned with a
@@ -295,7 +326,7 @@ default cycles, derivation chains, stable ordering, and all renderers. Generate 
 strings containing unusual punctuation and assert that none occurs anywhere in rendered
 reports or errors.
 
-Create `docs/adr/0002-resolution-provenance-and-default-semantics.md`. Include source
+Create `docs/adr/0003-resolution-provenance-and-default-semantics.md`. Include source
 ordering, leaf semantics, array replacement, malformed-winner behavior, warning policy,
 redaction boundary, and the difference between static schema and actual resolution trace.
 
@@ -311,6 +342,10 @@ mori registry list
 mori registry search seihou
 mori registry search rei
 mori registry search mori
+mori registry search generic-lens
+mori registry show ekmett/lens --full
+mori registry show shinzui/haskell-jitsurei --full
+mori registry docs shinzui/haskell-jitsurei
 ```
 
 Use the qualified names returned by search rather than guessing them:
@@ -396,4 +431,16 @@ interpreter machinery internal.
 Prefer existing core dependencies from Plan 1. JSON rendering can use the already-inspected
 Aeson dependency if `RawValue` chose it; otherwise inspect Aeson with Mori or upstream
 source before adding it. Property testing may use a registered QuickCheck package after
-the required Mori lookup. No adapter parser library belongs in the core.
+the required Mori lookup. `lens` and `generic-lens` remain baseline core dependencies;
+every module that uses `#label` imports `Data.Generics.Labels ()` itself. No adapter parser
+library belongs in the core.
+
+
+## Revision Note
+
+2026-07-16: Aligned the resolver and provenance design with the shared Haskell conventions.
+Illustrative APIs now use strict unprefixed fields and explicit deriving, and the plan
+requires `Settei.Prelude`, local generic-lens instance imports, lens-based record and map
+updates, and postpositive qualified imports throughout implementation and tests. The
+durable convention baseline is in `docs/adr/0001-haskell-project-conventions.md`, and the
+resolution ADR moves to number 0003 after the algebra ADR.

@@ -66,12 +66,22 @@ remains outside this plan.
   between a YAML path, KDL span, and Dhall import graph.
   Date: 2026-07-16
 
+- Decision: Make the reference applications demonstrate the shared Haskell conventions,
+  including nested records with reusable labels and intent-based CLI option groups.
+  Rationale: examples are the public proof of how consumers should use Settei; prefixed
+  flat fields or an unstructured wall of flags would teach patterns that conflict with the
+  registered convention corpus.
+  Date: 2026-07-16
+
 
 ## Outcomes & Retrospective
 
 To be filled during and after implementation. Before completing the MasterPlan, summarize
 which parts of the reference API are stable enough for production adoption and create
-follow-up migration plans for consumers only if separately authorized.
+follow-up migration plans for consumers only if separately authorized. Confirm that both
+example `.cabal` files declare the canonical package-local GHC2024 common stanza, every
+component imports it, and the examples and conformance suite pass the shared prelude,
+record, deriving, lens, qualified-import, and CLI option-group audit.
 
 
 ## Context and Orientation
@@ -101,6 +111,20 @@ ConfigMaps, Secrets, and direct deployment fields. Rei, Mori, and Seihou each co
 different configuration approaches. Re-locate them with Mori and read current source and
 deployment files before writing comparison or migration prose.
 
+Plan 1 owns the applicable conventions from registered project
+`shinzui/haskell-jitsurei`. Example modules import `Settei.Prelude`, import
+`Data.Generics.Labels ()` locally when using generic-lens labels, keep record fields strict
+and unprefixed, and use explicit deriving strategies. They access nested configuration with
+lens composition such as `config ^. #database . #port`, not generated selectors or record
+updates, and write qualified imports postpositively. Example packages declare
+`generic-lens` directly when they import the label instance. The registered option-group
+pattern applies to the CLI example: group by user intent, keep labels short, and retain
+optparse-applicative's ordinary help section for `--help`. Shell completions, help topics,
+and terminal-width reflow are deliberately outside this small reference CLI unless later
+requirements explicitly add them.
+[ADR 0001](../adr/0001-haskell-project-conventions.md) records the durable rationale and
+rejected alternatives for this baseline.
+
 
 ## Plan of Work
 
@@ -108,9 +132,11 @@ deployment files before writing comparison or migration prose.
 
 Create `examples/settei-cli/settei-example-cli.cabal` and modules under
 `examples/settei-cli/src/`. Register it as a non-published package in `cabal.project` and
-Nix checks. Define one `Config CliConfig` containing `runtime.environment`, a service
-endpoint, timeout, output format, and a secret token. Keep the declaration in a library
-module so tests can inspect it without spawning the executable.
+Nix checks. Repeat Plan 1's canonical package-local `common common` stanza and import it
+from the library, executable, and test components. Define one `Config CliConfig` containing
+`runtime.environment`, a service endpoint, timeout, output format, and a secret token. Keep
+the declaration in a library module so tests can inspect it without spawning the
+executable.
 
 The executable accepts ordered repeated `--config FORMAT:PATH`, where FORMAT is `yaml`,
 `kdl`, or `dhall`; file arguments later on the command line have higher precedence. It
@@ -133,31 +159,50 @@ Add `--describe-config` for the static schema, `--explain-config` for the actual
 report, `--explain-config-json` for the versioned JSON report, and `--check-config` to
 validate without performing the example action. Explanation flags must not cause the
 application to print a typed record with secrets afterward. Establish exit codes for CLI
-usage errors, source IO/parse failures, and resolution failures and test them.
+usage errors, source IO/parse failures, and resolution failures and test them. Wrap config
+paths, environment bindings, direct options, and `--set` under a short “Configuration”
+`parserOptionGroup`; wrap describe, explain, and check modes under “Diagnostics”. The
+groups change help layout only, not parsing or precedence, and tests should snapshot the
+grouped `--help` headings.
 
 ### Milestone 2: build the service and Kubernetes example
 
 Create `examples/settei-service/settei-example-service.cabal` with its declaration in a
-testable library module. Define:
+testable library module. Repeat the canonical package-local `common common` stanza and
+import it from the library, executable, and test components. Define:
 
 ```haskell
 data RuntimeEnvironment = Development | Test | Production
+  deriving stock (Generic, Eq, Ord, Show)
 
 data ServiceConfig = ServiceConfig
-  { environment      :: RuntimeEnvironment
-  , httpHost          :: Text
-  , httpPort          :: Int
-  , databaseHost      :: Text
-  , databasePort      :: Int
-  , databasePoolSize  :: Int
-  , databasePassword  :: Maybe SecretText
+  { environment :: !RuntimeEnvironment
+  , http :: !HttpConfig
+  , database :: !DatabaseConfig
   }
+  deriving stock (Generic, Eq)
+
+data HttpConfig = HttpConfig
+  { host :: !Text
+  , port :: !Int
+  }
+  deriving stock (Generic, Eq, Show)
+
+data DatabaseConfig = DatabaseConfig
+  { host :: !Text
+  , port :: !Int
+  , poolSize :: !Int
+  , password :: !(Maybe SecretText)
+  }
+  deriving stock (Generic, Eq)
 ```
 
-Use a named `caseDefault` or equivalent core rule for `httpPort` and
-`databasePoolSize`, with different Development, Test, and Production values. Use a
-Selective branch to require `database.password` only in Production. Keep the password in
-a type without a revealing `Show` instance.
+Use a named `caseDefault` or equivalent core rule for the HTTP `port` and database
+`poolSize`, with different Development, Test, and Production values. Use a
+Selective branch to require `database.password` only in Production. Use the
+`#http . #port`, `#database . #poolSize`, and `#database . #password` paths when assembling
+or inspecting the typed result. Keep `SecretText`, `DatabaseConfig`, and `ServiceConfig`
+without revealing `Show` instances.
 
 The service accepts one mounted config file with explicit format, then mapped environment
 variables. It supports `--check-config` and redacted text or JSON explanation. In its
@@ -230,6 +275,10 @@ mori registry search mls-service-v2
 mori registry search rei
 mori registry search mori
 mori registry search seihou
+mori registry search generic-lens
+mori registry show ekmett/lens --full
+mori registry show shinzui/haskell-jitsurei --full
+mori registry docs shinzui/haskell-jitsurei
 ```
 
 Inspect each qualified result used in documentation:
@@ -263,6 +312,7 @@ cabal build all
 cabal test all --test-show-details=direct
 cabal haddock all
 cabal sdist all
+cabal check
 mori show --full
 nix flake check
 git diff --check
@@ -330,10 +380,23 @@ assertions.
 `settei-example-cli` depends on all six publishable Settei packages and uses only their
 public modules. `settei-example-service` depends on `settei`, `settei-env`, and the file
 adapters it demonstrates; it may use `settei-optparse-applicative` for diagnostic flags.
-Examples are non-published packages.
+Each example package declares `generic-lens` directly when its modules import
+`Data.Generics.Labels ()`; each `.cabal` file declares the canonical package-local
+`common common` stanza and imports it from all components. Examples are non-published
+packages.
 
 The conformance suite depends on `tasty`, `tasty-hunit`, and adapter test dependencies
 already selected through Mori-backed source inspection. It must not introduce a second
 merge or report implementation. Kubernetes files are static example assets and add no
 Haskell dependency. No plan step uploads to Hackage, creates Git tags, deploys Kubernetes,
 or mutates production consumers without separate authorization.
+
+
+## Revision Note
+
+2026-07-16: Updated both reference applications and their conformance work to demonstrate
+the registered Haskell conventions. The service configuration is now nested with strict
+reusable labels and explicit deriving, record access is lens-based, example packages carry
+their own generic-lens dependency when needed, qualified imports are postpositive, and the
+CLI presents intent-based Configuration and Diagnostics option groups without expanding
+the reference application's scope.

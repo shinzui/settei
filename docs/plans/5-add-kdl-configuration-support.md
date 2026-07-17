@@ -62,11 +62,20 @@ the application's settings.
   named fields without inventing reserved keys.
   Date: 2026-07-16
 
+- Decision: Inherit the shared Haskell conventions and reuse strict `name` and
+  `annotations` labels instead of KDL-prefixed record fields.
+  Rationale: local generic-lens access and `DuplicateRecordFields` keep the public adapter
+  API consistent with the other source packages without ambiguous selector usage.
+  Date: 2026-07-16
+
 
 ## Outcomes & Retrospective
 
 To be filled during and after implementation. Any change to the canonical mapping must be
 recorded here and in the format guide because configuration files will depend on it.
+Completion also requires the package to declare the canonical package-local GHC2024 common
+stanza, every component to import it, and the code to pass the shared prelude, record,
+deriving, lens, and import-style audit.
 
 
 ## Context and Orientation
@@ -86,6 +95,16 @@ In the mapping below, an object is a collection of named fields, a leaf is a raw
 array supplied to one setting decoder, and a span is the file region associated with a KDL
 node or value. Settei key segments retain the version-one restriction from Plan 1: empty
 segments and literal dots within a segment are rejected.
+
+Plan 1 owns the applicable conventions from registered project
+`shinzui/haskell-jitsurei`. Import `Settei.Prelude`, import
+`Data.Generics.Labels ()` locally wherever generic-lens labels are used, use strict fields
+without type-name prefixes, and derive instances with explicit strategies. Read and update
+records and path-to-span maps with lenses, `at`, or `ix`; do not mix selector calls or
+record updates into that code. Qualified KDL imports use postpositive `qualified` syntax,
+and the package declares `generic-lens` directly when it imports the orphan label instance.
+[ADR 0001](../adr/0001-haskell-project-conventions.md) records the durable rationale and
+rejected alternatives for this baseline.
 
 
 ## Plan of Work
@@ -108,13 +127,16 @@ silently erase semantic annotations.
 ### Milestone 2: implement the canonical document mapping
 
 Create `packages/settei-kdl/settei-kdl.cabal`, expose `Settei.Kdl`, and register the
-package in Cabal and Nix. Provide pure text parsing and a file convenience:
+package in Cabal and Nix. Repeat Plan 1's canonical package-local `common common` stanza
+and import it from the library and test components. Provide pure text parsing and a file
+convenience:
 
 ```haskell
 data KdlSourceOptions = KdlSourceOptions
-  { kdlSourceName  :: Text
-  , kdlAnnotations :: Map Text Text
+  { name :: !Text
+  , annotations :: !(Map Text Text)
   }
+  deriving stock (Generic, Eq)
 
 decodeKdlSource
   :: KdlSourceOptions
@@ -214,6 +236,10 @@ source before importing anything:
 ```bash
 mori show --full
 mori registry search kdl
+mori registry search generic-lens
+mori registry show ekmett/lens --full
+mori registry show shinzui/haskell-jitsurei --full
+mori registry docs shinzui/haskell-jitsurei
 ```
 
 Use the qualified result returned by the registry:
@@ -290,9 +316,17 @@ instead of coercing it.
 
 Package `settei-kdl` depends on `settei`, `base`, `containers`, `text`, and the registered
 `kdl-hs` package, plus only the numeric or path dependencies required by its inspected AST.
-It consumes core `Source`, `Origin`, `SourceLocation`, `RawValue`, and error extension
-points.
+Add `generic-lens` directly when package modules use `#label`. It consumes core `Source`,
+`Origin`, `SourceLocation`, `RawValue`, and error extension points.
 
 Do not use `KDL.Applicative` or `KDL.Arrow` as the application's schema, do not duplicate
 the core resolver, and do not depend on YAML, Dhall, environment, CLI, Kubernetes, or
 effect-system packages.
+
+
+## Revision Note
+
+2026-07-16: Aligned the KDL adapter plan with the registered core Haskell conventions.
+The option API now uses strict unprefixed fields and explicit deriving, while implementation
+guidance requires the shared prelude, local generic-lens import, lens-based record and map
+access, a direct package dependency, and postpositive qualified imports.
