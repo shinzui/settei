@@ -4,6 +4,7 @@ slug: add-environment-and-optparse-applicative-configuration-sources
 title: "Add environment and optparse-applicative configuration sources"
 kind: exec-plan
 created_at: 2026-07-16T23:50:04Z
+intention: intention_01kxr36cqgem8tmxjjtnq0t6ns
 master_plan: "docs/masterplans/1-build-settei-as-a-provenance-aware-configuration-library-for-haskell.md"
 ---
 
