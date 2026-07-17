@@ -36,7 +36,7 @@ defaults.
 - [x] (2026-07-17 08:41 PDT) Translate supported YAML values into the core raw tree and origin model.
 - [x] (2026-07-17 08:41 PDT) Add strict error handling, file IO, and mounted-file annotations.
 - [x] (2026-07-17 08:41 PDT) Test hierarchy, precedence, locations, duplicate keys, and redaction.
-- [ ] Publish the YAML format guide and limitations.
+- [x] (2026-07-17 08:55 PDT) Publish the YAML format guide and limitations.
 
 
 ## Surprises & Discoveries
@@ -117,12 +117,21 @@ defaults.
 
 ## Outcomes & Retrospective
 
-To be filled during and after implementation. If strict duplicate detection or successful
-node spans require a parser change, record the evidence and final compatibility choice in
-this plan and a format ADR if the constraint is durable. Completion also requires the
-package to declare the canonical package-local GHC2024 common stanza, every component to
-import it, and the code to pass the shared prelude, record, deriving, lens, and
-qualified-import audit.
+Completed on 2026-07-17. `settei-yaml` now exposes strict pure-byte and file-loading
+boundaries, structured secret-safe errors, trusted mounted-file annotations, and exact
+one-based locations for successful leaves. The direct marked-event translation preserves
+exact rational numbers, explicit null, arrays, and nested mappings while rejecting every
+ambiguous or unsupported feature before constructing a core source. ADR 0004 records the
+durable format contract, and `docs/guides/yaml.md` documents mapping, ordering, null,
+locations, Kubernetes metadata, and limitations.
+
+The focused package has 20 passing characterization and integration tests; the complete
+workspace has 82. `cabal test all --test-show-details=direct`, `cabal haddock all`, all
+four package-level `cabal check` invocations, `nix fmt`,
+`nix build --no-link .#settei-yaml`, and `nix flake check` pass. The YAML module reaches
+100% Haddock coverage. The package-local GHC2024 common stanza is imported by both
+components, and the implementation passes the shared-prelude, strict unprefixed record,
+explicit deriving, local generic-lens, and postpositive qualified-import audit.
 
 
 ## Context and Orientation
@@ -370,3 +379,7 @@ dependency, and postpositive qualified-import requirements.
 `libyaml-0.1.4` implementations. The adapter now uses marked events for strict duplicate
 detection and successful-node locations, documents its strict subset and localized pure
 wrapper, and records the 20-test characterization evidence.
+
+2026-07-17: Marked the plan complete after publishing the YAML guide and passing the
+82-test workspace suite, 100%-covered adapter Haddocks, package checks, formatting,
+dedicated Nix adapter build, full flake check, and convention audit.

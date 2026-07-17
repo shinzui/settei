@@ -98,7 +98,7 @@ separate declarations.
 | EP-1 | Bootstrap Settei and prove the inspectable configuration algebra | `docs/plans/1-bootstrap-settei-and-prove-the-inspectable-configuration-algebra.md` | None | None | Complete |
 | EP-2 | Implement hierarchical resolution, provenance, and derived defaults | `docs/plans/2-implement-hierarchical-resolution-provenance-and-derived-defaults.md` | EP-1 | None | Complete |
 | EP-3 | Add environment and optparse-applicative configuration sources | `docs/plans/3-add-environment-and-optparse-applicative-configuration-sources.md` | EP-2 | None | Complete |
-| EP-4 | Add YAML configuration support | `docs/plans/4-add-yaml-configuration-support.md` | EP-2 | None | In Progress |
+| EP-4 | Add YAML configuration support | `docs/plans/4-add-yaml-configuration-support.md` | EP-2 | None | Complete |
 | EP-5 | Add KDL configuration support | `docs/plans/5-add-kdl-configuration-support.md` | EP-2 | None | Not Started |
 | EP-6 | Add Dhall configuration support | `docs/plans/6-add-dhall-configuration-support.md` | EP-2 | None | Not Started |
 | EP-7 | Prove Settei in CLI and Kubernetes service reference applications | `docs/plans/7-prove-settei-in-cli-and-kubernetes-service-reference-applications.md` | EP-3, EP-4, EP-5, EP-6 | None | Not Started |
@@ -192,7 +192,7 @@ are annotations supplied by the application or deployment, not discovered by the
 - [x] EP-2: implement deterministic hierarchical resolution and structured provenance.
 - [x] EP-2: implement constant and dependency-aware defaults with safe explanations.
 - [x] EP-3: load explicit environment bindings and command-line overrides.
-- [ ] EP-4: translate YAML documents into provenance-aware sources.
+- [x] EP-4: translate YAML documents into provenance-aware sources.
 - [ ] EP-5: translate canonical KDL documents while preserving node locations.
 - [ ] EP-6: translate normalized Dhall values and report honest import provenance.
 - [ ] EP-7: demonstrate CLI and Kubernetes service use cases end to end.
@@ -255,6 +255,14 @@ are annotations supplied by the application or deployment, not discovered by the
   component mixed both ABIs; the coherent Cabal plan ran every test against 0.19.
   Impact: the flake pins 0.19.0.0, the Nix CLI adapter output is library-only for checks,
   and Cabal remains the executable test authority until nixpkgs advances.
+
+- Observation: the common high-level YAML-to-Aeson decoder drops duplicate-key warnings
+  and successful node marks even though its lower-level parser retains both.
+  Evidence: EP-4's source audit found warning accumulation followed by map insertion in
+  `yaml-0.11.11.2`, while `libyaml-0.1.4` exposes every pair and zero-based span through
+  `decodeMarked`; block and flow duplicate tests now fail at the second key.
+  Impact: format adapters must select parser layers by the provenance and ambiguity
+  contract they need, rather than assuming a convenient value conversion preserves it.
 
 
 ## Decision Log
@@ -346,6 +354,13 @@ are annotations supplied by the application or deployment, not discovered by the
   output without weakening Cabal's all-package, all-test acceptance gate.
   Date: 2026-07-17
 
+- Decision: Adopt ADR 0004's single-mapping, marked-event YAML subset with strict
+  duplicate detection, exact rational numbers, explicit null, one-based locations, and
+  explicit rejection of graph, merge, custom-tag, and multi-document semantics.
+  Rationale: direct marked events preserve the evidence Settei needs without moving YAML
+  merge behavior or lossy Aeson conversion into the shared core.
+  Date: 2026-07-17
+
 
 ## Outcomes & Retrospective
 
@@ -371,6 +386,14 @@ descending shadow traces were added to core so every adapter can preserve exact 
 The 62-test suite and Cabal build/check/Haddock, Nix format/check, and explicit adapter
 builds pass; ADRs 0001 and 0003 retain the cross-plan packaging, provenance, rendering,
 and redaction decisions. EP-4 through EP-6 remain dependency-ready.
+
+EP-4 completed on 2026-07-17. It added a direct marked-event YAML translator, strict
+single-mapping input semantics, duplicate and unsupported-feature rejection, exact
+successful-node locations, structured secret-safe errors, file IO, mounted ConfigMap or
+Secret metadata, and a complete format guide. ADR 0004 preserves the portable YAML
+contract. The 82-test workspace suite, 100%-covered YAML Haddocks, package checks, Nix
+formatting, dedicated YAML build, full flake check, and convention audit pass. EP-5 and
+EP-6 remain dependency-ready.
 
 Before this MasterPlan is complete, distill the durable resolution semantics, adapter
 boundary, and Dhall provenance limitation into `docs/adr/`, and compare the shipped package
@@ -406,3 +429,7 @@ dependency-ready.
 2026-07-17: Marked EP-3 complete after its 62-test Cabal suite, Haddock, formatting,
 explicit adapter Nix builds, and flake checks. Recorded the exact-origin core extensions,
 secret-safe CLI metadata, migration guide, and optparse-applicative 0.19 Nix constraint.
+
+2026-07-17: Marked EP-4 complete after its strict marked-event implementation, format ADR
+and guide, 82-test workspace suite, 100%-covered adapter Haddocks, package checks,
+formatting, dedicated Nix build, full flake check, and convention audit.
