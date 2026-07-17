@@ -36,13 +36,13 @@ Settei is being designed around these requirements:
   requiring access to the Kubernetes API.
 
 
-## Planned packages
+## Packages
 
 - `settei` provides the declaration algebra, hierarchical resolver, provenance model,
   derived defaults, and report rendering.
 - `settei-env` translates explicitly mapped environment variables into Settei sources.
 - `settei-optparse-applicative` provides reusable command-line configuration options.
-- `settei-yaml`, `settei-kdl`, and `settei-dhall` provide format-specific file sources
+- The planned `settei-yaml`, `settei-kdl`, and `settei-dhall` packages provide format-specific file sources
   without moving merge semantics out of the core.
 
 The public configuration language is planned to support Functor, Applicative, and
@@ -56,10 +56,13 @@ not treated as a provenance system.
 ## Project status
 
 The root `settei` package now provides validated hierarchical keys, parser-neutral raw
-values, secret-safe decoders, typed setting declarations, selective composition, and
-source-free schema inspection. Source precedence, provenance reports, defaults, and format
-adapters remain under active implementation. The architecture and implementation sequence
-are documented in the
+values, secret-safe decoders, typed setting declarations, selective composition,
+source-free schema inspection, deterministic precedence, provenance reports, named
+defaults, and text and JSON explanations. `settei-env` and
+`settei-optparse-applicative` provide the first source adapters; see the
+[environment and command-line guide](docs/guides/environment-and-cli.md) for a migration
+and precedence example. File-format adapters remain under active implementation. The
+architecture and implementation sequence are documented in the
 [Settei MasterPlan](docs/masterplans/1-build-settei-as-a-provenance-aware-configuration-library-for-haskell.md).
 The child ExecPlans in [`docs/plans/`](docs/plans/) define independently verifiable work for
 the core, source adapters, and reference CLI and Kubernetes service applications.
