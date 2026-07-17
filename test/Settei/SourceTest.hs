@@ -38,7 +38,17 @@ tests =
           _ -> fail "expected a structural error",
       testCase "leaf enumeration is ordered and treats arrays wholesale" $
         fmap (renderKey . fst) (sourceLeaves sampleSource)
-          @?= ["service.hosts", "service.port"]
+          @?= ["service.hosts", "service.port"],
+      testCase "per-key annotations reach only their matching origins" $ do
+        let annotated =
+              annotateSourceAt
+                (\key -> if key == servicePort then Map.singleton "environment.variable" "PORT" else Map.empty)
+                sampleSource
+        case (lookupSource servicePort annotated, lookupSource serviceHosts annotated) of
+          (Right (Just port), Right (Just hosts)) -> do
+            port ^. to candidateOrigin . #annotations . at "environment.variable" @?= Just "PORT"
+            hosts ^. to candidateOrigin . #annotations . at "environment.variable" @?= Nothing
+          _ -> fail "expected both annotated source candidates"
     ]
 
 sampleSource :: Source

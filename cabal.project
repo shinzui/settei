@@ -1,4 +1,9 @@
-packages: .
+packages:
+  .
+  packages/settei-env
 
 package settei
+  tests: True
+
+package settei-env
   tests: True

@@ -49,7 +49,13 @@ Origins contain a source kind, stable source name, logical key, optional exact-k
 location, and ordered annotations. Annotations are descriptive and never affect
 precedence. Core supplies shared Kubernetes ConfigMap and Secret reference annotations;
 adapter packages may add environment-variable, command-line-option, path, span, or import
-metadata without introducing format cases into the resolver.
+metadata without introducing format cases into the resolver. `Source` supports both
+source-wide annotations and composable per-key annotations; per-key entries take
+precedence when names overlap. This lets one environment snapshot or parsed document
+retain distinct metadata for each candidate without being split into artificial sources.
+The text renderer recognizes core's Kubernetes annotation vocabulary and appends the
+asserted object kind, namespace, name, and key; deterministic JSON retains the complete
+ordered annotation map.
 
 Defaults are syntax nodes with a `RuleName`, explanation, and either a constant value or
 an explicit `Config` dependency. A finite case default is the same named dependency form

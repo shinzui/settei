@@ -6,6 +6,7 @@
 module Settei.Source
   ( Source,
     annotateSource,
+    annotateSourceAt,
     locateSource,
     lookupSource,
     source,
@@ -34,6 +35,7 @@ data Source = Source
     kind :: !SourceKind,
     root :: !RawValue,
     locationAt :: !(Key -> Maybe SourceLocation),
+    annotationsAt :: !(Key -> Map Text Text),
     annotations :: !(Map Text Text)
   }
   deriving stock (Generic)
@@ -46,12 +48,23 @@ source name kind root =
       kind,
       root,
       locationAt = const Nothing,
+      annotationsAt = const Map.empty,
       annotations = Map.empty
     }
 
 -- | Attach adapter-specific descriptive metadata. It never changes precedence.
 annotateSource :: Map Text Text -> Source -> Source
 annotateSource annotations sourceValue = sourceValue & #annotations .~ annotations
+
+-- | Attach descriptive metadata for individual keys.
+--
+-- Later calls compose with earlier hooks. New per-key entries take precedence over
+-- earlier per-key and source-wide entries with the same annotation name.
+annotateSourceAt :: (Key -> Map Text Text) -> Source -> Source
+annotateSourceAt additions sourceValue =
+  sourceValue
+    & #annotationsAt
+    %~ \existing key -> additions key <> existing key
 
 -- | Attach exact-key locations retained by an adapter parser.
 locateSource :: (Key -> Maybe SourceLocation) -> Source -> Source
@@ -121,7 +134,9 @@ originFor key sourceValue =
       name = sourceValue ^. #name,
       key,
       location = (sourceValue ^. #locationAt) key,
-      annotations = sourceValue ^. #annotations
+      annotations =
+        (sourceValue ^. #annotationsAt) key
+          <> sourceValue ^. #annotations
     }
 
 prefixKey :: Key -> [Text] -> Key

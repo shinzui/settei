@@ -110,21 +110,37 @@ renderOriginText prefix origin = prefix <> originDescription origin <> "\n"
 
 originDescription :: Origin -> Text
 originDescription origin =
-  case origin ^. #kind of
-    BuiltInSource -> "built-in source " <> origin ^. #name
-    FileSource formatName -> "file source " <> origin ^. #name <> " (" <> formatName <> ")"
-    EnvironmentSource ->
-      maybe
-        ("environment source " <> origin ^. #name)
-        ("environment variable " <>)
-        (origin ^. #annotations . at "environment.variable")
-    CommandLineSource ->
-      maybe
-        ("command-line source " <> origin ^. #name)
-        ("command-line option " <>)
-        (origin ^. #annotations . at "command-line.option")
-    DerivedSource -> "default rule " <> origin ^. #name
-    CustomSource customKind -> customKind <> " source " <> origin ^. #name
+  baseDescription <> kubernetesSuffix origin
+  where
+    baseDescription = case origin ^. #kind of
+      BuiltInSource -> "built-in source " <> origin ^. #name
+      FileSource formatName -> "file source " <> origin ^. #name <> " (" <> formatName <> ")"
+      EnvironmentSource ->
+        maybe
+          ("environment source " <> origin ^. #name)
+          ("environment variable " <>)
+          (origin ^. #annotations . at "environment.variable")
+      CommandLineSource ->
+        maybe
+          ("command-line source " <> origin ^. #name)
+          ("command-line option " <>)
+          (origin ^. #annotations . at "command-line.option")
+      DerivedSource -> "default rule " <> origin ^. #name
+      CustomSource customKind -> customKind <> " source " <> origin ^. #name
+
+kubernetesSuffix :: Origin -> Text
+kubernetesSuffix origin =
+  case ( origin ^. #annotations . at "kubernetes.object-kind",
+         origin ^. #annotations . at "kubernetes.object-name"
+       ) of
+    (Just objectKind, Just objectName) ->
+      " from Kubernetes "
+        <> objectKind
+        <> " "
+        <> maybe "" (<> "/") (origin ^. #annotations . at "kubernetes.namespace")
+        <> objectName
+        <> maybe "" (" key " <>) (origin ^. #annotations . at "kubernetes.object-key")
+    _ -> ""
 
 -- | Render structured failures without access to rejected secret values.
 renderErrorsText :: NonEmpty ConfigError -> Text

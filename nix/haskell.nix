@@ -22,6 +22,12 @@
       hsdev = inputs.haskell-nix-dev.lib.${system};
       haskellPackages = pkgs.haskell.packages."ghc9124";
 
+      setteiPackage = haskellPackages.callCabal2nix "settei" inputs.self { };
+      setteiEnvPackage =
+        haskellPackages.callCabal2nix "settei-env" ../packages/settei-env {
+          settei = setteiPackage;
+        };
+
       baseDevPackages = [
         pkgs.zlib
         pkgs.just
@@ -40,7 +46,8 @@
       };
     in
     {
-      packages.default = haskellPackages.callCabal2nix "settei" inputs.self { };
+      packages.default = setteiPackage;
+      packages.settei-env = setteiEnvPackage;
 
       devShells.default = mkProjectShell "ghc9124";
       devShells."ghc9124" = mkProjectShell "ghc9124";

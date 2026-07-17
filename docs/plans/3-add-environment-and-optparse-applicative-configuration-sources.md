@@ -21,7 +21,7 @@ change.
 After this plan, services can load explicitly mapped environment variables and CLIs can
 turn `optparse-applicative` options into the same provenance-aware sources used everywhere
 else. An explanation names the precise variable or option occurrence that supplied a
-value. Tests can inject an environment snapshot and use `parsePure`, so they do not mutate
+value. Tests can inject an environment snapshot and use `execParserPure`, so they do not mutate
 the developer's process. Applications can annotate an environment variable as originating
 from a Kubernetes ConfigMap or Secret without Settei contacting a cluster.
 
@@ -33,8 +33,8 @@ interface.
 
 ## Progress
 
-- [ ] Add and register the `settei-env` package.
-- [ ] Implement explicit bindings, prefix helpers, injected snapshots, and origin metadata.
+- [x] (2026-07-17 07:34 PDT) Add and register the `settei-env` package.
+- [x] (2026-07-17 07:34 PDT) Implement explicit bindings, prefix helpers, injected snapshots, and origin metadata.
 - [ ] Add and register the `settei-optparse-applicative` package.
 - [ ] Implement generic overrides, direct option bindings, config-path and explain options.
 - [ ] Test repeated options, precedence, redaction, and Kubernetes annotations.
@@ -43,7 +43,27 @@ interface.
 
 ## Surprises & Discoveries
 
-(None yet.)
+- Observation: core `Source` originally attached annotations only once for the entire
+  source, but one environment source can contain many keys controlled by different
+  variables.
+  Evidence: the initial adapter could build the correct raw tree but could not make
+  `lookupSource` return distinct `environment.variable` annotations for two keys.
+  Impact: core now provides `annotateSourceAt`; YAML, KDL, and Dhall adapters can use the
+  same hook for exact-key metadata without splitting one document into many sources.
+
+- Observation: the deterministic pure runner in registered optparse-applicative 0.19.0.0
+  is named `execParserPure`, not `parsePure`.
+  Evidence: direct inspection of `Options.Applicative` and
+  `Options.Applicative.Extra` found the exported `execParserPure`, `ParserResult`, and
+  `getParseResult` API and no `parsePure` definition.
+  Impact: adapter tests and this plan use the supported public function name.
+
+- Observation: core JSON rendering already retained all Kubernetes annotations, while
+  core text rendering named only the environment variable or command-line option.
+  Evidence: the first Secret and ConfigMap explanation tests found object metadata in
+  `renderResolutionJson` but not `renderResolutionText`.
+  Impact: the shared text renderer now adds a Kubernetes object suffix for any annotated
+  origin, including future mounted-file adapters.
 
 
 ## Decision Log
@@ -72,6 +92,18 @@ interface.
   scan without changing parser semantics.
   Date: 2026-07-16
 
+- Decision: Validate portable environment names as ASCII letters or underscore followed
+  by ASCII letters, digits, or underscores, and reject target keys that overlap by prefix.
+  Rationale: shell-portable names make generated bindings predictable, while a scalar at
+  `service` and another value at `service.port` cannot coexist in one raw object tree.
+  Date: 2026-07-17
+
+- Decision: Extend core sources with composable per-key annotations and render shared
+  Kubernetes annotations in the core text explanation.
+  Rationale: exact provenance belongs to each candidate, and every adapter must receive
+  identical JSON and text behavior without adding format-specific renderers.
+  Date: 2026-07-17
+
 
 ## Outcomes & Retrospective
 
@@ -98,10 +130,11 @@ richer precedence and explanation model. Locate all of these with `mori registry
 and read registered source directly before writing migration documentation; the adapter
 must not guess their current APIs.
 
-At planning time, registered `optparse-applicative` source is version 0.19.0.0 and its
-`Parser` is Functor, Applicative, and Alternative. The package provides `parsePure`, which
-is the correct boundary for deterministic tests. Refresh that source lookup before
-implementation.
+The refreshed registered `optparse-applicative` source is version 0.19.0.0 and its
+`Parser` is Functor, Applicative, and Alternative. The package provides
+`execParserPure`, `ParserResult`, and `getParseResult`; `execParserPure` is the correct
+boundary for deterministic tests. There is no public `parsePure` function in this
+version.
 
 Plan 1 embeds the registered `shinzui/haskell-jitsurei` core baseline. Both new `.cabal`
 files repeat the canonical package-local `common common` stanza and import it from every
@@ -171,19 +204,21 @@ setting in the core, so a binding cannot downgrade a secret setting to public.
 
 ### Milestone 2: support deployment annotations without cluster access
 
-Consume the typed Kubernetes reference and annotation helper owned by core
-`Settei.Origin`. It must be usable for both environment variables and mounted-file
-sources; its semantic shape is:
+Consume the typed `KubernetesRef` and `kubernetesAnnotations` helper owned by core
+`Settei.Origin`. It is usable for both environment variables and mounted-file sources;
+the checked-in core constructs it with:
 
 ```haskell
-data KubernetesObject
-  = ConfigMapRef { namespace :: !(Maybe Text), name :: !Text, key :: !Text }
-  | SecretRef { namespace :: !(Maybe Text), name :: !Text, key :: !Text }
-  deriving stock (Generic, Eq, Show)
+kubernetesRef
+  :: KubernetesObjectKind
+  -> Maybe Text
+  -> Text
+  -> Maybe Text
+  -> KubernetesRef
 
-kubernetesObjectAnnotations :: KubernetesObject -> Map Text Text
+kubernetesAnnotations :: KubernetesRef -> Map Text Text
 
-fromKubernetesObject :: KubernetesObject -> EnvBinding -> EnvBinding
+fromKubernetesObject :: KubernetesRef -> EnvBinding -> EnvBinding
 ```
 
 The resulting explanation can say that `DATABASE_PASSWORD` was delivered from Secret
@@ -256,7 +291,7 @@ selectors.
 
 ### Milestone 4: integration tests and migration guide
 
-Use `Options.Applicative.parsePure` and a supplied `EnvSnapshot` for every functional test.
+Use `Options.Applicative.execParserPure` and a supplied `EnvSnapshot` for every functional test.
 Prove the combined order built-in default, in-memory file-shaped source, environment, then
 CLI. Cover duplicate overrides, invalid keys, missing environment values, prefix
 collisions, secret redaction, ConfigMap annotations, and Secret annotations.
@@ -364,7 +399,7 @@ dependency visibility.
 
 Package `settei-optparse-applicative` depends on `settei`, `base`, `text`, and the inspected
 `optparse-applicative` version. Its public API uses official combinators and `Parser`; tests
-use `ParserResult` and `parsePure`. It also declares `generic-lens` when label access is
+use `ParserResult` and `execParserPure`. It also declares `generic-lens` when label access is
 used. Both packages consume core `Source`, `Origin`, `Key`, `RawValue`, and `Sensitivity`
 types and must not duplicate resolution or redaction logic.
 
@@ -375,3 +410,7 @@ types and must not duplicate resolution or redaction logic.
 prefixed illustrative record fields with strict reusable labels, added explicit deriving
 strategies and generic-lens dependency guidance, and applied the registered option-group
 pattern to the reusable command-line parser.
+
+2026-07-17: Reconciled the plan with the implemented core and refreshed dependency source.
+The environment adapter now uses core `KubernetesRef`, per-key source annotations, and
+`execParserPure`, the actual optparse-applicative 0.19 pure runner.

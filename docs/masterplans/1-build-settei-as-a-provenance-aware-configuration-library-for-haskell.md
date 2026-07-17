@@ -234,6 +234,14 @@ are annotations supplied by the application or deployment, not discovered by the
   Impact: adapters can rely on cycle validation happening before source inspection, and
   default rule names are durable semantic identities rather than presentation labels.
 
+- Observation: source-wide annotations cannot identify distinct environment variables or
+  parsed locations for multiple keys in one source.
+  Evidence: EP-3's first environment adapter could construct the raw tree but needed a
+  core `annotateSourceAt` hook before origins could name the exact variable per candidate.
+  Impact: EP-3 added composable per-key annotations to core; EP-4 through EP-6 should use
+  that extension for key-specific format metadata instead of splitting one document into
+  artificial sources.
+
 
 ## Decision Log
 
@@ -304,6 +312,12 @@ are annotations supplied by the application or deployment, not discovered by the
   and versioned deterministic report formats as the adapter contract.
   Rationale: EP-3 through EP-6 must translate inputs into one shared source model rather
   than acquire format-specific merge, fallback, or explanation behavior.
+  Date: 2026-07-17
+
+- Decision: Let `Source` compose source-wide and per-key annotations, with per-key entries
+  winning name collisions, and let the core text renderer describe Kubernetes references.
+  Rationale: adapters need honest candidate-level provenance and consistent text/JSON
+  explanations without format-specific rendering paths.
   Date: 2026-07-17
 
 
