@@ -40,6 +40,8 @@ library
     Settei.Origin
     Settei.Prelude
     Settei.Provenance
+    Settei.Report
+    Settei.Resolve
     Settei.Schema
     Settei.Setting
     Settei.Source
@@ -75,6 +77,9 @@ test-suite settei-tests
     Settei.Prelude
     Settei.Prototype.Free
     Settei.Provenance
+    Settei.Report
+    Settei.Resolve
+    Settei.ResolveTest
     Settei.Schema
     Settei.Setting
     Settei.Source

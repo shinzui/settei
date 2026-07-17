@@ -20,10 +20,10 @@ tests =
         decodeSetting environment (RawText "production") @?= Right Production,
       testCase "secret decoder failures omit rejected values" $ case decodeSetting secretText (RawText "supersecret") of
         Right _ -> fail "expected decoding to fail"
-        Left decodeFailure ->
+        Left failureValue ->
           assertBool
             "rendered failure leaked the rejected secret"
-            (not (Text.isInfixOf "supersecret" (renderDecodeFailure decodeFailure)))
+            (not (Text.isInfixOf "supersecret" (renderDecodeFailure failureValue)))
     ]
 
 data Environment = Development | Production

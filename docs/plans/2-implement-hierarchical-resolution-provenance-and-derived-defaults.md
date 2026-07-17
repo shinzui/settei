@@ -34,7 +34,7 @@ merge logic.
 ## Progress
 
 - [x] Define the source tree, candidates, origin extension points, and resolution errors.
-- [ ] Implement deterministic leaf-wise precedence and unknown-key diagnostics.
+- [x] Implement deterministic leaf-wise precedence and unknown-key diagnostics.
 - [ ] Add constant and dependency-aware default declarations.
 - [ ] Interpret selective branches while recording dependency and branch traces.
 - [ ] Render redacted text and JSON schema and resolution reports.
@@ -92,6 +92,13 @@ merge logic.
   Rationale: adapters retain spans and domain metadata without gaining the ability to
   change logical keys or precedence in an origin factory. Standard Kubernetes references
   are encoded through shared typed constructors and stable annotation names.
+  Date: 2026-07-17
+
+- Decision: Validate scalar/object traversal conflicts for every statically possible key
+  before runtime branch evaluation, while keeping missing and decode errors branch-local.
+  Rationale: source shape is a document-level invariant and the plan requires traversal
+  conflicts to always fail; Selective still controls whether a setting is required or its
+  winning leaf is decoded.
   Date: 2026-07-17
 
 

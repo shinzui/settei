@@ -8,6 +8,9 @@ module Settei.Value
     boolDecoder,
     boundedIntegralDecoder,
     enumDecoder,
+    decodeFailure,
+    decodeFailureExpected,
+    decoder,
     renderDecodeFailure,
     runDecoder,
     textDecoder,
@@ -48,6 +51,18 @@ newtype Decoder a = Decoder
   { decode :: Key -> RawValue -> Either DecodeFailure a
   }
   deriving stock (Generic)
+
+-- | Construct a decoder whose failures carry only safe expectation metadata.
+decoder :: (Key -> RawValue -> Either DecodeFailure a) -> Decoder a
+decoder decode = Decoder {decode}
+
+-- | Construct a rejection without retaining the rejected raw value.
+decodeFailure :: Key -> Text -> DecodeFailure
+decodeFailure key expected = DecodeFailure {key, expected}
+
+-- | Inspect the safe expectation text for a failed decode.
+decodeFailureExpected :: DecodeFailure -> Text
+decodeFailureExpected value = value ^. #expected
 
 -- | Run a decoder for one setting key.
 runDecoder :: Decoder a -> Key -> RawValue -> Either DecodeFailure a

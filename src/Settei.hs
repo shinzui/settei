@@ -5,6 +5,8 @@ module Settei
     module Settei.Key,
     module Settei.Origin,
     module Settei.Provenance,
+    module Settei.Report,
+    module Settei.Resolve,
     module Settei.Schema,
     module Settei.Setting,
     module Settei.Source,
@@ -17,6 +19,8 @@ import Settei.Error
 import Settei.Key
 import Settei.Origin
 import Settei.Provenance
+import Settei.Report
+import Settei.Resolve
 import Settei.Schema
 import Settei.Setting
 import Settei.Source
