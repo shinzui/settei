@@ -97,7 +97,7 @@ separate declarations.
 |---|---|---|---|---|---|
 | EP-1 | Bootstrap Settei and prove the inspectable configuration algebra | `docs/plans/1-bootstrap-settei-and-prove-the-inspectable-configuration-algebra.md` | None | None | Complete |
 | EP-2 | Implement hierarchical resolution, provenance, and derived defaults | `docs/plans/2-implement-hierarchical-resolution-provenance-and-derived-defaults.md` | EP-1 | None | Complete |
-| EP-3 | Add environment and optparse-applicative configuration sources | `docs/plans/3-add-environment-and-optparse-applicative-configuration-sources.md` | EP-2 | None | In Progress |
+| EP-3 | Add environment and optparse-applicative configuration sources | `docs/plans/3-add-environment-and-optparse-applicative-configuration-sources.md` | EP-2 | None | Complete |
 | EP-4 | Add YAML configuration support | `docs/plans/4-add-yaml-configuration-support.md` | EP-2 | None | Not Started |
 | EP-5 | Add KDL configuration support | `docs/plans/5-add-kdl-configuration-support.md` | EP-2 | None | Not Started |
 | EP-6 | Add Dhall configuration support | `docs/plans/6-add-dhall-configuration-support.md` | EP-2 | None | Not Started |
@@ -191,7 +191,7 @@ are annotations supplied by the application or deployment, not discovered by the
 - [x] EP-1: prove and document the inspectable selective configuration algebra.
 - [x] EP-2: implement deterministic hierarchical resolution and structured provenance.
 - [x] EP-2: implement constant and dependency-aware defaults with safe explanations.
-- [ ] EP-3: load explicit environment bindings and command-line overrides.
+- [x] EP-3: load explicit environment bindings and command-line overrides.
 - [ ] EP-4: translate YAML documents into provenance-aware sources.
 - [ ] EP-5: translate canonical KDL documents while preserving node locations.
 - [ ] EP-6: translate normalized Dhall values and report honest import provenance.
@@ -248,6 +248,13 @@ are annotations supplied by the application or deployment, not discovered by the
   report formats while proving the raw secret sentinel is absent.
   Impact: CLI origins retain `--set KEY` plus an occurrence number, never `KEY=VALUE`;
   future adapters must likewise keep raw candidate values out of annotations.
+
+- Observation: nixpkgs' GHC 9.12.4 package set carries optparse-applicative 0.18, and its
+  `tasty` package was built against that ABI, while EP-3 requires 0.19's option-group API.
+  Evidence: pinning 0.19 made the adapter library build, but enabling the Nix test
+  component mixed both ABIs; the coherent Cabal plan ran every test against 0.19.
+  Impact: the flake pins 0.19.0.0, the Nix CLI adapter output is library-only for checks,
+  and Cabal remains the executable test authority until nixpkgs advances.
 
 
 ## Decision Log
@@ -333,6 +340,12 @@ are annotations supplied by the application or deployment, not discovered by the
   values being copied around core redaction through adapter metadata.
   Date: 2026-07-17
 
+- Decision: Pin optparse-applicative 0.19.0.0 as a flake input and disable checks only for
+  the Nix CLI adapter derivation while nixpkgs' `tasty` retains the 0.18 ABI.
+  Rationale: this preserves the source-inspected public API and reproducible library
+  output without weakening Cabal's all-package, all-test acceptance gate.
+  Date: 2026-07-17
+
 
 ## Outcomes & Retrospective
 
@@ -350,6 +363,14 @@ adapter. The 45-test suite includes exhaustive source-ordering, golden rendering
 adversarial secret-leak audit; Cabal build/test/check/Haddock, Nix formatting/check/build,
 JSON parsing, and Mori identity validation all pass. EP-3 through EP-6 are now
 dependency-ready and may implement adapters independently against this core contract.
+
+EP-3 completed on 2026-07-17. It added pure explicit environment bindings, opt-in prefix
+derivation, trusted Kubernetes annotations, ordered optparse-applicative overrides, named
+options, grouped reusable parsers, and an audited migration guide. Per-key annotations and
+descending shadow traces were added to core so every adapter can preserve exact origins.
+The 62-test suite and Cabal build/check/Haddock, Nix format/check, and explicit adapter
+builds pass; ADRs 0001 and 0003 retain the cross-plan packaging, provenance, rendering,
+and redaction decisions. EP-4 through EP-6 remain dependency-ready.
 
 Before this MasterPlan is complete, distill the durable resolution semantics, adapter
 boundary, and Dhall provenance limitation into `docs/adr/`, and compare the shipped package
@@ -381,3 +402,7 @@ narrow `Control.Lens.Setting` prelude exclusion required by Settei's public type
 2026-07-17: Marked EP-2 complete after the full Cabal, Haddock, Nix, Mori, formatting,
 45-test, JSON-golden, and adversarial-redaction acceptance suite. EP-3 through EP-6 are now
 dependency-ready.
+
+2026-07-17: Marked EP-3 complete after its 62-test Cabal suite, Haddock, formatting,
+explicit adapter Nix builds, and flake checks. Recorded the exact-origin core extensions,
+secret-safe CLI metadata, migration guide, and optparse-applicative 0.19 Nix constraint.

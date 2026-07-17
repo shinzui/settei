@@ -21,6 +21,11 @@ Mori resolved both `lens` and `generic-lens` through `ekmett/lens`; direct sourc
 found `lens` 5.3.6, `generic-lens` 2.3.0.0, `Control.Lens`, and the orphan `IsLabel` instance
 exported by `Data.Generics.Labels`.
 
+EP-3's dependency audit resolved optparse-applicative 0.19.0.0 and its
+`parserOptionGroup` API. Nixpkgs' GHC 9.12.4 package set still carries 0.18, and its
+`tasty` derivation embeds that older ABI, so simply overriding the adapter dependency
+would mix incompatible optparse-applicative instances in the Nix test component.
+
 
 ## Decision
 
@@ -60,6 +65,13 @@ hierarchical-config guidance to keep independent concerns separate remains valid
 does not replace Settei's defining behavior: ordered sources for the same declared setting
 schema are merged by core precedence rules.
 
+The flake pins the source-inspected optparse-applicative 0.19.0.0 Hackage release for the
+command-line adapter's Nix output. Cabal is the authoritative executable test graph because
+its solver selects one coherent optparse-applicative version for the full suite. Until the
+nixpkgs `tasty` graph advances to the same ABI, only the Nix derivation for
+`settei-optparse-applicative` uses `pkgs.haskell.lib.dontCheck`; the library still builds
+against 0.19, and `cabal test all` must run all adapter tests.
+
 
 ## Consequences
 
@@ -77,6 +89,11 @@ and representative modules for strict fields, explicit deriving, local label-ins
 imports, lens access, and postpositive qualified imports. CLI help tests also verify the
 applicable option-group headings.
 
+Pinning one small Hackage source makes the Nix CLI output reproducible against the public
+API used by Cabal. Temporarily disabling that derivation's checks avoids an ABI-invalid
+test graph without removing any test from the repository's acceptance suite. The exception
+is narrowly scoped and should be removed once nixpkgs supplies a compatible `tasty` graph.
+
 
 ## Rejected Alternatives
 
@@ -87,6 +104,10 @@ every module and can conflict with other label-based DSLs. Creating a different 
 each adapter was rejected because the packages form one project and need a shared baseline.
 Applying every CLI cookbook pattern to the small reference executable was rejected as
 scope without a user requirement.
+Building the adapter against nixpkgs' optparse-applicative 0.18 was rejected because it
+lacks the adopted option-group API. Relaxing the Cabal lower bound or silently skipping
+the tests everywhere was rejected because either would weaken the source-inspected API or
+the acceptance evidence.
 Requiring every module to import `Settei.Prelude hiding (Setting)` was rejected because
 the collision is universal to Settei consumers and can be resolved once at the prelude
 boundary. Renaming Settei's domain type was rejected because `Setting` is the clearest

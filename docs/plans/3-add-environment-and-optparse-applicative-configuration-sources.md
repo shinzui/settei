@@ -38,7 +38,7 @@ interface.
 - [x] (2026-07-17 07:41 PDT) Add and register the `settei-optparse-applicative` package.
 - [x] (2026-07-17 07:41 PDT) Implement generic overrides, direct option bindings, config-path and explain options.
 - [x] (2026-07-17 07:41 PDT) Test repeated options, precedence, redaction, and Kubernetes annotations.
-- [ ] Document migration from small `envparse` configurations.
+- [x] (2026-07-17 07:56 PDT) Document migration from small `envparse` configurations.
 
 
 ## Surprises & Discoveries
@@ -72,6 +72,15 @@ interface.
   Impact: `CliOverride` has a private constructor and retains the safe spelling
   `--set KEY`; value text remains only in constructor-private `RawValue` until core applies
   setting sensitivity.
+
+- Observation: nixpkgs' GHC 9.12.4 package set provides optparse-applicative 0.18, while
+  this adapter requires the source-inspected 0.19 `parserOptionGroup` API; moreover, the
+  nixpkgs `tasty` derivation was built against 0.18.
+  Evidence: the first explicit Nix adapter build could not resolve the 0.19 lower bound;
+  after pinning 0.19, enabling the adapter test component mixed both optparse ABIs in one
+  graph. Cabal's coherent solver plan ran the same tests successfully against 0.19.
+  Impact: the flake pins the 0.19.0.0 Hackage source, the Nix library output disables its
+  test component, and `cabal test all` remains the authoritative executable test run.
 
 
 ## Decision Log
@@ -119,14 +128,35 @@ interface.
   oldest fallback.
   Date: 2026-07-17
 
+- Decision: Pin optparse-applicative 0.19.0.0 for the Nix adapter output and use
+  `pkgs.haskell.lib.dontCheck` only on that output while nixpkgs' test libraries retain the
+  0.18 ABI.
+  Rationale: the shipped library must expose the tested 0.19 API, while Cabal can execute
+  all 62 tests in one dependency plan without weakening the adapter's version bound.
+  Date: 2026-07-17
+
 
 ## Outcomes & Retrospective
 
-To be filled during and after implementation. Record any naming or origin convention that
-other adapters need in the relevant core ADR before completing this plan. Confirm that
-both packages declare and import the canonical package-local GHC2024 stanza and follow the
-strict-record, explicit-deriving, custom-prelude, lens, and import conventions before
-marking the plan complete.
+Completed on 2026-07-17. `settei-env` now translates explicit or deliberately prefixed
+bindings from an injectable snapshot, rejects ambiguous binding sets, and attaches exact
+environment and trusted Kubernetes metadata per key. `settei-optparse-applicative` now
+provides ordered secret-safe overrides, named options, config paths, mutually exclusive
+explanation modes, and intent-grouped reusable parsers. The migration guide records the
+audited `envparse`, Rei, and Seihou patterns and shows file below environment below CLI.
+
+The acceptance suite contains 47 core, 7 environment, and 8 command-line tests. It proves
+repeated-option ordering, malformed-winner failure, absent variables, binding collisions,
+Kubernetes ConfigMap and Secret annotations, grouped help, and adversarial redaction
+without reading or mutating the live environment. Cabal build, all 62 tests, Cabal check,
+Haddock, Nix formatting, explicit adapter Nix builds, and `nix flake check` pass.
+
+Both adapter Cabal files declare the canonical package-local GHC2024 stanza and every
+library and test component imports it. Representative modules and tests use strict
+unprefixed records, explicit deriving strategies, `Settei.Prelude`, local
+`Data.Generics.Labels ()` imports, lens access, and postpositive qualified imports. ADRs
+0001 and 0003 now retain the durable Nix dependency, per-key annotation, safe-origin, text
+rendering, and shadow-order decisions needed by later adapters.
 
 
 ## Context and Orientation
@@ -366,8 +396,7 @@ Settei.Env
   Secret annotation remains redacted: OK
 Settei.Optparse
   final repeated --set wins with shadow trace: OK
-  parsePure rejects an invalid key: OK
-Settei.Integration.EnvironmentCli
+  execParserPure rejects an invalid key: OK
   cli overrides environment overrides file: OK
 All tests passed
 ```
@@ -422,6 +451,11 @@ use `ParserResult` and `execParserPure`. It also declares `generic-lens` when la
 used. Both packages consume core `Source`, `Origin`, `Key`, `RawValue`, and `Sensitivity`
 types and must not duplicate resolution or redaction logic.
 
+The flake pins the inspected optparse-applicative 0.19.0.0 Hackage source because nixpkgs'
+GHC 9.12.4 package set still carries 0.18. Cabal owns executable test validation until the
+nixpkgs `tasty` graph uses the same ABI; the Nix adapter output therefore builds the
+library with checks disabled rather than combining incompatible library instances.
+
 
 ## Revision Note
 
@@ -437,3 +471,7 @@ The environment adapter now uses core `KubernetesRef`, per-key source annotation
 2026-07-17: Kept `CliOverride` construction private and clarified that its origin spelling
 omits the raw value. This preserves core redaction while still recording the exact key and
 occurrence number.
+
+2026-07-17: Completed both adapters and the audited migration guide, recorded the
+optparse-applicative 0.19 Nix pin and temporary library-only Nix check policy, and replaced
+the provisional retrospective with the 62-test acceptance evidence.
