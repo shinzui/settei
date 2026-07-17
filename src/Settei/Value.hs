@@ -1,3 +1,6 @@
+-- |
+-- Module: Settei.Value
+-- Description: Parser-neutral raw values and secret-safe typed decoders.
 module Settei.Value
   ( RawValue (..),
     DecodeFailure,

@@ -15,6 +15,10 @@ category:           Configuration
 build-type:         Simple
 extra-source-files: README.md
 
+source-repository head
+  type:     git
+  location: https://github.com/shinzui/settei.git
+
 common common
   default-language:   GHC2024
   default-extensions:

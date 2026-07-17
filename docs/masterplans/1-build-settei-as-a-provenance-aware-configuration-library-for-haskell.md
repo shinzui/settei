@@ -95,7 +95,7 @@ separate declarations.
 
 | # | Title | Path | Hard Deps | Soft Deps | Status |
 |---|---|---|---|---|---|
-| EP-1 | Bootstrap Settei and prove the inspectable configuration algebra | `docs/plans/1-bootstrap-settei-and-prove-the-inspectable-configuration-algebra.md` | None | None | In Progress |
+| EP-1 | Bootstrap Settei and prove the inspectable configuration algebra | `docs/plans/1-bootstrap-settei-and-prove-the-inspectable-configuration-algebra.md` | None | None | Complete |
 | EP-2 | Implement hierarchical resolution, provenance, and derived defaults | `docs/plans/2-implement-hierarchical-resolution-provenance-and-derived-defaults.md` | EP-1 | None | Not Started |
 | EP-3 | Add environment and optparse-applicative configuration sources | `docs/plans/3-add-environment-and-optparse-applicative-configuration-sources.md` | EP-2 | None | Not Started |
 | EP-4 | Add YAML configuration support | `docs/plans/4-add-yaml-configuration-support.md` | EP-2 | None | Not Started |
@@ -188,7 +188,7 @@ are annotations supplied by the application or deployment, not discovered by the
 
 - [x] EP-1: make the repository build and test as a convention-compliant Cabal/Nix
   Haskell project.
-- [ ] EP-1: prove and document the inspectable selective configuration algebra.
+- [x] EP-1: prove and document the inspectable selective configuration algebra.
 - [ ] EP-2: implement deterministic hierarchical resolution and structured provenance.
 - [ ] EP-2: implement constant and dependency-aware defaults with safe explanations.
 - [ ] EP-3: load explicit environment bindings and command-line overrides.
@@ -294,12 +294,19 @@ are annotations supplied by the application or deployment, not discovered by the
 
 ## Outcomes & Retrospective
 
-To be filled during and after implementation. Before this MasterPlan is complete, distill
-the durable algebra, resolution semantics, adapter boundary, and Dhall provenance
-limitation into `docs/adr/`, and compare the shipped package family and demonstrations with
-the vision above. The retrospective must also confirm that every Cabal component imports
-its package-local GHC2024 common stanza and that exposed examples and implementation
-modules follow the record, prelude, deriving, lens, and qualified-import conventions above.
+EP-1 completed on 2026-07-17. It established the convention-compliant Cabal/Nix project,
+Mori identity, public declaration vocabulary, explicit inspectable selective algebra,
+source-free schema, and 16-test proof suite. ADR 0002 preserves the algebra choice and
+laws; ADR 0001 now also records the narrow `Control.Lens.Setting` exclusion needed by the
+public domain type. EP-2 is dependency-ready and remains responsible for resolution,
+provenance, defaults, and reports.
+
+Before this MasterPlan is complete, distill the durable resolution semantics, adapter
+boundary, and Dhall provenance limitation into `docs/adr/`, and compare the shipped package
+family and demonstrations with the vision above. The final retrospective must also confirm
+that every Cabal component imports its package-local GHC2024 common stanza and that exposed
+examples and implementation modules follow the record, prelude, deriving, lens, and
+qualified-import conventions above.
 
 
 ## Revision Note
@@ -317,3 +324,6 @@ It also records the durable cross-plan policy in
 
 2026-07-17: Recorded EP-1's explicit configuration representation and propagated the
 narrow `Control.Lens.Setting` prelude exclusion required by Settei's public type name.
+
+2026-07-17: Marked EP-1 complete after the full Cabal, Haddock, Nix, Mori, formatting, and
+16-test acceptance suite. EP-2 is now the first dependency-ready plan.

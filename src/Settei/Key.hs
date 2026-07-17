@@ -1,3 +1,6 @@
+-- |
+-- Module: Settei.Key
+-- Description: Validated structural keys with canonical dotted rendering.
 module Settei.Key
   ( Key,
     KeyError (..),
@@ -14,7 +17,7 @@ import Data.Text qualified as Text
 import Settei.Prelude
 
 -- | A validated, hierarchical configuration key.
-newtype Key = Key
+newtype Key = ValidatedKey
   { segments :: NonEmpty Text
   }
   deriving stock (Generic, Eq, Ord, Show)
@@ -31,7 +34,7 @@ mkKey :: NonEmpty Text -> Either KeyError Key
 mkKey value
   | any Text.null segmentList = Left KeySegmentIsEmpty
   | Just part <- findWithDot segmentList = Left (KeySegmentContainsDot part)
-  | otherwise = Right (Key value)
+  | otherwise = Right (ValidatedKey value)
   where
     segmentList = NonEmpty.toList value
     findWithDot = find (Text.any (== '.'))

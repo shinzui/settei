@@ -55,8 +55,11 @@ not treated as a provenance system.
 
 ## Project status
 
-Settei is currently in its planning and bootstrap stage. The architecture and implementation
-sequence are documented in the
+The root `settei` package now provides validated hierarchical keys, parser-neutral raw
+values, secret-safe decoders, typed setting declarations, selective composition, and
+source-free schema inspection. Source precedence, provenance reports, defaults, and format
+adapters remain under active implementation. The architecture and implementation sequence
+are documented in the
 [Settei MasterPlan](docs/masterplans/1-build-settei-as-a-provenance-aware-configuration-library-for-haskell.md).
 The child ExecPlans in [`docs/plans/`](docs/plans/) define independently verifiable work for
 the core, source adapters, and reference CLI and Kubernetes service applications.

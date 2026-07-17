@@ -1,3 +1,6 @@
+-- |
+-- Module: Settei.Setting
+-- Description: Metadata and decoders for individual configuration settings.
 module Settei.Setting
   ( Sensitivity (..),
     Setting,

@@ -1,5 +1,8 @@
 {-# LANGUAGE PackageImports #-}
 
+-- |
+-- Module: Settei.Prelude
+-- Description: Small shared project prelude and lens operator surface.
 module Settei.Prelude
   ( module X,
     module Control.Lens,

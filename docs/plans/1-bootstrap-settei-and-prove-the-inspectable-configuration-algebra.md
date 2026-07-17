@@ -43,7 +43,9 @@ precedence or user-facing provenance; those are the subject of Plan 2.
   private explicit representation.
 - [x] (2026-07-17 06:30 PDT) Implement schema inspection and conditional execution tests.
   All 16 key, decoder, schema, free-prototype, and runtime tests pass.
-- [ ] Write the algebra ADR and public module documentation.
+- [x] (2026-07-17 06:36 PDT) Write the algebra ADR and public module documentation.
+  `docs/adr/0002-inspectable-configuration-algebra.md` records the alternatives, laws,
+  terminology, and no-Monad boundary; Haddocks build successfully.
 
 
 ## Surprises & Discoveries
@@ -124,12 +126,26 @@ precedence or user-facing provenance; those are the subject of Plan 2.
 
 ## Outcomes & Retrospective
 
-To be filled during and after implementation. Completion requires an ADR that records the
-chosen representation, the analysis laws demonstrated by tests, and the deliberate absence
-of a Monad instance. It also requires evidence that every Cabal component imports the
-root package's GHC2024 common stanza and the initial modules follow the prelude,
-strict-record, explicit-deriving, lens, and postpositive-qualified-import conventions
-described below.
+EP-1 is complete. The repository now builds a root `settei` library with validated
+hierarchical keys, a parser-neutral raw value tree, key-aware secret-safe decoders, public
+and secret setting constructors, a private explicit selective GADT, static schema
+inspection, and a source-independent runtime fold used by the proof tests. The test suite
+has 16 passing cases covering keys, scalar decoders, secret redaction, applicative
+necessity, selective conditionality, agreement with the free-selective analysis oracle,
+and development/production branch execution.
+
+The representation decision and analysis laws are durable project context in
+`docs/adr/0002-inspectable-configuration-algebra.md`. The custom-prelude collision and
+dependency-bound discoveries were distilled into
+`docs/adr/0001-haskell-project-conventions.md` and the parent MasterPlan. The root library
+and test suite both import the package-local GHC2024 common stanza; source and test modules
+use strict unprefixed fields, explicit deriving, local generic-label imports, lens access,
+and postpositive qualified imports.
+
+Validation succeeded with `cabal build all`, 16 direct Tasty tests, `cabal check`,
+`cabal haddock all`, `nix fmt`, `nix flake check`, `nix build .#`, and `mori show --full`.
+The next plan owns source precedence, provenance, errors, defaults, and explanation
+rendering; none of those semantics were pulled prematurely into this bootstrap.
 
 
 ## Context and Orientation
@@ -427,3 +443,7 @@ implementation-time algebra ADR moves to number 0002.
 2026-07-17: Recorded the completed vocabulary and algebra proof, the explicit-GADT
 representation decision, decoder error design, and the narrow `Control.Lens.Setting`
 prelude exclusion revealed by the compiling public API.
+
+2026-07-17: Completed EP-1, added ADR 0002 and public declaration/inspection Haddocks,
+recorded the full validation evidence, and distilled durable discoveries into ADR 0001 and
+the parent MasterPlan.
