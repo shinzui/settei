@@ -4,6 +4,7 @@ slug: add-yaml-configuration-support
 title: "Add YAML configuration support"
 kind: exec-plan
 created_at: 2026-07-16T23:50:07Z
+intention: intention_01kxr36cqgem8tmxjjtnq0t6ns
 master_plan: "docs/masterplans/1-build-settei-as-a-provenance-aware-configuration-library-for-haskell.md"
 ---
 
