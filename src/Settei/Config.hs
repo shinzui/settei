@@ -33,14 +33,17 @@ module Settei.Config
     describe,
     optional,
     required,
+    withDefault,
   )
 where
 
+import Settei.Default (Default)
 import Settei.Internal.Config
   ( Config,
     describeConfig,
     optionalConfig,
     requiredConfig,
+    withDefaultConfig,
   )
 import Settei.Schema (Schema)
 import Settei.Setting (Setting)
@@ -52,6 +55,10 @@ required = requiredConfig
 -- | Request a setting without failing when no source supplies it.
 optional :: Setting a -> Config (Maybe a)
 optional = optionalConfig
+
+-- | Request a setting, evaluating its named fallback only when no source supplies it.
+withDefault :: Setting a -> Default a -> Config a
+withDefault = withDefaultConfig
 
 -- | Inspect every possible request without reading configuration sources.
 describe :: Config a -> Schema

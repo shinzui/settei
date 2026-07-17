@@ -4,6 +4,8 @@
 module Settei.Error
   ( ConfigError (..),
     ConfigWarning (..),
+    DefaultCycleProblem (..),
+    DefaultProblem (..),
     DecodeProblem (..),
     MissingProblem (..),
     RawShape (..),
@@ -12,6 +14,7 @@ module Settei.Error
   )
 where
 
+import Settei.Default (RuleName)
 import Settei.Key (Key)
 import Settei.Origin (Origin)
 import Settei.Prelude
@@ -52,12 +55,28 @@ data UnknownKeyProblem = UnknownKeyProblem
   }
   deriving stock (Generic, Eq, Show)
 
+-- | A named default failed without retaining its dependency value.
+data DefaultProblem = DefaultProblem
+  { key :: !Key,
+    rule :: !RuleName,
+    message :: !Text
+  }
+  deriving stock (Generic, Eq, Show)
+
+-- | The ordered rule path that re-entered an active default.
+data DefaultCycleProblem = DefaultCycleProblem
+  { rules :: !(NonEmpty RuleName)
+  }
+  deriving stock (Generic, Eq, Show)
+
 -- | A fatal resolver error. Every constructor is safe to render or show.
 data ConfigError
   = MissingRequired !MissingProblem
   | DecodeError !DecodeProblem
   | StructuralConflict !StructuralError
   | UnknownKeyError !UnknownKeyProblem
+  | DefaultError !DefaultProblem
+  | DefaultCycle !DefaultCycleProblem
   deriving stock (Generic, Eq, Show)
 
 -- | A non-fatal resolver diagnostic.

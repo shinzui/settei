@@ -35,6 +35,7 @@ library
   exposed-modules:
     Settei
     Settei.Config
+    Settei.Default
     Settei.Error
     Settei.Key
     Settei.Origin
@@ -68,6 +69,8 @@ test-suite settei-tests
     Settei
     Settei.Config
     Settei.ConfigTest
+    Settei.Default
+    Settei.DefaultTest
     Settei.Error
     Settei.Internal.Config
     Settei.Internal.Schema

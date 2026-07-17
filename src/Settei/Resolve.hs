@@ -16,15 +16,26 @@ import Data.Generics.Labels ()
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Settei.Error
-import Settei.Internal.Config (Config (..), Request (..), describeConfig)
+import Settei.Internal.Config
+  ( Config (..),
+    Default (..),
+    Request (..),
+    RuleName,
+    describeConfig,
+    renderRuleName,
+  )
 import Settei.Internal.Schema (Schema)
 import Settei.Key (Key, keySegments)
+import Settei.Origin (Origin (..), SourceKind (DerivedSource))
 import Settei.Prelude
 import Settei.Provenance
   ( Candidate,
+    ReportedValue,
     candidateOrigin,
     candidateValue,
+    derivedReportedValue,
     reportedValue,
+    visibleReportedValue,
   )
 import Settei.Report
 import Settei.Schema
@@ -34,10 +45,12 @@ import Settei.Schema
     schemaSettingSensitivity,
   )
 import Settei.Setting
-  ( Setting,
+  ( Sensitivity (..),
+    Setting,
     decodeSetting,
     settingKey,
     settingSensitivity,
+    settingValueRenderer,
   )
 import Settei.Source (Source, lookupSource, sourceLeaves)
 import Settei.Value (decodeFailureExpected)
@@ -70,19 +83,23 @@ defaultResolveOptions = ResolveOptions {unknownKeyPolicy = WarnUnknownKeys}
 -- the branch selected by their resolved selector.
 resolve :: ResolveOptions -> [Source] -> Config a -> Either (NonEmpty ConfigError) (ResolveResult a)
 resolve options sources config =
-  case NonEmpty.nonEmpty structuralErrors of
+  case NonEmpty.nonEmpty (validateDefaultCycles config) of
     Just errors -> Left errors
-    Nothing ->
-      case appendErrors (evaluation ^. #answer) strictUnknownErrors of
-        Left errors -> Left (toNonEmpty errors)
-        Right value ->
-          Right
-            ResolveResult
-              { value,
-                report = ResolutionReport {nodes = completeNodes, branches = evaluation ^. #branches},
-                warnings = unknownWarnings
-              }
+    Nothing -> resolveValidated
   where
+    resolveValidated =
+      case NonEmpty.nonEmpty structuralErrors of
+        Just errors -> Left errors
+        Nothing ->
+          case appendErrors (evaluation ^. #answer) strictUnknownErrors of
+            Left errors -> Left (toNonEmpty errors)
+            Right value ->
+              Right
+                ResolveResult
+                  { value,
+                    report = ResolutionReport {nodes = completeNodes, branches = evaluation ^. #branches},
+                    warnings = unknownWarnings
+                  }
     schemaSettings = schemaPossible (describeEvaluation config)
     structuralErrors = validateStructure schemaSettings sources
     evaluation = evaluate sources config
@@ -111,6 +128,39 @@ unique = foldl appendIfNew []
       | value `elem` values = values
       | otherwise = values <> [value]
 
+validateDefaultCycles :: Config a -> [ConfigError]
+validateDefaultCycles = go []
+  where
+    go :: [RuleName] -> Config b -> [ConfigError]
+    go active = \case
+      PureConfig _ -> []
+      MapConfig _ config -> go active config
+      ApplyConfig function inputConfig -> go active function <> go active inputConfig
+      RequestConfig _ -> []
+      DefaultConfig _ defaultSpec -> validateDefault active defaultSpec
+      SelectConfig selector branch -> go active selector <> go active branch
+
+    validateDefault :: [RuleName] -> Default b -> [ConfigError]
+    validateDefault active defaultSpec =
+      let rule = defaultRule defaultSpec
+       in if rule `elem` active
+            then [DefaultCycle (DefaultCycleProblem {rules = cycleRules rule active})]
+            else case defaultSpec of
+              ConstantDefault _ _ _ -> []
+              DerivedDefault _ _ dependency _ -> go (active <> [rule]) dependency
+              CaseDefault _ _ dependency _ _ -> go (active <> [rule]) dependency
+
+    cycleRules rule active =
+      case NonEmpty.nonEmpty (dropWhile (/= rule) active <> [rule]) of
+        Just rules -> rules
+        Nothing -> rule :| []
+
+defaultRule :: Default a -> RuleName
+defaultRule = \case
+  ConstantDefault rule _ _ -> rule
+  DerivedDefault rule _ _ _ -> rule
+  CaseDefault rule _ _ _ _ -> rule
+
 data Evaluation a = Evaluation
   { answer :: !(Either [ConfigError] a),
     nodes :: !(Map Key ResolutionNode),
@@ -125,6 +175,8 @@ evaluate sources = \case
   ApplyConfig function inputConfig ->
     applyEvaluation (evaluate sources function) (evaluate sources inputConfig)
   RequestConfig request -> evaluateRequest sources request
+  DefaultConfig settingSpec defaultSpec ->
+    evaluateDefaultRequest sources settingSpec defaultSpec
   SelectConfig selector branch ->
     let selectorEvaluation = evaluate sources selector
         selectorKeys = Map.keys (selectorEvaluation ^. #nodes)
@@ -169,6 +221,109 @@ evaluateRequest sources = \case
       SettingAbsent node -> withNode Nothing node
       SettingFailed errors node -> failed errors (Map.singleton (settingKey settingSpec) node)
       SettingPresent value node -> withNode (Just value) node
+
+evaluateDefaultRequest :: [Source] -> Setting a -> Default a -> Evaluation a
+evaluateDefaultRequest sources settingSpec defaultSpec =
+  case evaluateSetting sources settingSpec of
+    SettingFailed errors node -> failed errors (Map.singleton (settingKey settingSpec) node)
+    SettingPresent value node -> withNode value node
+    SettingAbsent _ -> evaluateFallback sources settingSpec defaultSpec
+
+evaluateFallback :: [Source] -> Setting a -> Default a -> Evaluation a
+evaluateFallback sources settingSpec = \case
+  ConstantDefault rule explanation value ->
+    derivedEvaluation settingSpec rule explanation [] value
+  DerivedDefault rule explanation dependency derive ->
+    let dependencyEvaluation = evaluate sources dependency
+     in case dependencyEvaluation ^. #answer of
+          Left errors -> evaluationFailure dependencyEvaluation errors
+          Right dependencyValue ->
+            derivedFromDependencies
+              settingSpec
+              rule
+              explanation
+              dependencyEvaluation
+              (derive dependencyValue)
+  CaseDefault rule explanation dependency choices fallback ->
+    let dependencyEvaluation = evaluate sources dependency
+     in case dependencyEvaluation ^. #answer of
+          Left errors -> evaluationFailure dependencyEvaluation errors
+          Right dependencyValue ->
+            case lookup dependencyValue (NonEmpty.toList choices) of
+              Just value ->
+                derivedFromDependencies settingSpec rule explanation dependencyEvaluation value
+              Nothing -> case fallback of
+                Just value ->
+                  derivedFromDependencies settingSpec rule explanation dependencyEvaluation value
+                Nothing ->
+                  evaluationFailure
+                    dependencyEvaluation
+                    [ DefaultError
+                        DefaultProblem
+                          { key = settingKey settingSpec,
+                            rule,
+                            message = "no case matched and no fallback was declared"
+                          }
+                    ]
+
+derivedFromDependencies ::
+  Setting a ->
+  RuleName ->
+  Text ->
+  Evaluation d ->
+  a ->
+  Evaluation a
+derivedFromDependencies settingSpec rule explanation dependencyEvaluation value =
+  Evaluation
+    { answer = Right value,
+      nodes =
+        dependencyEvaluation
+          ^. #nodes
+          & at (settingKey settingSpec)
+          ?~ derivedNode settingSpec rule explanation dependencyKeys value,
+      branches = dependencyEvaluation ^. #branches
+    }
+  where
+    dependencyKeys = Map.keys (dependencyEvaluation ^. #nodes)
+
+derivedEvaluation :: Setting a -> RuleName -> Text -> [Key] -> a -> Evaluation a
+derivedEvaluation settingSpec rule explanation dependencies value =
+  withNode value (derivedNode settingSpec rule explanation dependencies value)
+
+derivedNode :: Setting a -> RuleName -> Text -> [Key] -> a -> ResolutionNode
+derivedNode settingSpec rule explanation dependencies value =
+  ResolutionNode
+    { key = settingKey settingSpec,
+      sensitivity = settingSensitivity settingSpec,
+      outcome = Resolved (defaultReportedValue settingSpec value),
+      origin =
+        Just
+          Origin
+            { kind = DerivedSource,
+              name = renderRuleName rule,
+              key = settingKey settingSpec,
+              location = Nothing,
+              annotations = Map.singleton "settei.default-rule" (renderRuleName rule)
+            },
+      shadowed = [],
+      derivation = Just Derivation {rule = renderRuleName rule, explanation, dependencies}
+    }
+
+defaultReportedValue :: Setting a -> a -> ReportedValue
+defaultReportedValue settingSpec value =
+  case settingSensitivity settingSpec of
+    Secret -> derivedReportedValue Secret
+    Public -> case settingValueRenderer settingSpec of
+      Just renderValue -> visibleReportedValue (renderValue value)
+      Nothing -> derivedReportedValue Public
+
+evaluationFailure :: Evaluation d -> [ConfigError] -> Evaluation a
+evaluationFailure dependencyEvaluation errors =
+  Evaluation
+    { answer = Left errors,
+      nodes = dependencyEvaluation ^. #nodes,
+      branches = dependencyEvaluation ^. #branches
+    }
 
 data SettingEvaluation a
   = SettingAbsent !ResolutionNode

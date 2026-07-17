@@ -7,8 +7,10 @@ module Settei.Provenance
     candidate,
     candidateOrigin,
     candidateValue,
+    derivedReportedValue,
     renderReportedValue,
     reportedValue,
+    visibleReportedValue,
   )
 where
 
@@ -43,7 +45,10 @@ candidateOrigin value = value ^. #origin
 --
 -- Constructors are private so reporting code can display a value but cannot unwrap a
 -- supposedly redacted secret.
-data ReportedValue = VisibleValue !Text | RedactedValue
+data ReportedValue
+  = VisibleValue !Text
+  | RedactedValue
+  | DerivedValue
   deriving stock (Generic, Eq, Ord, Show)
 
 -- | Apply a setting's sensitivity before retaining any display representation.
@@ -55,6 +60,16 @@ reportedValue Secret = const RedactedValue
 renderReportedValue :: ReportedValue -> Text
 renderReportedValue (VisibleValue value) = value
 renderReportedValue RedactedValue = "<redacted>"
+renderReportedValue DerivedValue = "<derived>"
+
+-- | Represent a typed default when no format-independent encoder exists.
+derivedReportedValue :: Sensitivity -> ReportedValue
+derivedReportedValue Public = DerivedValue
+derivedReportedValue Secret = RedactedValue
+
+-- | Retain an already-rendered public value.
+visibleReportedValue :: Text -> ReportedValue
+visibleReportedValue = VisibleValue
 
 renderRawValue :: RawValue -> Text
 renderRawValue = \case

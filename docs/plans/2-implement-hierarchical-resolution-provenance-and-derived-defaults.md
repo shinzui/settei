@@ -35,8 +35,8 @@ merge logic.
 
 - [x] Define the source tree, candidates, origin extension points, and resolution errors.
 - [x] Implement deterministic leaf-wise precedence and unknown-key diagnostics.
-- [ ] Add constant and dependency-aware default declarations.
-- [ ] Interpret selective branches while recording dependency and branch traces.
+- [x] Add constant and dependency-aware default declarations.
+- [x] Interpret selective branches while recording dependency and branch traces.
 - [ ] Render redacted text and JSON schema and resolution reports.
 - [ ] Add law, golden, and adversarial redaction tests and record the semantics in an ADR.
 
@@ -46,6 +46,10 @@ merge logic.
 - The raw tree and candidate types cannot safely derive `Show`: both can carry a secret
   before Settei knows the owning setting's sensitivity. Tests compare them without
   interpolating rejected values into failures.
+- A typed default value has no general format-independent rendering because `Default a`
+  intentionally carries no `Show a` constraint. Public settings can opt into a typed
+  value renderer; otherwise reports use the honest `<derived>` marker. Secret settings
+  always redact before consulting any renderer.
 
 
 ## Decision Log
@@ -99,6 +103,18 @@ merge logic.
   Rationale: source shape is a document-level invariant and the plan requires traversal
   conflicts to always fail; Selective still controls whether a setting is required or its
   winning leaf is decoded.
+  Date: 2026-07-17
+
+- Decision: Identify active defaults by `RuleName` and validate their dependency syntax
+  before schema inspection or source lookup.
+  Rationale: recursive Haskell declarations can express mutual defaults; an active rule
+  stack detects re-entry without evaluating a source or requiring pointer identity.
+  Date: 2026-07-17
+
+- Decision: Let public settings optionally supply a renderer for typed default results.
+  Rationale: source values already have a common `RawValue` representation, while an
+  arbitrary typed default does not. The opt-in renderer preserves the unconstrained
+  default API and the core ignores it for secret settings.
   Date: 2026-07-17
 
 

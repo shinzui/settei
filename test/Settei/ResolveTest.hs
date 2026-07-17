@@ -114,6 +114,8 @@ errorKey = \case
   DecodeError problem -> problem ^. #key
   StructuralConflict problem -> problem ^. #key
   UnknownKeyError problem -> problem ^. #key
+  DefaultError problem -> problem ^. #key
+  DefaultCycle _ -> error "a cycle has no single setting key"
 
 serviceConfig :: Config (Text, Int)
 serviceConfig = (,) <$> required hostSetting <*> required portSetting
