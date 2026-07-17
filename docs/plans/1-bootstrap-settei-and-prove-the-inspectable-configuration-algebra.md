@@ -36,9 +36,13 @@ precedence or user-facing provenance; those are the subject of Plan 2.
 - [x] (2026-07-17 06:20 PDT) Add the convention-compliant Cabal project, root `settei`
   package, test suite, and Nix integration. `cabal build all`, the bootstrap test, Nix
   flake evaluation, and `nix build .#` all succeed.
-- [ ] Define keys, raw values, decoders, setting metadata, and the public declaration API.
-- [ ] Prototype free-selective interpretation and compare it with a small explicit AST.
-- [ ] Implement schema inspection and conditional execution tests.
+- [x] (2026-07-17 06:30 PDT) Define keys, raw values, decoders, setting metadata, and the
+  public declaration API.
+- [x] (2026-07-17 06:30 PDT) Prototype free-selective interpretation and compare it with a
+  small explicit AST. The free prototype remains test-only evidence; production uses the
+  private explicit representation.
+- [x] (2026-07-17 06:30 PDT) Implement schema inspection and conditional execution tests.
+  All 16 key, decoder, schema, free-prototype, and runtime tests pass.
 - [ ] Write the algebra ADR and public module documentation.
 
 
@@ -50,6 +54,23 @@ precedence or user-facing provenance; those are the subject of Plan 2.
   the initial `>=2.3` bound; the repeated build succeeded with `>=2.2 && <2.4`.
   Impact: the canonical dependency bound must cover both versions because Settei uses
   only the stable `Data.Generics.Labels` interface documented by the convention corpus.
+
+- Observation: `Control.Selective.Free` exactly reproduces the possible and necessary
+  effect sets needed for the production-only example, but its Church-encoded `Select`
+  representation exposes only a natural transformation and no syntax nodes on which to
+  retain stable branch metadata.
+  Evidence: the two free-prototype tests report `runtime.environment` as necessary and
+  both it and `database.password` as possible; direct source inspection shows `Select` as
+  a rank-n newtype around an interpreter function.
+  Impact: the free implementation is valuable as an analysis oracle, while the production
+  representation must be an explicit private GADT.
+
+- Observation: `Control.Lens` exports a setter type alias named `Setting`, which collides
+  with Settei's central domain type under the project-wide prelude.
+  Evidence: the first vocabulary build produced ambiguous-occurrence errors in every
+  signature mentioning Settei's `Setting`.
+  Impact: `Settei.Prelude` re-exports `Control.Lens` with that one alias hidden, preserving
+  all lens operators without forcing every consumer to add a hiding clause.
 
 
 ## Decision Log
@@ -79,6 +100,26 @@ precedence or user-facing provenance; those are the subject of Plan 2.
   and one record/import style from the first compiling module onward; retrofitting them
   after adapters exist would create needless API and dependency churn.
   Date: 2026-07-16
+
+- Decision: Use a private explicit GADT with pure, map, apply, request, and selective nodes
+  as the production `Config` representation; retain the free-selective implementation
+  only as test evidence.
+  Rationale: both representations satisfy the possible/necessary analysis for the proof
+  case, but the explicit nodes preserve declaration order and give Plan 2 stable places to
+  attach branch and derivation metadata while still allowing lazy branch interpretation.
+  Date: 2026-07-17
+
+- Decision: Pass the validated `Key` into each reusable `Decoder` when it runs rather than
+  asking callers to construct key-bearing failures themselves.
+  Rationale: every failure can identify its setting while the failure type deliberately
+  omits the rejected raw value, making the same decoder safe for public and secret inputs.
+  Date: 2026-07-17
+
+- Decision: Hide `Control.Lens.Setting` at the `Settei.Prelude` boundary.
+  Rationale: Settei's `Setting` is the public declaration metadata type; resolving the
+  collision centrally gives ordinary consumers an unambiguous API without sacrificing
+  the lens operators used by the project conventions.
+  Date: 2026-07-17
 
 
 ## Outcomes & Retrospective
@@ -382,3 +423,7 @@ implementation-time algebra ADR moves to number 0002.
 2026-07-17: Recorded completion of the reproducible-package milestone and the compatible
 `generic-lens` bound discovered by validating both the local Cabal build and nixpkgs' GHC
 9.12.4 package set.
+
+2026-07-17: Recorded the completed vocabulary and algebra proof, the explicit-GADT
+representation decision, decoder error design, and the narrow `Control.Lens.Setting`
+prelude exclusion revealed by the compiling public API.

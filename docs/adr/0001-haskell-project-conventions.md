@@ -33,9 +33,13 @@ stanza rather than relying on the root package's declaration.
 
 The core package exposes `Settei.Prelude`. That module uses a file-local `PackageImports`
 pragma for unambiguous re-exports and re-exports the small common surface plus
-`Control.Lens`. `PackageImports` is not a global extension. `Settei.Prelude` does not import
-or re-export `Data.Generics.Labels`; each module that uses generic-lens `#label` syntax
-imports `Data.Generics.Labels ()` locally.
+`Control.Lens`, except for the lens library's setter type alias named `Setting`. That alias
+collides with Settei's public `Setting` metadata type, so the prelude hides it once at the
+boundary while retaining the operators and other lens API. Code that specifically needs
+the lens alias can import it directly under a distinct local name. `PackageImports` is not
+a global extension. `Settei.Prelude` does not import or re-export
+`Data.Generics.Labels`; each module that uses generic-lens `#label` syntax imports
+`Data.Generics.Labels ()` locally.
 
 Records use strict fields without type-name prefixes and derive instances with explicit
 `stock`, `newtype`, or `anyclass` strategies. Record reads and updates use lens operators;
@@ -65,6 +69,8 @@ reusable labels such as `name`, `key`, `value`, `location`, and `annotations`, a
 domain records replace flat type-prefixed fields when concepts would otherwise collide.
 This adds `lens` and `generic-lens` to the baseline dependency surface, and it requires
 direct `generic-lens` dependencies in non-core packages that use the label instance.
+The single `Control.Lens.Setting` exclusion makes the central Settei type unambiguous for
+all packages and examples while leaving ordinary lens usage unchanged.
 
 Implementation and release validation must inspect every component for the common stanza
 and representative modules for strict fields, explicit deriving, local label-instance
@@ -81,3 +87,7 @@ every module and can conflict with other label-based DSLs. Creating a different 
 each adapter was rejected because the packages form one project and need a shared baseline.
 Applying every CLI cookbook pattern to the small reference executable was rejected as
 scope without a user requirement.
+Requiring every module to import `Settei.Prelude hiding (Setting)` was rejected because
+the collision is universal to Settei consumers and can be resolved once at the prelude
+boundary. Renaming Settei's domain type was rejected because `Setting` is the clearest
+public name for one declared configuration value.

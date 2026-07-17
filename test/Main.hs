@@ -1,11 +1,16 @@
 module Main (main) where
 
+import Settei.ConfigTest qualified as ConfigTest
+import Settei.KeyTest qualified as KeyTest
+import Settei.ValueTest qualified as ValueTest
 import Test.Tasty (defaultMain, testGroup)
-import Test.Tasty.HUnit (testCase, (@?=))
 
 main :: IO ()
 main =
   defaultMain $
     testGroup
       "Settei"
-      [testCase "bootstrap" (True @?= True)]
+      [ KeyTest.tests,
+        ValueTest.tests,
+        ConfigTest.tests
+      ]

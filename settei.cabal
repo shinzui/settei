@@ -30,7 +30,16 @@ library
   hs-source-dirs:  src
   exposed-modules:
     Settei
+    Settei.Config
+    Settei.Key
     Settei.Prelude
+    Settei.Schema
+    Settei.Setting
+    Settei.Value
+
+  other-modules:
+    Settei.Internal.Config
+    Settei.Internal.Schema
 
   build-depends:
     , base          >=4.21  && <5
@@ -43,10 +52,29 @@ library
 test-suite settei-tests
   import:         common
   type:           exitcode-stdio-1.0
-  hs-source-dirs: test
+  hs-source-dirs: test src
   main-is:        Main.hs
+  other-modules:
+    Settei
+    Settei.Config
+    Settei.ConfigTest
+    Settei.Internal.Config
+    Settei.Internal.Schema
+    Settei.Key
+    Settei.KeyTest
+    Settei.Prelude
+    Settei.Prototype.Free
+    Settei.Schema
+    Settei.Setting
+    Settei.Value
+    Settei.ValueTest
+
   build-depends:
-    , base         >=4.21   && <5
-    , settei
-    , tasty        >=1.5    && <1.6
-    , tasty-hunit  >=0.10.2 && <0.11
+    , base          >=4.21   && <5
+    , containers    >=0.6.8  && <0.8
+    , generic-lens  >=2.2    && <2.4
+    , lens          >=5.3    && <5.4
+    , selective     >=0.7    && <0.8
+    , tasty         >=1.5    && <1.6
+    , tasty-hunit   >=0.10.2 && <0.11
+    , text          >=2.1    && <2.2

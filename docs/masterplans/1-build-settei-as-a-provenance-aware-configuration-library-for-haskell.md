@@ -138,6 +138,12 @@ EP-1. Every later plan may add combinators but must preserve the laws and the de
 absence of a `Monad Config` instance. The choice of internal representation and the static
 meaning of conditional branches must be captured in an ADR by EP-1.
 
+`Settei.Prelude` re-exports `Control.Lens` except for the lens library's setter type alias
+named `Setting`, which collides with Settei's public `Setting` domain type. Later packages
+receive the lens operators normally and should use Settei's unqualified `Setting`; code
+that specifically needs the lens alias can import it directly from `Control.Lens` under a
+distinct local name.
+
 The raw value tree, dotted-path `Key`, `Source`, resolver, and provenance graph are shared
 by every adapter and are owned by EP-2. Sources are ordered from lowest to highest
 precedence. Resolution is leaf-wise: the rightmost present value wins, arrays replace
@@ -212,6 +218,14 @@ are annotations supplied by the application or deployment, not discovered by the
   retain a bound compatible with both package environments until the Nix package set
   advances.
 
+- Observation: `Control.Lens` exports a setter type alias named `Setting`, which collides
+  with Settei's public declaration metadata type.
+  Evidence: EP-1's first vocabulary build failed with ambiguous `Setting` occurrences;
+  hiding that alias at the custom-prelude boundary made the public and test imports
+  unambiguous.
+  Impact: every later package inherits a `Settei.Prelude` that still provides lens
+  operators but deliberately omits `Control.Lens.Setting`.
+
 
 ## Decision Log
 
@@ -266,6 +280,17 @@ are annotations supplied by the application or deployment, not discovered by the
   context, while the algebra and resolver decisions still require implementation evidence.
   Date: 2026-07-16
 
+- Decision: Use a private explicit GADT as the production configuration algebra and keep
+  the `Control.Selective.Free` version as a test-only analysis oracle.
+  Rationale: both classify the proof declaration correctly, but only explicit syntax
+  nodes provide durable identities and metadata attachment points for EP-2 provenance.
+  Date: 2026-07-17
+
+- Decision: Exclude `Control.Lens.Setting` from `Settei.Prelude` while retaining the rest
+  of the lens re-export.
+  Rationale: Settei's domain `Setting` must remain unambiguous in every package and example.
+  Date: 2026-07-17
+
 
 ## Outcomes & Retrospective
 
@@ -289,3 +314,6 @@ It also records the durable cross-plan policy in
 
 2026-07-17: Recorded EP-1's reproducible-package milestone and propagated the Nix/Cabal
 `generic-lens` compatibility constraint to later packages.
+
+2026-07-17: Recorded EP-1's explicit configuration representation and propagated the
+narrow `Control.Lens.Setting` prelude exclusion required by Settei's public type name.
