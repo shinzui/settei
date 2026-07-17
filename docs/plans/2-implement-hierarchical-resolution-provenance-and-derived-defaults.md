@@ -37,8 +37,8 @@ merge logic.
 - [x] Implement deterministic leaf-wise precedence and unknown-key diagnostics.
 - [x] Add constant and dependency-aware default declarations.
 - [x] Interpret selective branches while recording dependency and branch traces.
-- [ ] Render redacted text and JSON schema and resolution reports.
-- [ ] Add law, golden, and adversarial redaction tests and record the semantics in an ADR.
+- [x] Render redacted text and JSON schema and resolution reports.
+- [x] Add law, golden, and adversarial redaction tests and record the semantics in an ADR.
 
 
 ## Surprises & Discoveries
@@ -50,6 +50,10 @@ merge logic.
   intentionally carries no `Show a` constraint. Public settings can opt into a typed
   value renderer; otherwise reports use the honest `<derived>` marker. Secret settings
   always redact before consulting any renderer.
+- Mori did not identify a general registered Aeson source for this package, and the core
+  only emits four small closed JSON document shapes. A compact encoder over already-safe
+  report types kept the dependency surface unchanged and made field ordering explicit;
+  golden files are also parsed with `jq` during acceptance.
 
 
 ## Decision Log
@@ -117,13 +121,36 @@ merge logic.
   default API and the core ignores it for secret settings.
   Date: 2026-07-17
 
+- Decision: Emit compact JSON directly from the closed safe schema, report, error, and
+  warning types, with top-level `schemaVersion: 1` and a document-type discriminator.
+  Rationale: no JSON parsing belongs in core, deterministic ordering is part of the
+  contract, and adding Aeson solely for four encoders would widen the dependency surface.
+  Date: 2026-07-17
+
 
 ## Outcomes & Retrospective
 
-To be filled during and after implementation. Completion requires a resolution-semantics
-ADR and evidence that no supported renderer or error path reveals a marked secret. It also
-requires the new modules and tests to retain Plan 1's common GHC2024 stanza, custom
-prelude, strict unprefixed records, explicit deriving, lens access, and import style.
+Completed on 2026-07-17. The root package now exposes adapter-neutral source and origin
+types, exact hierarchical lookup, leaf-wise low-to-high precedence, structured resolver
+errors and warnings, secret-safe provenance, named constant/derived/case defaults,
+pre-source cycle validation, actual Selective branch traces, and deterministic text plus
+schema-versioned JSON renderers.
+
+The final suite has 45 tests. It includes an exhaustive three-source ordering law,
+malformed-winner and array-replacement cases, structural and strict-unknown diagnostics,
+independent error accumulation, selective skipping, explicit-default override, case
+fallback, mutual-cycle rejection before a poison source can be inspected, four text/JSON
+golden pairs, and an adversarial secret containing quotes, a backslash, a newline,
+punctuation, and non-ASCII text. That sentinel is absent from schema, report, error,
+warning, JSON, text, and safe `Show` outputs.
+
+Acceptance passed with `nix fmt`, `cabal build all`, `cabal test all
+--test-show-details=direct`, `cabal check`, `cabal haddock all`, `nix flake check`,
+`nix build .#`, JSON parsing through `jq`, and `mori show --full`. The package retained the
+GHC2024 common stanza and existing dependency set. New modules follow the custom prelude,
+strict unprefixed records, explicit deriving, local generic-label imports, lens access, and
+postpositive qualified-import conventions. ADR 0003 records the durable resolver,
+default, provenance, redaction, and reporting contract for adapter plans.
 
 
 ## Context and Orientation
