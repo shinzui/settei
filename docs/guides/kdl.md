@@ -1,7 +1,7 @@
 # KDL configuration
 
 `settei-kdl` translates one KDL v2 document into a provenance-aware Settei `Source`. It
-uses the source-inspected `kdl-hs` 1.0.1 parser and consumes its AST directly. Applications
+uses the upstream-audited `kdl-hs` 1.1.1 parser and consumes its AST directly. Applications
 do not define a second `KDL.Applicative`, `KDL.Arrow`, or monadic decoder; the same core
 `Config` declaration works for KDL, YAML, environment, command-line, and future Dhall
 sources.

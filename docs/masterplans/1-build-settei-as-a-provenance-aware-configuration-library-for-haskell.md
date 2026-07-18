@@ -100,6 +100,12 @@ replace Settei's deliberate precedence merge: Settei merges multiple sources for
 declared settings, while genuinely independent configuration concerns should still use
 separate declarations.
 
+For third-party dependencies, Mori remains the mandatory first source and documentation
+locator, but it is not the release index. Each plan must check Hackage and upstream release
+tags before choosing a lower bound, exact archive, or compatibility workaround, then audit
+the source for the selected release. This distinction prevents corpus freshness from
+silently becoming package policy.
+
 
 ## Exec-Plan Registry
 
@@ -217,6 +223,8 @@ are annotations supplied by the application or deployment, not discovered by the
 - [x] EP-8: move the core and implemented adapters to top-level sibling package roots
   while preserving all package identities and behavior.
 - [x] EP-5: translate canonical KDL documents while preserving node locations.
+- [x] EP-5 maintenance: replace the stale corpus-driven `kdl-hs` 1.0.1 pin with the
+  upstream-audited 1.1 release line without changing adapter semantics.
 - [x] EP-6: translate normalized Dhall values and report honest import provenance.
 - [ ] EP-7: demonstrate CLI and Kubernetes service use cases end to end.
 - [ ] EP-7: publish package-family documentation and complete the release checklist.
@@ -306,15 +314,28 @@ are annotations supplied by the application or deployment, not discovered by the
   Impact: EP-8 explicitly owns package-local documentation and golden paths, explicit Nix
   source roots, source-distribution inspection, and Mori package-path validation.
 
-- Observation: `kdl-hs` 1.0.1 preserves ordered duplicate properties in `Node.entries`,
+- Observation: `kdl-hs` 1.1.1 preserves ordered duplicate properties in `Node.entries`,
   but its `getProps` helper passes them through `Map.fromList`; its public parse failure is
   rendered text containing both a location header and a source excerpt.
-  Evidence: EP-5's Mori-backed source inspection and parser probes found both ordered
-  duplicate entries and the rendered excerpt, while all mapping and syntax-redaction tests
-  pass against the direct translator.
+  Evidence: EP-5's upstream `v1.1.1` source inspection and parser probes found both
+  ordered duplicate entries and the rendered excerpt, while all mapping and
+  syntax-redaction tests pass against the direct translator.
   Impact: `settei-kdl` traverses entries directly, reports both duplicate spans, and keeps
-  only the safe line/column header from syntax failures. Cabal and Nix pin the inspected
-  1.0.1 release rather than nixpkgs' unregistered 1.1.0 source.
+  only the safe line/column header from syntax failures. Cabal supports audited
+  `kdl-hs >=1.1.1 && <1.2`, and Nix locks the 1.1.1 Hackage archive because the locked
+  nixpkgs package set remains at 1.1.0.
+
+- Observation: Mori's dependency corpus and upstream package releases have independent
+  update cadences; the KDL corpus was stale even though it still contained useful source.
+  Evidence: Mori reported `kdl-hs` 1.0.1, the locked nixpkgs set reported 1.1.0, and the
+  current Hackage index plus upstream tag list reported 1.1.1. The same audit confirmed
+  that optparse-applicative 0.19.0.0, selective 0.7.0.1, yaml 0.11.11.2, libyaml 0.1.4,
+  dhall 1.42.3, and dhall-json 1.7.12 remain current, while the generic-lens range already
+  includes 2.3.0.0.
+  Impact: only EP-5's dependency packaging changes. The optparse ABI override and
+  `dhall-json` bound relaxations remain justified by their independently reproduced
+  build constraints, and no YAML, Dhall, core, CLI, provenance, or mapping decision is
+  changed merely because one corpus checkout was stale.
 
 - Observation: KDL positional-argument cardinality cannot distinguish a scalar from an
   array containing exactly one element under the canonical version-one mapping.
@@ -455,11 +476,19 @@ are annotations supplied by the application or deployment, not discovered by the
 
 - Decision: Adopt ADR 0005's canonical KDL v2 mapping, exact finite-number conversion,
   explicit ambiguity and annotation rejection, direct duplicate-preserving AST traversal,
-  one-based span provenance, safe syntax-error truncation, and `kdl-hs` 1.0.1 pin.
+  one-based span provenance, safe syntax-error truncation, and upstream-audited
+  `kdl-hs >=1.1.1 && <1.2` compatibility.
   Rationale: KDL sources need one deterministic adapter-neutral tree meaning while
   retaining evidence and never allowing parser excerpts or convenience helpers to hide
   secrets or duplicate input.
-  Date: 2026-07-17
+  Date: 2026-07-18
+
+- Decision: Use Mori to locate dependency source and documentation, but use Hackage and
+  upstream release tags to establish the current release before selecting bounds, pins,
+  or compatibility workarounds.
+  Rationale: a corpus snapshot can remain valuable for local inspection while lagging
+  package publication; its freshness must not determine public package compatibility.
+  Date: 2026-07-18
 
 - Decision: Limit the first Dhall adapter to `NoImports` and
   `LocalImportsWithin`, rejecting alternatives in the local-only policy and omitting an
@@ -528,10 +557,15 @@ EP-5 completed on 2026-07-17. It added the top-level `settei-kdl` package, a dir
 canonical KDL v2 AST translator, exact finite-number conversion, explicit ambiguity and
 unsupported-feature failures, one-based full-span origins, secret-safe syntax and mapping
 errors, mounted-file metadata, and a complete guide. ADR 0005 preserves the mapping and
-the source-inspected `kdl-hs` 1.0.1 Cabal/Nix pin. Its 18 focused tests bring the workspace
+the upstream-audited `kdl-hs` 1.1 release contract. Its 18 focused tests bring the workspace
 to 100 passing tests; all builds, five package checks, Haddocks, source distributions,
 Mori inventory, dedicated/default Nix builds, formatting, and the full host-platform flake
-check pass. EP-6 is now the first dependency-ready plan, and EP-7 remains blocked on it.
+check pass. A 2026-07-18 maintenance audit upgraded the Cabal range and Nix archive to
+1.1.1 after confirming that the latest AST and parser behavior leave the adapter API,
+mapping, provenance, redaction, and EP-7 fixtures unchanged. All 18 KDL tests, all 121
+workspace tests, the dedicated Nix build, host flake checks, package check, and source
+distribution pass against 1.1.1. EP-6 is now the first dependency-ready plan, and EP-7
+remains blocked on it.
 
 EP-6 completed on 2026-07-18. It added the top-level `settei-dhall` package, official
 typed Dhall-to-JSON-to-raw-tree conversion, `NoImports` and canonical-root-confined
@@ -603,3 +637,12 @@ root-confined local policies, structured closure provenance, stable secret-safe 
 guide, ADR 0006, 121-test workspace suite, and full Cabal, Nix, flake, formatting,
 convention, source-distribution, Haddock, and Mori gates. Propagated the actual import
 contract to EP-7, which is now dependency-ready and the only remaining child plan.
+
+2026-07-18: Corrected EP-5's stale-corpus packaging decision by auditing Hackage and the
+upstream `kdl-hs` 1.1.1 source, widening Cabal to the audited 1.1 release line, and updating
+the reproducible Nix archive. Cascaded the release-selection policy into ADR 0001 and the
+KDL-specific evidence into ADR 0005, the child plan, and the guide. The upstream audit
+confirmed that direct duplicate-preserving traversal, span provenance, syntax-error
+redaction, canonical mapping, and every unrelated adapter decision remain valid. The 18
+KDL tests, 121-test workspace suite, dedicated Nix build, flake checks, Cabal package
+check, and source distribution all pass against 1.1.1.

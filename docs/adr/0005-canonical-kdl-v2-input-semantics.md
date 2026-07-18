@@ -4,6 +4,8 @@ Status: Accepted
 
 Date: 2026-07-17
 
+Amended: 2026-07-18
+
 
 ## Context
 
@@ -15,24 +17,31 @@ represent scalars, arrays, and objects and must reject combinations that would d
 invent data.
 
 Mori resolves `brandonchinn178/kdl-hs` at
-`/Users/shinzui/Keikaku/hub/kdl-hs-project`. The registered package is version 1.0.1 and
-implements KDL v2. Its AST retains ordered entries, exact finite `Scientific` values,
-explicit non-finite constructors, annotations, and one-based spans when requested. The
-`getProps` convenience converts entries through `Map.fromList`, which would hide duplicate
-properties, but direct `Node.entries` inspection preserves each occurrence and span. The
-public parser renders failures as text containing both a location header and a source
-excerpt.
+`/Users/shinzui/Keikaku/hub/kdl-hs-project`, but that corpus checkout remains at version
+1.0.1. Mori is a source and documentation locator, not an authoritative latest-release
+index. The 2026-07-18 upstream audit found `kdl-hs` 1.1.1 on Hackage and at the repository's
+`v1.1.1` tag, while the locked nixpkgs GHC 9.12 package set contains 1.1.0.
 
-The flake's nixpkgs package set contains `kdl-hs` 1.1.0, but that source is not present in
-the registered corpus. Both Cabal and Nix therefore need one explicit version choice so
-the build uses the API that was actually inspected.
+The 1.1.1 AST still retains ordered entries, exact finite `Scientific` values, explicit
+non-finite constructors, annotations, and one-based spans when requested. Its `getProps`
+convenience still converts entries through `Map.fromList`, which would hide duplicate
+properties, but direct `Node.entries` inspection preserves each occurrence and span. Its
+public parser still renders failures as text containing both a location header and a
+source excerpt. Therefore the release correction changes dependency packaging but does
+not invalidate the adapter's mapping, provenance, ambiguity, or redaction decisions.
 
 
 ## Decision
 
-`settei-kdl` uses `kdl-hs` 1.0.1 and its KDL v2 parser. Cabal requires exactly 1.0.1, and
-the flake pins the same Hackage archive for Nix. The adapter parses the AST directly and
-does not use `KDL.Applicative`, `KDL.Arrow`, or a KDL-specific application schema.
+`settei-kdl` uses `kdl-hs` 1.1.1 and its KDL v2 parser. Cabal accepts the compatible
+`>=1.1.1 && <1.2` release line instead of fixing a reusable library to one patch release,
+and the flake locks the 1.1.1 Hackage archive so Nix exercises the current release even
+though the locked nixpkgs package set is one patch behind. Future dependency selection
+must use Mori first to locate available source and documentation, then check Hackage and
+the upstream repository for the current released version before choosing bounds or pins.
+
+The adapter parses the AST directly and does not use `KDL.Applicative`, `KDL.Arrow`, or a
+KDL-specific application schema.
 
 One document becomes one root `RawObject`. A node name is a field name. One positional
 argument without properties or children is a scalar; two or more positional arguments are
@@ -76,9 +85,11 @@ supported shape or normalize input outside Settei. Parse diagnostics are intenti
 less verbose than `kdl-hs`' rendered message so structured failures cannot capture secret
 source lines.
 
-Pinning 1.0.1 keeps Cabal and Nix reproducible against inspected source. Moving to a newer
-parser requires a new source audit of its AST, duplicate handling, spans, parser-error
-rendering, and language-version behavior before widening the bound or changing the pin.
+The stale 1.0.1 exact bound and archive pin are removed. Cabal now expresses compatibility
+with the audited 1.1 release line, while the flake lock keeps Nix reproducible at 1.1.1.
+Moving to a later release line still requires an upstream source audit of its AST,
+duplicate handling, spans, parser-error rendering, and language-version behavior before
+widening the bound or changing the flake input.
 
 
 ## Rejected Alternatives
@@ -90,5 +101,6 @@ property, or child was rejected because it discards data and makes provenance di
 
 Erasing type annotations, coercing non-finite numbers to text, parsing detailed error
 strings into a public message, and attaching synthetic spans were rejected as lossy or
-unsafe. Using nixpkgs' uninspected 1.1.0 package was rejected until its source enters the
-Mori corpus and receives the same audit.
+unsafe. Treating Mori's 1.0.1 checkout as a release ceiling was rejected because corpus
+freshness is independent of upstream releases. Using the locked nixpkgs 1.1.0 package was
+also rejected because Hackage already publishes the audited 1.1.1 patch release.

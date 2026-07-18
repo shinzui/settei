@@ -17,10 +17,10 @@
       flake = false;
     };
 
-    # Mori's registered source corpus currently carries kdl-hs 1.0.1. Pin the
-    # Nix build to that source-inspected API instead of nixpkgs' newer 1.1.0.
+    # The locked nixpkgs package set carries kdl-hs 1.1.0. Use the current
+    # upstream Hackage release so Nix and Cabal validate the same supported API.
     kdl-hs = {
-      url = "https://hackage.haskell.org/package/kdl-hs-1.0.1/kdl-hs-1.0.1.tar.gz";
+      url = "https://hackage.haskell.org/package/kdl-hs-1.1.1/kdl-hs-1.1.1.tar.gz";
       flake = false;
     };
 

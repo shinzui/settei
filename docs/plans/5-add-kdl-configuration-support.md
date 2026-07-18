@@ -31,11 +31,11 @@ the application's settings.
 
 ## Progress
 
-- [x] (2026-07-17 21:35 -0700) Re-inspected Mori's registered `kdl-hs` 1.0.1 source and
+- [x] (2026-07-17 21:35 -0700) Inspected the then-registered `kdl-hs` 1.0.1 source and
   probed its public AST/parser behavior: it implements KDL v2, retains duplicate entries,
   represents numbers as exact `Scientific` values, and emits one-based spans when enabled.
 - [x] (2026-07-17 22:05 -0700) Added the top-level `settei-kdl` package and registered
-  it in Cabal, Nix, and Mori with the source-inspected `kdl-hs` 1.0.1 pin.
+  it in Cabal, Nix, and Mori; its initial dependency selection was `kdl-hs` 1.0.1.
 - [x] (2026-07-17 21:56 -0700) Implemented and tested the canonical KDL-to-raw-tree
   mapping for scalars, argument arrays, nulls, properties, children, and repeated sibling
   arrays, with explicit rejection of every ambiguous form.
@@ -52,26 +52,32 @@ the application's settings.
   checks, all 100 workspace tests, Haddocks with 100% coverage for `Settei.Kdl`, all
   source distributions, Mori inventory, the dedicated and default Nix builds, and the
   full host-platform flake check.
+- [x] (2026-07-18) Audited the current Hackage release and upstream `v1.1.1` source,
+  replaced the stale 1.0.1 exact bound and archive with the audited 1.1 release line, and
+  confirmed that the parser-facing implementation and all KDL semantics remain unchanged.
+- [x] (2026-07-18) Passed all 18 KDL tests and all 121 workspace tests against `kdl-hs`
+  1.1.1, the dedicated Nix package build, full host-platform flake check, `cabal check`,
+  source-distribution generation, formatting, and pre-commit validation.
 
 
 ## Surprises & Discoveries
 
-- Observation: `kdl-hs` 1.0.1's convenience `getProps` helper converts entries with
+- Observation: `kdl-hs` 1.1.1's convenience `getProps` helper converts entries with
   `Map.fromList` and would silently keep the final duplicate property, but the exported
   `Node.entries` list preserves both properties and their individual spans.
-  Evidence: source inspection of `KDL.Types` plus a parser probe of
+  Evidence: upstream `v1.1.1` source inspection of `KDL.Types` plus a parser probe of
   `service port=1 port=2` returned two ordered `Entry` values at columns 9 and 16.
   Impact: Settei must translate the entry list directly and reject the second property;
   it must not use `getProps` at the ambiguity boundary.
 
-- Observation: the registered checkout and Cabal package are `kdl-hs` 1.0.1, while the
-  flake's nixpkgs GHC 9.12 package set exposes 1.1.0, whose source is not in the Mori
-  corpus.
-  Evidence: `mori registry show brandonchinn178/kdl-hs --full`, the registered
-  `kdl-hs.cabal`, and `nix eval` reported those versions; the registered Git subtree has
-  no 1.1.0 object to inspect.
-  Impact: Cabal and Nix will both pin 1.0.1 so implementation and validation use the
-  exact source-inspected API.
+- Observation: Mori's `kdl-hs` checkout is a stale 1.0.1 source snapshot, not a release
+  index; Hackage and upstream publish 1.1.1, while the locked nixpkgs set exposes 1.1.0.
+  Evidence: `mori registry show brandonchinn178/kdl-hs --full`, `cabal list
+  --simple-output kdl-hs`, the Hackage 1.1.1 package description, upstream release tags,
+  and `nix eval` report the three distinct versions.
+  Impact: Cabal supports `>=1.1.1 && <1.2`, Nix locks the 1.1.1 Hackage archive, and
+  future dependency selection uses Mori to locate source but checks upstream before
+  choosing a release or workaround.
 
 - Observation: successful AST elements have exact one-based spans, but the public parser
   reduces a failed Megaparsec bundle to rendered `Text` that includes a source excerpt.
@@ -120,26 +126,32 @@ the application's settings.
   immediately require a second move.
   Date: 2026-07-17
 
-- Decision: Support the KDL v2 grammar implemented by source-inspected `kdl-hs` 1.0.1,
+- Decision: Support the KDL v2 grammar implemented by upstream-audited `kdl-hs` 1.1.1,
   reject every node or value type annotation in version one of the adapter, and reject
   `#inf`, `#-inf`, and `#nan` rather than coercing them.
   Rationale: finite `Scientific` values convert exactly to the core `Rational`, while
   annotations and non-finite numbers have no lossless format-independent `RawValue`
   meaning.
-  Date: 2026-07-17
+  Date: 2026-07-18
 
-- Decision: Pin `kdl-hs` 1.0.1 for both Cabal and Nix and use its public `parseWith` API.
-  Rationale: this keeps both build systems on the Mori-located source that was actually
-  inspected. Parsing a failure's first location header and discarding all remaining text
-  preserves useful diagnostics without taking a direct, unregistered Megaparsec API
-  dependency or retaining source snippets.
-  Date: 2026-07-17
+- Decision: The initial exact `kdl-hs` 1.0.1 Cabal and Nix pin is superseded.
+  Rationale: it treated the version in Mori's stale corpus checkout as a release ceiling
+  even though newer upstream releases were available.
+  Date: 2026-07-18
+
+- Decision: Support `kdl-hs >=1.1.1 && <1.2` in Cabal, lock its 1.1.1 Hackage archive for
+  Nix, and continue using the public `parseWith` API.
+  Rationale: a reusable library should state the audited compatible release line, while
+  Nix should reproducibly validate the current upstream patch release. The 1.1.1 parser
+  still returns rendered text on failure, so keeping only its first location header and
+  discarding source excerpts remains necessary for pre-sensitivity redaction.
+  Date: 2026-07-18
 
 
 ## Outcomes & Retrospective
 
 EP-5 completed on 2026-07-17. `settei-kdl` now translates KDL v2 directly from the
-source-inspected `kdl-hs` 1.0.1 AST into core `RawValue` trees without introducing a
+upstream-audited `kdl-hs` 1.1.1 AST into core `RawValue` trees without introducing a
 second schema or merge layer. The package implements the canonical scalar, positional
 array, null, property/object, child, and repeated-sibling mappings; rejects duplicate or
 ambiguous structures, annotations, invalid key segments, and non-finite numbers; and
@@ -149,8 +161,10 @@ The implementation exposed two compatibility constraints that are now durable in
 guide and ADR 0005. Direct `Node.entries` traversal is required because `getProps` would
 collapse duplicate properties, and argument cardinality means a one-element array has no
 version-one argument spelling. The latter finding was propagated to EP-7's conformance
-fixture design. Cabal and Nix both pin `kdl-hs` 1.0.1 so builds use the exact Mori-located
-source that informed those decisions.
+fixture design. A 2026-07-18 maintenance audit replaced the stale corpus-driven 1.0.1
+exact pin with Cabal compatibility for `>=1.1.1 && <1.2` and a reproducible Nix 1.1.1
+archive. Upstream 1.1.1 retains the parser and AST behaviors on which those decisions rest,
+so no adapter API, mapping, provenance, error, or EP-7 fixture change is required.
 
 The completed package uses the canonical package-local GHC2024 common stanza in its
 library and test suite and passes the shared prelude, strict-record, explicit-deriving,
@@ -171,11 +185,13 @@ locations, structured errors, and redaction. The layout plan moves the core to `
 and establishes same-named top-level roots for adapters. Read their actual implementation,
 the relevant ADRs, and the relocated core modules before coding.
 
-At planning time, `mori registry search kdl` locates the `kdl-hs` project at
-`/Users/shinzui/Keikaku/hub/kdl-hs-project`, package version 1.0.1. Source inspection found
-the parser, AST, Applicative, and Arrow modules and node spans. Re-run Mori because the
-registry and checked-out version can change. Use the names and constructors found in the
-current source rather than those remembered or shown illustratively in this plan.
+`mori registry search kdl` locates the `kdl-hs` project at
+`/Users/shinzui/Keikaku/hub/kdl-hs-project`, whose corpus checkout is package version
+1.0.1. The current upstream and Hackage release is 1.1.1. Use Mori first to locate source
+and documentation, but verify Hackage and upstream release tags before selecting the
+version. Inspect the selected release's parser, AST, Applicative, Arrow, and span modules;
+use the names and constructors in that release rather than treating a corpus snapshot or
+an illustrative signature in this plan as current.
 
 In the mapping below, an object is a collection of named fields, a leaf is a raw scalar or
 array supplied to one setting decoder, and a span is the file region associated with a KDL
@@ -316,8 +332,9 @@ origins, mounted-file annotations, and rejected ambiguous forms. Explain that
 
 ## Concrete Steps
 
-Run from `/Users/shinzui/Keikaku/bokuno/settei`. Locate the current dependency and read its
-source before importing anything:
+Run from `/Users/shinzui/Keikaku/bokuno/settei`. Locate the dependency, determine the
+current upstream release, and read the selected release's source before importing
+anything:
 
 ```bash
 mori show --full
@@ -326,6 +343,8 @@ mori registry search generic-lens
 mori registry show ekmett/lens --full
 mori registry show shinzui/haskell-jitsurei --full
 mori registry docs shinzui/haskell-jitsurei
+cabal list --simple-output kdl-hs
+git ls-remote --tags https://github.com/brandonchinn178/kdl-hs.git
 ```
 
 Use the qualified result returned by the registry:
@@ -335,7 +354,9 @@ mori registry show QUALIFIED_KDL_PROJECT --full
 mori registry docs QUALIFIED_KDL_PROJECT
 ```
 
-Read the source path reported by Mori with scoped searches such as:
+Read the source path reported by Mori with scoped searches. If its checkout is older than
+the selected upstream release, obtain that release from Hackage or its upstream tag and
+run the same scoped source audit there:
 
 ```bash
 rg "data .*Node|data .*Value|data Span|documentSchema|parse" REGISTERED_KDL_SOURCE/src
@@ -391,8 +412,8 @@ Mori lookup, characterization tests, formatting, builds, and tests are safe to r
 Keep the canonical mapping centralized in one translator and reuse it for bytes/file IO so
 behavior cannot drift.
 
-If the registered `kdl-hs` API differs from the planning snapshot, update this plan with
-the actual version and evidence before adapting imports. If a desired span is unavailable,
+If the selected upstream `kdl-hs` API differs from the planning snapshot, update this plan
+with the actual version and evidence before adapting imports. If a desired span is unavailable,
 report the nearest substantiated enclosing span and document the precision; never synthesize
 line numbers. If the raw tree cannot represent a scalar losslessly, return a mapping error
 instead of coercing it.
@@ -400,8 +421,8 @@ instead of coercing it.
 
 ## Interfaces and Dependencies
 
-Package `settei-kdl` depends on `settei`, `base`, `containers`, `text`, and the registered
-`kdl-hs` package, plus only the numeric or path dependencies required by its inspected AST.
+Package `settei-kdl` depends on `settei`, `base`, `containers`, `text`, and upstream-audited
+`kdl-hs >=1.1.1 && <1.2`, plus only the numeric or path dependencies required by its AST.
 Add `generic-lens` directly when package modules use `#label`. It consumes core `Source`,
 `Origin`, `SourceLocation`, `RawValue`, and error extension points.
 
@@ -427,3 +448,10 @@ living sections now record the duplicate-preserving entry traversal, parser-exce
 redaction, exact Cabal/Nix pin, supported KDL v2 scalar policy, and the cardinality rule
 that prevents an argument-style one-element array. ADR 0005 now owns those durable format
 decisions.
+
+2026-07-18: Corrected the corpus-driven dependency choice after auditing Hackage and the
+upstream `v1.1.1` source. The stale 1.0.1 exact bound and archive were replaced by Cabal's
+audited 1.1 release range and a reproducible Nix 1.1.1 archive. The latest AST still
+preserves entries and spans, `getProps` still collapses duplicates, and parse failures
+still contain excerpts, so the canonical mapping, direct traversal, redaction boundary,
+one-element-array limitation, and all other adapter decisions remain unchanged.

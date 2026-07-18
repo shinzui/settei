@@ -99,13 +99,13 @@
       "flake": false,
       "locked": {
         "lastModified": 1000000000,
-        "narHash": "sha256-XlNHId1y8i9OIjId09/W8oup+8Ma+bi6WkmR7MgDqSg=",
+        "narHash": "sha256-W2XjNyvH1u+xTpzT4rtt/Lf1kVJZxg9oM1FkzuB+JIw=",
         "type": "tarball",
-        "url": "https://hackage.haskell.org/package/kdl-hs-1.0.1/kdl-hs-1.0.1.tar.gz"
+        "url": "https://hackage.haskell.org/package/kdl-hs-1.1.1/kdl-hs-1.1.1.tar.gz"
       },
       "original": {
         "type": "tarball",
-        "url": "https://hackage.haskell.org/package/kdl-hs-1.0.1/kdl-hs-1.0.1.tar.gz"
+        "url": "https://hackage.haskell.org/package/kdl-hs-1.1.1/kdl-hs-1.1.1.tar.gz"
       }
     },
     "nixpkgs": {

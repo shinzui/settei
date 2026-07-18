@@ -4,7 +4,7 @@ Status: Accepted
 
 Date: 2026-07-16
 
-Amended: 2026-07-17
+Amended: 2026-07-17, 2026-07-18
 
 
 ## Context
@@ -34,6 +34,12 @@ owner's established multi-package Haskell repositories. Mori resolved the regist
 `shinzui/mori` and `shinzui/shibuya` source trees; their `cabal.project` files list
 package-named top-level siblings such as `mori-core`, `mori-cli`, and `shibuya-core`
 directly, without a generic package container or a special package rooted at `.`.
+
+A 2026-07-18 release audit found that Mori's registered `kdl-hs` checkout was 1.0.1 while
+Hackage and the upstream repository had released 1.1.1. The audit also confirmed that the
+other version-sensitive choices remained current: optparse-applicative 0.19.0.0,
+selective 0.7.0.1, yaml 0.11.11.2, libyaml 0.1.4, dhall 1.42.3, and dhall-json 1.7.12.
+The `generic-lens >=2.2 && <2.4` range already includes its current 2.3.0.0 release.
 
 
 ## Decision
@@ -66,6 +72,13 @@ The core package depends on `lens` and `generic-lens`. Any adapter, example, or 
 that imports `Data.Generics.Labels ()` declares `generic-lens` directly rather than relying
 on transitive package visibility. `MultilineStrings` is enabled locally or for a narrowly
 scoped component only when the source embeds a multi-line value.
+
+Dependency research always begins with Mori so source code, documentation, and known
+consumer usage can be inspected locally. Release selection is a separate step: before an
+exact lower bound, archive pin, or compatibility workaround is adopted, check Hackage and
+the dependency's upstream release tags for the current published version. A stale corpus
+checkout must not become a release ceiling. Reusable Cabal libraries express an audited
+compatible release range; reproducible Nix inputs may lock the selected release archive.
 
 For command-line components using optparse-applicative 0.19 or newer, related options are
 wrapped in short, intent-based groups such as “Configuration” and “Diagnostics”. Other CLI
@@ -118,6 +131,12 @@ API used by Cabal. Temporarily disabling that derivation's checks avoids an ABI-
 test graph without removing any test from the repository's acceptance suite. The exception
 is narrowly scoped and should be removed once nixpkgs supplies a compatible `tasty` graph.
 
+Mori-backed source inspection remains mandatory, but package freshness is verified
+independently. This keeps local corpus knowledge useful without allowing its update cadence
+to force an older dependency or an unnecessary compatibility workaround into a public
+package. Every release upgrade still runs the adapter's characterization and workspace
+acceptance tests before its supported range is widened.
+
 All package additions now have one predictable location. Cabal and Nix configuration must
 name explicit package roots instead of relying on the entire repository as the core source,
 and each package source distribution must be self-contained within its directory. In
@@ -140,6 +159,8 @@ Building the adapter against nixpkgs' optparse-applicative 0.18 was rejected bec
 lacks the adopted option-group API. Relaxing the Cabal lower bound or silently skipping
 the tests everywhere was rejected because either would weaken the source-inspected API or
 the acceptance evidence.
+Treating the newest version visible in Mori as the newest released dependency was rejected
+because Mori's corpus and upstream package publication have independent update cadences.
 Requiring every module to import `Settei.Prelude hiding (Setting)` was rejected because
 the collision is universal to Settei consumers and can be resolved once at the prelude
 boundary. Renaming Settei's domain type was rejected because `Setting` is the clearest
