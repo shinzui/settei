@@ -1,3 +1,6 @@
+-- |
+-- Module: Settei.Example.Service
+-- Description: Kubernetes-shaped service configuration composed from public Settei APIs.
 module Settei.Example.Service
   ( DatabaseConfig,
     HttpConfig,
@@ -38,12 +41,15 @@ import Settei.Kdl qualified as Kdl
 import Settei.Prelude
 import Settei.Yaml qualified as Yaml
 
+-- | Runtime environment that selects the service's named defaults and secret branch.
 data RuntimeEnvironment = Development | Test | Production
   deriving stock (Generic, Eq, Ord, Show)
 
+-- | Password wrapper deliberately lacking a revealing 'Show' instance.
 newtype SecretText = SecretText Text
   deriving stock (Generic, Eq)
 
+-- | Fully resolved service configuration; the secret-bearing constructor stays private.
 data ServiceConfig = ServiceConfig
   { environment :: !RuntimeEnvironment,
     http :: !HttpConfig,
@@ -51,12 +57,14 @@ data ServiceConfig = ServiceConfig
   }
   deriving stock (Generic, Eq)
 
+-- | Public HTTP listener configuration.
 data HttpConfig = HttpConfig
   { host :: !Text,
     port :: !Int
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Database configuration whose constructor and secret-bearing fields stay private.
 data DatabaseConfig = DatabaseConfig
   { host :: !Text,
     port :: !Int,
@@ -65,6 +73,7 @@ data DatabaseConfig = DatabaseConfig
   }
   deriving stock (Generic, Eq)
 
+-- | Explicit adapter tag accepted for a mounted file.
 data ServiceFileFormat = ServiceYaml | ServiceKdl | ServiceDhall
   deriving stock (Generic, Eq, Ord, Show)
 
@@ -74,6 +83,7 @@ data ServiceInput = ServiceInput
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Normal startup or one validation/explanation action.
 data ServiceDiagnosticMode
   = StartService
   | CheckServiceConfiguration
@@ -81,12 +91,14 @@ data ServiceDiagnosticMode
   | ExplainServiceConfigurationJson
   deriving stock (Generic, Eq, Ord, Show)
 
+-- | Parsed command line before the mounted file is loaded.
 data ServiceOptions = ServiceOptions
   { configInput :: !(Maybe ServiceInput),
     diagnosticMode :: !ServiceDiagnosticMode
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Capturable process result used by the executable and security tests.
 data ServiceRun = ServiceRun
   { exitCode :: !Int,
     standardOutput :: !Text,
@@ -95,19 +107,29 @@ data ServiceRun = ServiceRun
   deriving stock (Generic, Eq, Show)
 
 usageExitCode, sourceExitCode, resolutionExitCode :: Int
+
+-- | Exit code reserved for optparse-applicative usage failures.
 usageExitCode = 2
+
+-- | Exit code reserved for mounted-file IO or adapter parsing failures.
 sourceExitCode = 3
+
+-- | Exit code reserved for typed resolution failures.
 resolutionExitCode = 4
 
+-- | Return the process exit code chosen by a completed run.
 serviceExitCode :: ServiceRun -> Int
 serviceExitCode value = value ^. #exitCode
 
+-- | Return captured standard output.
 serviceStandardOutput :: ServiceRun -> Text
 serviceStandardOutput value = value ^. #standardOutput
 
+-- | Return captured standard error.
 serviceStandardError :: ServiceRun -> Text
 serviceStandardError value = value ^. #standardError
 
+-- | Complete parser metadata, help, and usage-error policy.
 serviceParserInfo :: ParserInfo ServiceOptions
 serviceParserInfo =
   Options.info
@@ -153,6 +175,7 @@ serviceInputReader = Options.eitherReader $ \input ->
           "dhall" -> Right (ServiceInput ServiceDhall filePath)
           _ -> Left "FORMAT must be yaml, kdl, or dhall"
 
+-- | Service declaration with named defaults and a Production-only password.
 serviceConfig :: Config ServiceConfig
 serviceConfig =
   ServiceConfig
@@ -160,6 +183,7 @@ serviceConfig =
     <*> httpConfig
     <*> databaseConfig
 
+-- | Service declaration paired with the list used by cross-format conformance tests.
 serviceConformanceConfig :: Config (ServiceConfig, [Text])
 serviceConformanceConfig =
   (,)
@@ -213,6 +237,7 @@ databasePortDefault =
     "Use PostgreSQL's conventional port"
     5432
 
+-- | Explicit environment bindings, including the annotated Kubernetes Secret value.
 environmentBindings :: [EnvBinding]
 environmentBindings =
   [ binding (EnvName "HASKELL_ENV") runtimeEnvironmentKey,
@@ -226,6 +251,7 @@ environmentBindings =
       (binding (EnvName "DATABASE_PASSWORD") databasePasswordKey)
   ]
 
+-- | Load, resolve, and render one capturable run against an injected snapshot.
 runServiceWithSnapshot :: EnvSnapshot -> ServiceOptions -> IO ServiceRun
 runServiceWithSnapshot snapshot options = do
   resolved <- resolveServiceOptions snapshot options
@@ -234,6 +260,7 @@ runServiceWithSnapshot snapshot options = do
     Left (ResolveFailure problems) -> failedRun resolutionExitCode (renderErrorsText problems)
     Right result -> successfulRun (renderServiceSuccess options result)
 
+-- | Resolve the parsed mounted-file option followed by the environment source.
 resolveServiceOptions :: EnvSnapshot -> ServiceOptions -> IO (Either ServiceFailure (ResolveResult ServiceConfig))
 resolveServiceOptions snapshot options = do
   loaded <- traverse loadServiceInput (options ^. #configInput)
@@ -246,6 +273,7 @@ resolveServiceOptions snapshot options = do
       Left problems -> Left (ResolveFailure problems)
       Right value -> Right value
 
+-- | Resolve already loaded file sources followed by an injected environment snapshot.
 resolveServiceSources :: [Source] -> EnvSnapshot -> Either (NonEmpty ConfigError) (ResolveResult ServiceConfig)
 resolveServiceSources fileSources snapshot = do
   environmentSource <-
@@ -288,6 +316,7 @@ loadServiceInput input =
                 (Dhall.DhallFile (input ^. #path))
             )
 
+-- | Render only allowlisted non-secret startup fields.
 safeStartupSummary :: ServiceConfig -> Text
 safeStartupSummary config =
   Text.unlines

@@ -1,3 +1,6 @@
+-- |
+-- Module: Settei.Example.Cli
+-- Description: Public-API composition for a layered Settei command-line application.
 module Settei.Example.Cli
   ( CliConfig,
     CliOptions,
@@ -38,15 +41,18 @@ import Settei.Optparse
 import Settei.Prelude
 import Settei.Yaml qualified as Yaml
 
+-- | Deployment environment accepted by the example declaration.
 data RuntimeEnvironment = Development | Test | Production
   deriving stock (Generic, Eq, Ord, Show)
 
+-- | Output mode selected by configuration rather than diagnostic flags.
 data OutputFormat = TextOutput | JsonOutput
   deriving stock (Generic, Eq, Ord, Show)
 
 newtype SecretText = SecretText Text
   deriving stock (Generic, Eq)
 
+-- | Fully resolved application configuration; the secret-bearing constructor stays private.
 data CliConfig = CliConfig
   { environment :: !RuntimeEnvironment,
     endpoint :: !Text,
@@ -56,15 +62,18 @@ data CliConfig = CliConfig
   }
   deriving stock (Generic, Eq)
 
+-- | Explicit format tag required for each input file.
 data ConfigFormat = YamlFormat | KdlFormat | DhallFormat
   deriving stock (Generic, Eq, Ord, Show)
 
+-- | One ordered, explicitly tagged configuration file.
 data ConfigInput = ConfigInput
   { format :: !ConfigFormat,
     path :: !FilePath
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Source-free schema inspection or one post-resolution action.
 data DiagnosticMode
   = RunExample
   | DescribeConfiguration
@@ -73,6 +82,7 @@ data DiagnosticMode
   | CheckConfiguration
   deriving stock (Generic, Eq, Ord, Show)
 
+-- | Parsed command line before sources are loaded.
 data CliOptions = CliOptions
   { configInputs :: ![ConfigInput],
     overrides :: ![CliOverride],
@@ -80,6 +90,7 @@ data CliOptions = CliOptions
   }
   deriving stock (Generic, Eq)
 
+-- | Capturable process result used by the executable and end-to-end tests.
 data CliRun = CliRun
   { exitCode :: !Int,
     standardOutput :: !Text,
@@ -88,25 +99,37 @@ data CliRun = CliRun
   deriving stock (Generic, Eq, Show)
 
 usageExitCode, sourceExitCode, resolutionExitCode :: Int
+
+-- | Exit code reserved for optparse-applicative usage failures.
 usageExitCode = 2
+
+-- | Exit code reserved for file IO or adapter parsing failures.
 sourceExitCode = 3
+
+-- | Exit code reserved for typed resolution failures.
 resolutionExitCode = 4
 
+-- | Return the process exit code chosen by a completed run.
 cliExitCode :: CliRun -> Int
 cliExitCode value = value ^. #exitCode
 
+-- | Return captured standard output.
 cliStandardOutput :: CliRun -> Text
 cliStandardOutput value = value ^. #standardOutput
 
+-- | Return captured standard error.
 cliStandardError :: CliRun -> Text
 cliStandardError value = value ^. #standardError
 
+-- | Return an input's explicit adapter tag.
 configInputFormat :: ConfigInput -> ConfigFormat
 configInputFormat value = value ^. #format
 
+-- | Return an input's filesystem path.
 configInputPath :: ConfigInput -> FilePath
 configInputPath value = value ^. #path
 
+-- | Complete parser metadata, help, and usage-error policy.
 cliParserInfo :: ParserInfo CliOptions
 cliParserInfo =
   Options.info
@@ -116,6 +139,7 @@ cliParserInfo =
         <> Options.failureCode usageExitCode
     )
 
+-- | Parser for ordered files, overrides, and diagnostic intent.
 cliOptionsParser :: Parser CliOptions
 cliOptionsParser =
   CliOptions
@@ -153,6 +177,7 @@ configInputReader = Options.eitherReader $ \input ->
           "dhall" -> Right (ConfigInput DhallFormat filePath)
           _ -> Left "FORMAT must be yaml, kdl, or dhall"
 
+-- | Inspectable declaration shared by the executable and tests.
 cliConfig :: Config CliConfig
 cliConfig =
   CliConfig
@@ -162,6 +187,7 @@ cliConfig =
     <*> required outputFormatSetting
     <*> optional tokenSetting
 
+-- | Explicit environment-variable bindings used by the example.
 environmentBindings :: [EnvBinding]
 environmentBindings =
   [ binding (EnvName "HASKELL_ENV") runtimeEnvironmentKey,
@@ -173,6 +199,7 @@ environmentBindings =
       (binding (EnvName "SERVICE_TOKEN") serviceTokenKey)
   ]
 
+-- | Load, resolve, and render one capturable run against an injected snapshot.
 runCliWithSnapshot :: EnvSnapshot -> CliOptions -> IO CliRun
 runCliWithSnapshot snapshot options =
   case options ^. #diagnosticMode of
@@ -184,6 +211,7 @@ runCliWithSnapshot snapshot options =
         Left (ResolveFailure problems) -> failedRun resolutionExitCode (renderErrorsText problems)
         Right result -> successfulRun (renderSuccess options result)
 
+-- | Resolve ordered built-ins, files, environment, and command-line sources.
 resolveCliOptions :: EnvSnapshot -> CliOptions -> IO (Either CliFailure (ResolveResult CliConfig))
 resolveCliOptions snapshot options = do
   loaded <- traverse loadConfigInput (options ^. #configInputs)

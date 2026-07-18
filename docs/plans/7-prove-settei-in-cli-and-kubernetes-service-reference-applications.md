@@ -59,7 +59,12 @@ remains outside this plan.
   guides, security model, compatibility matrix, release checklist, package licenses,
   tested-with fields, and 0.1.0.0 changelogs. Distill the public-API conformance boundary
   into ADR 0007 and update ADR 0006 for the unified Nix CLI dependency graph.
-- [ ] Validate Cabal, Nix, Haddocks, source distributions, and the release checklist.
+- [x] (2026-07-18 08:36 PDT) Validate all nine packages with Cabal 3.16.1.0 and GHC
+  9.12.4: build, 138 tests, Haddocks, warning-free package checks, source distributions,
+  an isolated unpacked-distribution rebuild and 138-test rerun, CLI smoke tests, JSON
+  parsing, nine-package Mori inventory, all example Nix outputs, formatting, and the host
+  `nix flake check` pass. Only separately authorized publication/signing tasks remain open
+  in the release checklist.
 
 
 ## Surprises & Discoveries
@@ -92,6 +97,17 @@ remains outside this plan.
   Impact: Nix overrides Dhall and dhall-json to the pinned 0.19 derivation, builds their
   and Settei's artifacts without the nixpkgs Tasty tests, and leaves the complete test
   authority with the pinned Cabal workspace. All three example Nix outputs then build.
+
+- Observation: Haddock initially reported zero declaration coverage for the two internal
+  example library modules even though every publishable module was documented.
+  Evidence: `cabal haddock all` listed all 47 exported example declarations as missing;
+  after documenting the teaching surface, both modules report 100% coverage. Remaining
+  warnings are generated `Generic` representation link targets and unavailable upstream
+  package docs, while every Settei-owned declaration is covered (the re-exporting
+  `Settei.Prelude` reports 94%).
+  Impact: example modules now teach their intended boundary through Haddocks as well as
+  source and guides; the generated/upstream link warnings are recorded rather than
+  mistaken for missing application documentation.
 
 
 ## Decision Log
@@ -160,12 +176,34 @@ remains outside this plan.
 
 ## Outcomes & Retrospective
 
-To be filled during and after implementation. Before completing the MasterPlan, summarize
-which parts of the reference API are stable enough for production adoption and create
-follow-up migration plans for consumers only if separately authorized. Confirm that both
-example `.cabal` files declare the canonical package-local GHC2024 common stanza, every
-component imports it, and the examples and conformance suite pass the shared prelude,
-record, deriving, lens, qualified-import, and CLI option-group audit.
+EP-7 completed on 2026-07-18. The CLI reference proves ordered built-ins, explicit files,
+injected environment values, and occurrence-preserving command-line overrides together
+with source-free schema inspection and distinct usage/source/resolution failure phases.
+The service proves nested records, named environment defaults, a Selective
+Production-only secret, Kubernetes-shaped mounted-file/environment annotations, and safe
+normal startup output. ADR 0007 preserves the durable choice to use these internal
+applications as the public-API conformance boundary.
+
+The cross-format suite proves equal YAML, KDL, and import-free Dhall typed values and equal
+normalized report structure while retaining truthful format-specific origins. Its matrix
+also covers defaults, file/environment/CLI order, malformed higher values, Development
+and Production branch selection, annotated Secrets, and captured-output sentinel scans.
+The root documentation now defines the adoption surface, compatibility matrix, security
+model, application patterns, and release procedure.
+
+The core `Config`, `Setting`, `Source`, `resolve`, schema, report, and maintained adapter
+modules are coherent enough for separately planned production adoption, subject to the
+explicit experimental 0.1.0.0 stability statement and documented format/security limits.
+No Rei, Mori, Seihou, `tan-commons-config`, or `mls-service-v2` migration plan was created
+because the user did not authorize consumer changes.
+
+All three example `.cabal` files repeat the canonical package-local GHC2024 common stanza
+and every component imports it. The examples use `Settei.Prelude`, strict unprefixed
+records, explicit deriving strategies, generic-lens labels and composed access paths,
+postpositive qualified imports, and intent-grouped CLI options. The final pinned workspace
+passes 138 tests both in the repository and from all nine unpacked source distributions;
+package checks, Haddocks, Nix outputs, flake checks, formatting, Mori, and CLI smoke tests
+also pass. Publication and signing remain deliberately unperformed.
 
 
 ## Context and Orientation
@@ -516,3 +554,8 @@ positional argument is canonically a scalar, while two or more arguments form an
 and the conformance suite. Dhall now defaults to `NoImports`, any demonstrated local graph
 must use an explicit `LocalImportsWithin` root, and the examples must neither expose nor
 imply an unrestricted standard-import mode.
+
+2026-07-18: Completed both reference applications, the cross-format/security conformance
+package, all workspace wiring, package-family documentation, ADR 0007, and the release
+acceptance gate. Verified the 138-test suite from both the repository and isolated source
+distributions and left publication/signing steps manual and unauthorized.

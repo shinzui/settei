@@ -118,7 +118,7 @@ silently becoming package policy.
 | EP-8 | Move Settei packages to top-level sibling directories | `docs/plans/8-move-settei-packages-to-top-level-sibling-directories.md` | EP-3, EP-4 | None | Complete |
 | EP-5 | Add KDL configuration support | `docs/plans/5-add-kdl-configuration-support.md` | EP-2, EP-8 | None | Complete |
 | EP-6 | Add Dhall configuration support | `docs/plans/6-add-dhall-configuration-support.md` | EP-2, EP-8 | None | Complete |
-| EP-7 | Prove Settei in CLI and Kubernetes service reference applications | `docs/plans/7-prove-settei-in-cli-and-kubernetes-service-reference-applications.md` | EP-3, EP-4, EP-5, EP-6 | None | In Progress |
+| EP-7 | Prove Settei in CLI and Kubernetes service reference applications | `docs/plans/7-prove-settei-in-cli-and-kubernetes-service-reference-applications.md` | EP-3, EP-4, EP-5, EP-6 | None | Complete |
 
 Status values are Not Started, In Progress, Complete, and Cancelled. Hard dependencies and
 soft dependencies reference other rows by their EP prefix.
@@ -226,8 +226,8 @@ are annotations supplied by the application or deployment, not discovered by the
 - [x] EP-5 maintenance: replace the stale corpus-driven `kdl-hs` 1.0.1 pin with the
   upstream-audited 1.1 release line without changing adapter semantics.
 - [x] EP-6: translate normalized Dhall values and report honest import provenance.
-- [ ] EP-7: demonstrate CLI and Kubernetes service use cases end to end.
-- [ ] EP-7: publish package-family documentation and complete the release checklist.
+- [x] EP-7: demonstrate CLI and Kubernetes service use cases end to end.
+- [x] EP-7: publish package-family documentation and complete the release checklist.
 
 
 ## Surprises & Discoveries
@@ -361,6 +361,30 @@ are annotations supplied by the application or deployment, not discovered by the
   Impact: the workspace relaxes only those three `dhall-json` bounds and the Nix package
   applies the equivalent local jailbreak; EP-7 inherits the pinned, tested adapter rather
   than adding another Dhall dependency workaround.
+
+- Observation: the host GHC 9.10 toolchain cannot satisfy the package family's intended
+  `base >=4.21` boundary, while the pinned development shell supplies GHC 9.12.4.
+  Evidence: the host solver rejects `base-4.20.2.0`, and both the repository and isolated
+  source-distribution workspaces pass 138 tests through `nix develop`.
+  Impact: the compatibility guide and release checklist make the pinned shell the
+  executable validation boundary rather than weakening package bounds for the host.
+
+- Observation: nixpkgs' Dhall/Tasty graph still carries optparse-applicative 0.18 while
+  Settei's source-inspected CLI surface uses the current 0.19 release.
+  Evidence: example derivations first aborted on Cabal's duplicate-version warning;
+  Hackage, upstream tags/source, and Mori inspection confirmed the selected releases and
+  compatible `<0.20` Dhall bounds.
+  Impact: Nix uses one pinned 0.19 derivation for Dhall, dhall-json, Settei, and examples,
+  builds affected artifacts without the older Tasty closure, and leaves all tests to the
+  coherent Cabal workspace.
+
+- Observation: EP-7's fixed `ServiceConfig` has no list, while cross-format KDL
+  conformance needs at least two list elements to avoid the canonical one-argument scalar
+  mapping.
+  Evidence: the shared `service.tags` fixtures resolve equally across YAML, KDL, and
+  Dhall without adding an unused field to the service record.
+  Impact: the conformance declaration pairs the exact service value with `[Text]`; ADR
+  0007 records the application/conformance boundary.
 
 
 ## Decision Log
@@ -504,6 +528,20 @@ are annotations supplied by the application or deployment, not discovered by the
   observability boundary instead of recreating the broader initial aspiration.
   Date: 2026-07-18
 
+- Decision: Adopt ADR 0007's internal CLI, Kubernetes-shaped service, and cross-format
+  suite as the public-API conformance boundary for the first release.
+  Rationale: controlled reference applications prove package composition, precedence,
+  diagnostics, deployment annotations, format equivalence, and redaction without coupling
+  Settei to a production consumer's deployment cycle or publishing a second API layer.
+  Date: 2026-07-18
+
+- Decision: Use one optparse-applicative 0.19 derivation throughout the affected Nix
+  application graph and keep the coherent Cabal workspace as the complete test authority.
+  Rationale: released Dhall bounds accept 0.19, while mixing nixpkgs' older Tasty ABI into
+  application derivations is neither representative of the supported workspace nor
+  accepted by Cabal's configure-time duplicate-version check.
+  Date: 2026-07-18
+
 
 ## Outcomes & Retrospective
 
@@ -578,12 +616,36 @@ distribution, the dedicated Nix package build, full flake check, formatting, con
 audit, and six-package Mori inventory all pass. EP-7 is now dependency-ready and is the
 only remaining child plan.
 
-Before this MasterPlan is complete, distill the durable resolution semantics, adapter
-boundary, and Dhall provenance limitation into `docs/adr/`, and compare the shipped package
-family and demonstrations with the vision above. The final retrospective must also confirm
-that every Cabal component imports its package-local GHC2024 common stanza and that exposed
-examples and implementation modules follow the record, prelude, deriving, lens, and
-qualified-import conventions above.
+EP-7 completed on 2026-07-18. It added internal CLI and Kubernetes-shaped service
+applications, reviewed ConfigMap/Secret/Deployment assets, and a self-contained
+YAML/KDL/Dhall conformance and security suite. The CLI proves complete low-to-high source
+ordering, source-free description, redacted explanations, and separate failure phases.
+The service proves named environment defaults, a Selective Production-only secret,
+mounted-file and environment annotations, and safe startup output. ADR 0007 records these
+applications as the first release's public-API conformance boundary.
+
+The initiative now ships the six intended 0.1.0.0 packages with package-local licenses and
+changelogs, linked format/application/security guides, an exact compatibility matrix, and
+a completed automated release checklist. All nine workspace packages build; 138 tests pass
+both from the repository and from isolated unpacked source distributions; every
+Settei-owned exposed declaration is covered by Haddocks (apart from documented third-party
+re-exports in `Settei.Prelude`); all package checks, Nix outputs, host flake checks,
+formatting, Mori inventory, CLI smoke tests, and JSON validation pass.
+
+The delivered family matches the scoped vision: declarations are typed and inspectable;
+resolution is hierarchical, deterministic, provenance-aware, dependency-explainable, and
+secret-safe; environment, CLI, YAML, KDL, and Dhall adapters share those semantics; and
+Kubernetes support remains honest process-visible metadata rather than cluster access.
+ADRs 0002 and 0003 preserve the algebra and resolver, ADRs 0004 through 0006 preserve each
+format boundary and Dhall precision limit, and ADR 0007 preserves application integration.
+
+Every package repeats the canonical GHC2024 common stanza and every Cabal component imports
+it. Implementation and example modules pass the custom-prelude, strict-record,
+explicit-deriving, generic-lens, postpositive-qualified-import, and CLI option-group audit.
+No production consumer was migrated and no follow-up migration plan was created because
+that scope was not separately authorized. Remote configuration, live reload, secret
+storage, cluster clients, signing, tagging, and Hackage publication remain intentionally
+outside the completed initiative.
 
 
 ## Revision Note
@@ -646,3 +708,10 @@ confirmed that direct duplicate-preserving traversal, span provenance, syntax-er
 redaction, canonical mapping, and every unrelated adapter decision remain valid. The 18
 KDL tests, 121-test workspace suite, dedicated Nix build, flake checks, Cabal package
 check, and source distribution all pass against 1.1.1.
+
+2026-07-18: Marked EP-7 and the MasterPlan complete after delivering the CLI and
+Kubernetes-shaped service references, cross-format/security conformance package,
+package-family documentation, release metadata, ADR 0007, and full 138-test acceptance
+gate. The same tests pass from all nine isolated source distributions; Cabal, Haddock,
+Nix, flake, Mori, formatting, CLI, and JSON checks pass without performing publication or
+consumer migration.
