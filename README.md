@@ -7,6 +7,30 @@ configuration, deterministic source precedence, derived defaults, and secret-saf
 to “where did this value come from?”
 
 
+## Release status
+
+Settei 0.1.0.0 is implementation-complete and prepared for its initial release. The six
+publishable packages have aligned version, license, changelog, dependency-bound, and
+`tested-with` metadata. The MasterPlan and all eight ExecPlans are complete.
+
+The release candidate has been validated with GHC 9.12.4 and Cabal 3.16.1.0 on
+`aarch64-darwin`:
+
+- All nine workspace packages build, including the three internal example packages.
+- All 138 tests pass both in the repository and from isolated unpacked source
+  distributions.
+- Package checks, Haddocks, source distributions, formatting, Mori inventory, example
+  Nix outputs, CLI smoke tests, and `nix flake check` pass.
+- Package-family guides, security guidance, compatibility policy, release metadata, and
+  the automated release checklist are complete.
+
+The release has **not** been tagged, signed, or uploaded to Hackage. Those manual actions,
+including a public-registry installation smoke test, require separate authorization and
+remain tracked in the [release checklist](docs/release-checklist.md). Version 0.1.0.0 is
+experimental; consult the [compatibility matrix](docs/compatibility.md) for the validated
+platform, dependency bounds, and public adoption surface.
+
+
 ## Package map
 
 | Package | Role |
@@ -114,9 +138,9 @@ nix develop -c cabal test all --test-show-details=direct
 ```
 
 The supported public modules and exact tested toolchain are listed in the
-[compatibility matrix](docs/compatibility.md). Version 0.1.0.0 is experimental; the
-documented public modules are the intended adoption surface, but semantic stability is not
-promised beyond the release notes.
+[compatibility matrix](docs/compatibility.md). The documented public modules are the
+intended adoption surface, but semantic stability is not promised beyond the release
+notes.
 
 
 ## The name
