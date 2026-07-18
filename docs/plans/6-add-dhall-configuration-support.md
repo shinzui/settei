@@ -5,6 +5,7 @@ title: "Add Dhall configuration support"
 kind: exec-plan
 created_at: 2026-07-16T23:50:13Z
 master_plan: "docs/masterplans/1-build-settei-as-a-provenance-aware-configuration-library-for-haskell.md"
+intention: intention_01kxr36cqgem8tmxjjtnq0t6ns
 ---
 
 # Add Dhall configuration support
@@ -31,8 +32,10 @@ decoding, precedence, defaults, provenance edges, redaction, and report renderin
 
 ## Progress
 
-- [ ] Re-inspect registered `dhall` and `dhall-json` conversion and import APIs.
-- [ ] Prototype enforceable import policies and import-closure collection.
+- [x] (2026-07-18 13:27Z) Re-inspect registered `dhall` 1.42.3 and `dhall-json`
+  1.7.12 conversion, import-status, cache, and resolver APIs through Mori.
+- [x] (2026-07-18 13:31Z) Prove enforceable no-import and canonical-root local
+  policies plus cache-independent transitive closure collection in seven prototype tests.
 - [ ] Add and register the `settei-dhall` package.
 - [ ] Convert supported normalized Dhall values into the core raw tree.
 - [ ] Add honest root/import provenance, errors, redaction, and cache isolation.
@@ -41,7 +44,26 @@ decoding, precedence, defaults, provenance edges, redaction, and report renderin
 
 ## Surprises & Discoveries
 
-(None yet.)
+- Observation: upstream `Status` exposes the successful import cache and dependency graph
+  and permits replacing remote fetches, but it does not expose an interception hook for
+  local-file or environment reads. `IgnoreSemanticCache` also leaves the separate
+  semi-semantic cache active, so a cache hit can hide a transitive graph from the current
+  evaluation.
+  Evidence: `Dhall.Import.loadWith` delegates local and environment imports directly to
+  `Data.Text.IO.readFile` and `System.Environment.lookupEnv`; only `_remote` and
+  `_remoteBytes` are configurable fields in `Dhall.Import.Types.Status`.
+  Impact: version one narrows the public policy to `NoImports` and a preflighted
+  `LocalImportsWithin`; unrestricted standard imports cannot promise both enforcement and
+  a complete observed closure through the maintained public API.
+
+- Observation: an additive preflight can resolve Dhall's chained relative paths through
+  `Dhall.Import.chainImport`, canonicalize existing files before reading them, and inspect
+  every embedded import because the expression is `Foldable`.
+  Evidence: `nix develop -c cabal test settei-dhall-prototype-tests` passes seven tests,
+  including transitive imports, `..` escape, symlink escape, rejected capabilities and
+  alternatives, and structural semantic-hash retention.
+  Impact: the production runner can remain a small adapter around public upstream APIs;
+  it does not need to copy or fork Dhall's import interpreter.
 
 
 ## Decision Log
@@ -76,6 +98,15 @@ decoding, precedence, defaults, provenance edges, redaction, and report renderin
   directory; creating another package beneath the obsolete `packages/` wrapper would
   immediately require a second move.
   Date: 2026-07-17
+
+- Decision: Omit `StandardImports` from version one and reject import alternatives under
+  `LocalImportsWithin`.
+  Rationale: the registered upstream API cannot intercept local or environment reads and
+  cannot fully disable the semi-semantic cache. Preflighting a no-alternative local graph
+  can prove every canonical path is contained before reading it and can collect the exact
+  transitive closure independent of upstream cache state; unrestricted or fallback graphs
+  cannot provide the same guarantee without copying the upstream interpreter.
+  Date: 2026-07-18
 
 
 ## Outcomes & Retrospective
@@ -134,26 +165,23 @@ The public semantics must support at least:
 data DhallImportPolicy
   = NoImports
   | LocalImportsWithin !FilePath
-  | StandardImports
   deriving stock (Generic, Eq, Show)
 ```
 
 `NoImports` rejects every import before reading it. `LocalImportsWithin root` permits local
-files whose canonical paths remain within `root` and rejects environment, remote, and
-missing imports. Resolve symlinks and `..` before containment checks. `StandardImports`
-uses the upstream semantics and is opt-in; documentation must call out environment,
-filesystem, cache, and network effects.
+files whose canonical paths remain within `root` and rejects environment, remote, missing,
+and alternative imports. Resolve symlinks and `..` before containment checks. The
+registered upstream API cannot enforce and observe unrestricted standard imports through
+a maintainable hook, so version one deliberately does not publish that capability.
 
-If the inspected public library cannot enforce and observe these policies through a
-maintainable API, stop before publishing them. Record the exact limitation, then either
-use a supported lower-level import interpreter in the same project or narrow version-one
-support to `NoImports` plus `LocalImportsWithin`. Do not claim `StandardImports` provenance
-unless actual imports can be collected.
+The inspected public library cannot enforce and observe unrestricted standard imports
+through a maintainable API, so version-one support is narrowed to `NoImports` plus
+`LocalImportsWithin`. Do not add standard-import provenance unless a future upstream API
+can collect actual imports while intercepting every capability before access.
 
-Characterize imports nested through other imports, import alternatives, integrity hashes,
-environment imports, remote URLs, cycles, missing files, and cache behavior. Tests must not
-contact the network or read the developer's environment; use a rejecting fake fetch path
-or restrict test policies accordingly.
+Characterize imports nested through other imports, rejected import alternatives, integrity
+hashes, environment imports, remote URLs, cycles, missing files, and cache behavior. Tests
+must not contact the network or read the developer's environment.
 
 ### Milestone 2: implement value conversion
 
@@ -300,8 +328,9 @@ actual import closure while explicitly declining exact leaf import attribution. 
 `LocalImportsWithin`, `../` and symlink escapes must fail.
 
 No automated test may make a network request or consume a real process environment import.
-If `StandardImports` ships, use a controlled resolver test or upstream-approved local test
-harness and document that enabling it permits network and environment effects.
+Document that version one deliberately has no standard-import mode because the maintained
+upstream API cannot enforce and observe its network, environment, filesystem, and cache
+effects together.
 
 Resolve a unique secret sentinel produced through a Dhall field or controlled environment
 import. The typed value may contain the sentinel, but the import graph, Dhall errors,
@@ -322,8 +351,8 @@ work around import controls by pre-fetching resources outside the resolver.
 
 ## Interfaces and Dependencies
 
-Package `settei-dhall` depends on `settei`, `base`, `containers`, `text`, and the exact
-registered `dhall` and `dhall-json` packages, plus Aeson or bytestring types used by the
+Package `settei-dhall` depends on `settei`, `base`, `containers`, `text`, registered
+`dhall` 1.42.3 and `dhall-json` 1.7.12, plus Aeson or bytestring types used by the
 official conversion boundary. Use the version bounds established by source inspection and
 characterization tests. Add `generic-lens` directly when package modules use `#label`.
 
@@ -343,3 +372,9 @@ lens-based access, a direct dependency, and postpositive qualified imports.
 changed the future package root from `packages/settei-dhall/` to `settei-dhall/`. This
 keeps the plan self-contained against the relocated `settei/` core and prevents new work
 from reintroducing the rejected package container.
+
+2026-07-18: Narrowed the version-one import policy to `NoImports` and
+`LocalImportsWithin` after source inspection proved that upstream exposes neither a
+local/environment interception hook nor a complete cache-independent standard-import
+closure. Local-only import alternatives are now explicitly rejected so preflight can
+validate and substantiate the entire graph before evaluation.

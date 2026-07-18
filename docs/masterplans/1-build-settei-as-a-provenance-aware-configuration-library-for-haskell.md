@@ -111,7 +111,7 @@ separate declarations.
 | EP-4 | Add YAML configuration support | `docs/plans/4-add-yaml-configuration-support.md` | EP-2 | None | Complete |
 | EP-8 | Move Settei packages to top-level sibling directories | `docs/plans/8-move-settei-packages-to-top-level-sibling-directories.md` | EP-3, EP-4 | None | Complete |
 | EP-5 | Add KDL configuration support | `docs/plans/5-add-kdl-configuration-support.md` | EP-2, EP-8 | None | Complete |
-| EP-6 | Add Dhall configuration support | `docs/plans/6-add-dhall-configuration-support.md` | EP-2, EP-8 | None | Not Started |
+| EP-6 | Add Dhall configuration support | `docs/plans/6-add-dhall-configuration-support.md` | EP-2, EP-8 | None | In Progress |
 | EP-7 | Prove Settei in CLI and Kubernetes service reference applications | `docs/plans/7-prove-settei-in-cli-and-kubernetes-service-reference-applications.md` | EP-3, EP-4, EP-5, EP-6 | None | Not Started |
 
 Status values are Not Started, In Progress, Complete, and Cancelled. Hard dependencies and
@@ -323,6 +323,15 @@ are annotations supplied by the application or deployment, not discovered by the
   Impact: ADR 0005 and the KDL guide make the limitation explicit, and EP-7 now requires
   at least two elements in its cross-format list fixture.
 
+- Observation: `dhall` 1.42.3 exposes import status and configurable remote fetches but no
+  maintained hook for intercepting local-file or environment reads; disabling its semantic
+  cache also leaves a separate semi-semantic cache active.
+  Evidence: EP-6 traced `Dhall.Import.loadWith`, `fetchFresh`, and
+  `Dhall.Import.Types.Status` in Mori's registered `dhall-lang/dhall-haskell` source.
+  Impact: EP-6 narrows version one to `NoImports` and cache-independent,
+  preflighted `LocalImportsWithin` graphs. EP-7 should use import-free or local-only Dhall
+  fixtures and must not imply that unrestricted standard imports are supported.
+
 
 ## Decision Log
 
@@ -442,6 +451,14 @@ are annotations supplied by the application or deployment, not discovered by the
   retaining evidence and never allowing parser excerpts or convenience helpers to hide
   secrets or duplicate input.
   Date: 2026-07-17
+
+- Decision: Limit the first Dhall adapter to `NoImports` and
+  `LocalImportsWithin`, rejecting alternatives in the local-only policy and omitting an
+  unrestricted standard-import constructor.
+  Rationale: only a preflighted no-alternative local graph can enforce canonical-root
+  containment before reads and produce a cache-independent transitive closure through the
+  maintained `dhall` 1.42.3 API.
+  Date: 2026-07-18
 
 
 ## Outcomes & Retrospective
