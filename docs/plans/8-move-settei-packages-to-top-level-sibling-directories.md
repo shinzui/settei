@@ -46,8 +46,11 @@ path refers to `packages/`, root `src/`, root `test/`, or root `settei.cabal`.
 - [x] (2026-07-17 21:09 -0700) Updated the family README and active planning paths while
   retaining old-layout references only in completed-plan history, revision notes, and
   this plan's explicit before/after migration instructions.
-- [ ] Run package, workspace, source-distribution, Haddock, Mori, formatting, and flake
-  validation and prove that the obsolete layout has no active references.
+- [x] (2026-07-17 21:16 -0700) Passed formatting, Cabal build, all 82 tests, Haddocks,
+  four package checks, four source distributions with inspected package-local contents,
+  Mori's four-package inventory, all adapter and default Nix builds, the full flake check,
+  and `git diff --check`. Confirmed obsolete paths remain only as explicit history or
+  migration prose.
 
 
 ## Surprises & Discoveries
@@ -100,10 +103,25 @@ path refers to `packages/`, root `src/`, root `test/`, or root `settei.cabal`.
 
 ## Outcomes & Retrospective
 
-To be filled during and after implementation. Completion must compare the final directory
-tree with the target sibling layout, record the exact Cabal/Nix/source-distribution test
-evidence, and confirm that [ADR 0001](../adr/0001-haskell-project-conventions.md) still
-captures the durable repository convention. Task-local move mechanics remain here.
+Completed on 2026-07-17. The repository now contains the publishable package roots
+`settei/`, `settei-env/`, `settei-optparse-applicative/`, and `settei-yaml/`; it contains no
+root `settei.cabal`, `src/`, `test/`, or `packages/` directory. Git recorded every existing
+Cabal, Haskell, test, golden, and fixture file as a 100% rename. Cabal package names,
+exposed `Settei.*` modules, versions, and behavior did not change.
+
+The post-move gate passed `nix fmt`, `cabal build all`, all 82 Cabal tests, Haddocks, and
+`cabal check` for every package. `cabal sdist all` produced four archives; direct archive
+inspection confirmed `settei` contains its package-local README, sources, and golden
+files, while `settei-yaml` contains its characterization README and YAML fixtures. Mori
+reports the same four packages at same-named paths. The three named adapter Nix outputs,
+the default core output, and both full flake checks pass.
+
+[ADR 0001](../adr/0001-haskell-project-conventions.md) already records the durable sibling
+layout, package-local ownership, and rejected alternatives. The completion distillation
+pass found no additional durable decision or lesson to promote: the implementation
+confirmed the existing ADR rather than changing it. Old paths remain only where completed
+plans preserve their historical implementation steps or where this plan explains the
+migration itself. EP-5 and EP-6 may now create `settei-kdl/` and `settei-dhall/` directly.
 
 
 ## Context and Orientation
@@ -341,3 +359,7 @@ Dhall, Kubernetes, parser, or application behavior belongs in this structural pl
 core and adapters can move from the exceptional root-plus-`packages/` structure to the
 owner's standard top-level sibling-package structure before KDL, Dhall, and reference
 application work begins.
+
+2026-07-17: Completed the behavior-neutral move, added package-local core documentation,
+registered the four package roots in Cabal, Nix, and Mori, reconciled active documentation,
+and recorded the full build, test, source-distribution, and flake evidence above.

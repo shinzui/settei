@@ -109,7 +109,7 @@ separate declarations.
 | EP-2 | Implement hierarchical resolution, provenance, and derived defaults | `docs/plans/2-implement-hierarchical-resolution-provenance-and-derived-defaults.md` | EP-1 | None | Complete |
 | EP-3 | Add environment and optparse-applicative configuration sources | `docs/plans/3-add-environment-and-optparse-applicative-configuration-sources.md` | EP-2 | None | Complete |
 | EP-4 | Add YAML configuration support | `docs/plans/4-add-yaml-configuration-support.md` | EP-2 | None | Complete |
-| EP-8 | Move Settei packages to top-level sibling directories | `docs/plans/8-move-settei-packages-to-top-level-sibling-directories.md` | EP-3, EP-4 | None | In Progress |
+| EP-8 | Move Settei packages to top-level sibling directories | `docs/plans/8-move-settei-packages-to-top-level-sibling-directories.md` | EP-3, EP-4 | None | Complete |
 | EP-5 | Add KDL configuration support | `docs/plans/5-add-kdl-configuration-support.md` | EP-2, EP-8 | None | Not Started |
 | EP-6 | Add Dhall configuration support | `docs/plans/6-add-dhall-configuration-support.md` | EP-2, EP-8 | None | Not Started |
 | EP-7 | Prove Settei in CLI and Kubernetes service reference applications | `docs/plans/7-prove-settei-in-cli-and-kubernetes-service-reference-applications.md` | EP-3, EP-4, EP-5, EP-6 | None | Not Started |
@@ -214,7 +214,7 @@ are annotations supplied by the application or deployment, not discovered by the
 - [x] EP-2: implement constant and dependency-aware defaults with safe explanations.
 - [x] EP-3: load explicit environment bindings and command-line overrides.
 - [x] EP-4: translate YAML documents into provenance-aware sources.
-- [ ] EP-8: move the core and implemented adapters to top-level sibling package roots
+- [x] EP-8: move the core and implemented adapters to top-level sibling package roots
   while preserving all package identities and behavior.
 - [ ] EP-5: translate canonical KDL documents while preserving node locations.
 - [ ] EP-6: translate normalized Dhall values and report honest import provenance.
@@ -455,9 +455,17 @@ formatting, dedicated YAML build, full flake check, and convention audit pass. E
 EP-6 remain API-ready but now wait for EP-8 to normalize the package layout.
 
 The first four completed plans produced a working root `settei` package plus adapters
-beneath `packages/`. That structure is now intentionally provisional. EP-8 must preserve
-the 82-test behavior and all public identities while moving the current packages to
-top-level siblings; KDL and Dhall implementation begins only after that migration passes.
+beneath `packages/`. That structure was intentionally provisional and EP-8 replaced it
+with top-level siblings while preserving the 82-test behavior and all public identities.
+KDL and Dhall implementation can now begin against the normalized layout.
+
+EP-8 completed on 2026-07-17. It moved the core and three implemented adapters into
+same-named top-level package roots as content-identical Git renames, added a package-local
+core README, and rewired Cabal, Nix, Mori, and family documentation without changing any
+package, module, version, or public interface. The unchanged 82-test suite, Haddocks, four
+package checks, inspected source distributions, four Nix package outputs, full flake check,
+formatting, and Mori inventory all pass. ADR 0001 already preserves the durable layout
+decision. EP-5 and EP-6 are now dependency-ready and may proceed independently.
 
 Before this MasterPlan is complete, distill the durable resolution semantics, adapter
 boundary, and Dhall provenance limitation into `docs/adr/`, and compare the shipped package
@@ -502,3 +510,7 @@ formatting, dedicated Nix build, full flake check, and convention audit.
 top-level sibling-package convention. Added EP-8 to relocate the core and implemented
 adapters without API changes, made KDL and Dhall depend on that gate, cascaded future paths
 through the affected child plans, and amended ADR 0001 with the durable layout decision.
+
+2026-07-17: Marked EP-8 complete after content-identical package moves and the full Cabal,
+Haddock, source-distribution, Mori, Nix, flake, formatting, and 82-test acceptance gate.
+EP-5 and EP-6 are now dependency-ready.
