@@ -4,15 +4,19 @@ version:            0.1.0.0
 synopsis:           Typed, layered, explainable configuration
 description:
   Settei provides an inspectable declaration language for typed configuration.
-  Later packages add source adapters while this core package owns shared semantics.
+  This core package owns resolution, provenance, defaults, schemas, and reporting;
+  sibling packages provide maintained source adapters.
 
 homepage:           https://github.com/shinzui/settei
 bug-reports:        https://github.com/shinzui/settei/issues
 license:            BSD-3-Clause
+license-file:       LICENSE
 author:             shinzui
 maintainer:         shinzui
 category:           Configuration
 build-type:         Simple
+tested-with:        GHC ==9.12.4
+extra-doc-files:    CHANGELOG.md
 extra-source-files:
   README.md
   test/golden/*.json

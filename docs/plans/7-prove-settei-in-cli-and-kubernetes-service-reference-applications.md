@@ -55,7 +55,10 @@ remains outside this plan.
   values, normalized report structure, format-specific origin precision, ordering,
   malformed higher values, CLI precedence, selective service secrets, and captured-output
   redaction. Cabal, Nix outputs, and Mori now register all three internal examples.
-- [ ] Complete guides, API navigation, compatibility and security documentation.
+- [x] (2026-07-18 08:24 PDT) Complete the root API tour, CLI and Kubernetes application
+  guides, security model, compatibility matrix, release checklist, package licenses,
+  tested-with fields, and 0.1.0.0 changelogs. Distill the public-API conformance boundary
+  into ADR 0007 and update ADR 0006 for the unified Nix CLI dependency graph.
 - [ ] Validate Cabal, Nix, Haddocks, source distributions, and the release checklist.
 
 

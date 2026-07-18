@@ -9,10 +9,12 @@ description:
 homepage:           https://github.com/shinzui/settei
 bug-reports:        https://github.com/shinzui/settei/issues
 license:            BSD-3-Clause
+license-file:       LICENSE
 author:             shinzui
 maintainer:         shinzui
 category:           Configuration
 build-type:         Simple
+tested-with:        GHC ==9.12.4
 extra-source-files:
   kubernetes/*.yaml
   kubernetes/README.md

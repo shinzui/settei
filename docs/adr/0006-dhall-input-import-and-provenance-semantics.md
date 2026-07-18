@@ -57,9 +57,12 @@ stable adapter categories and fixed messages without source snippets or retained
 exceptions.
 
 Cabal relaxes only the stale `dhall-json` ceilings for Aeson, bytestring, and text. The
-GHC 9.12 Nix package set already supplies the source-inspected `dhall` 1.42.3 and
-`dhall-json` 1.7.12 packages, so the adapter uses those pinned packages without another
-flake input.
+GHC 9.12 Nix package set supplies the source-inspected `dhall` 1.42.3 and `dhall-json`
+1.7.12 releases, but its transitive CLI and Tasty graph still selects
+optparse-applicative 0.18. Reference applications require the maintained 0.19 API, so Nix
+overrides Dhall and dhall-json to the existing pinned 0.19 derivation and builds affected
+artifacts without the older Tasty test closure. The coherent Cabal workspace remains the
+complete test authority.
 
 
 ## Consequences

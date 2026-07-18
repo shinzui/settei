@@ -2,77 +2,132 @@
 
 Typed, layered, explainable configuration for Haskell.
 
-Settei is intended to give command-line tools, applications, and services one shared way
-to declare configuration, load it from multiple sources, and explain how every resolved
-value was constructed.
+Settei gives command-line tools and services one inspectable declaration for typed
+configuration, deterministic source precedence, derived defaults, and secret-safe answers
+to “where did this value come from?”
+
+
+## Package map
+
+| Package | Role |
+| --- | --- |
+| [`settei`](settei/) | Declaration algebra, hierarchical resolver, provenance, defaults, schemas, errors, and report rendering. |
+| [`settei-env`](settei-env/) | Explicit environment-variable bindings and injectable snapshots. |
+| [`settei-optparse-applicative`](settei-optparse-applicative/) | Ordered generic and named CLI overrides for optparse-applicative. |
+| [`settei-yaml`](settei-yaml/) | Strict YAML input with exact node locations. |
+| [`settei-kdl`](settei-kdl/) | Canonical KDL v2 input with exact node spans. |
+| [`settei-dhall`](settei-dhall/) | Typed Dhall input with enforceable import policies and root/import-closure provenance. |
+
+The non-published [`examples/`](examples/) workspace contains a layered CLI, a
+Kubernetes-shaped service, and a YAML/KDL/Dhall conformance suite.
+
+
+## Declare configuration once
+
+A declaration is a `Config a`: it names settings, decodes public or secret values, and
+describes defaults and conditional branches without loading a source.
+
+```haskell
+serviceConfig :: Config ServiceConfig
+serviceConfig =
+  ServiceConfig
+    <$> required environmentSetting
+    <*> ( HttpConfig
+            <$> required httpHostSetting
+            <*> withDefault httpPortSetting httpPortDefault
+        )
+    <*> databaseConfig
+```
+
+`Config` supports Functor, Applicative, and Selective composition. It deliberately has no
+Monad instance, so `describe serviceConfig` can inspect every possible setting before any
+file, environment variable, or command-line argument is read.
+
+
+## Assemble ordered sources
+
+Sources are passed from lowest to highest precedence. The resolver selects the rightmost
+candidate and retains every shadowed origin in the report.
+
+```haskell
+environmentSource <-
+  either (fail . show) pure
+    (envSource "environment" environmentBindings snapshot)
+
+let orderedSources =
+      fileSources
+        <> [environmentSource]
+        <> cliSources "arguments" overrides
+
+resolved <-
+  either (fail . Text.unpack . renderErrorsText) pure
+    (resolve defaultResolveOptions orderedSources serviceConfig)
+```
+
+The reference CLI demonstrates the complete order:
+
+```text
+named built-in values
+< config files in command-line order
+< explicitly mapped environment variables
+< command-line overrides in occurrence order
+```
+
+
+## Explain derived defaults
+
+Defaults are named rules with declared configuration dependencies. The chosen rule and
+dependency edges appear in the same report as file and environment origins.
+
+```haskell
+httpPortDefault :: Default Int
+httpPortDefault =
+  caseDefault
+    (RuleName "http-port-by-environment")
+    "Choose the HTTP port for the runtime environment"
+    (required environmentSetting)
+    ((Development, 8080) :| [(Test, 18080), (Production, 8080)])
+    Nothing
+```
+
+Settings own their `Public` or `Secret` sensitivity. Secret candidates are redacted before
+they are retained in structured errors or reports; text and versioned JSON renderers do
+not receive a recoverable secret value.
+
+
+## Guides and examples
+
+- [Environment and CLI sources](docs/guides/environment-and-cli.md)
+- [YAML adapter](docs/guides/yaml.md)
+- [KDL v2 adapter](docs/guides/kdl.md)
+- [Dhall adapter and import policy](docs/guides/dhall.md)
+- [Building a CLI application](docs/guides/cli-application.md)
+- [Building a Kubernetes-shaped service](docs/guides/kubernetes-service.md)
+- [Security model](docs/security.md)
+- [Compatibility matrix](docs/compatibility.md)
+- [Release checklist](docs/release-checklist.md)
+
+Run the complete pinned workspace with:
+
+```bash
+nix develop -c cabal test all --test-show-details=direct
+```
+
+The supported public modules and exact tested toolchain are listed in the
+[compatibility matrix](docs/compatibility.md). Version 0.1.0.0 is experimental; the
+documented public modules are the intended adoption surface, but semantic stability is not
+promised beyond the release notes.
 
 
 ## The name
 
 **設定** is pronounced *settei* and means “settings” or “configuration” in Japanese. The
-word can also describe the act of establishing or setting something up: **設** carries the
-sense of establishing or arranging, while **定** carries the sense of deciding or fixing.
-
-The name was chosen because it describes the library's subject directly. It is written in
-kanji rather than as a katakana rendering of an English technical term. The package and
-module family uses the romanized name `settei` so it remains conventional to use in
-Haskell tooling and source code.
+package and module family uses the romanized name so it remains conventional in Haskell
+tooling and source code.
 
 
-## Goals
+## Design record
 
-Settei is being designed around these requirements:
-
-- Typed configuration declarations shared by CLIs, applications, and microservices.
-- Hierarchical keys and deterministic, ordered configuration layers.
-- Sources for environment variables, command-line options, YAML, KDL, and Dhall.
-- Provenance showing the selected source, shadowed candidates, and derivation path for
-  every value.
-- Named defaults derived from other declared settings, such as different defaults for
-  Development, Test, and Production.
-- Static inspection of possible and conditional settings without loading configuration.
-- Secret-safe errors and explanations that redact sensitive values.
-- Kubernetes-friendly loading through environment variables and mounted files, without
-  requiring access to the Kubernetes API.
-
-
-## Packages
-
-- [`settei`](settei/) provides the declaration algebra, hierarchical resolver, provenance
-  model, derived defaults, and report rendering.
-- [`settei-env`](settei-env/) translates explicitly mapped environment variables into
-  Settei sources.
-- [`settei-optparse-applicative`](settei-optparse-applicative/) provides reusable
-  command-line configuration options.
-- [`settei-yaml`](settei-yaml/) translates a strict, location-preserving YAML subset into
-  Settei sources.
-- [`settei-kdl`](settei-kdl/) translates a canonical, span-preserving KDL v2 subset into
-  Settei sources.
-- [`settei-dhall`](settei-dhall/) evaluates typed Dhall records under explicit no-import or
-  canonical-root local-import policies and retains honest root/import-closure provenance.
-
-The public configuration language is planned to support Functor, Applicative, and
-Selective composition without exposing a Monad instance. Selective branches allow Settei
-to express conditions such as “the database password is required only in Production” while
-retaining a static over-approximation of every setting the application may use. Named
-rules with declared dependencies provide explainable derived defaults; Selective itself is
-not treated as a provenance system.
-
-
-## Project status
-
-The core package under [`settei/`](settei/) now provides validated hierarchical keys,
-parser-neutral raw values, secret-safe decoders, typed setting declarations, selective
-composition,
-source-free schema inspection, deterministic precedence, provenance reports, named
-defaults, and text and JSON explanations. `settei-env`,
-`settei-optparse-applicative`, `settei-yaml`, `settei-kdl`, and `settei-dhall` provide the first source
-adapters; see the
-[environment and command-line guide](docs/guides/environment-and-cli.md) for a migration
-and precedence example, the [YAML guide](docs/guides/yaml.md) for strict YAML input, and
-the [KDL guide](docs/guides/kdl.md) for the canonical KDL v2 mapping, and the
-[Dhall guide](docs/guides/dhall.md) for typed input and import policy. The
-architecture and implementation sequence are documented in the
-[Settei MasterPlan](docs/masterplans/1-build-settei-as-a-provenance-aware-configuration-library-for-haskell.md).
-The child ExecPlans in [`docs/plans/`](docs/plans/) define independently verifiable work for
-the core, source adapters, and reference CLI and Kubernetes service applications.
+The [MasterPlan](docs/masterplans/1-build-settei-as-a-provenance-aware-configuration-library-for-haskell.md)
+and [architecture decisions](docs/adr/) record the implementation sequence, accepted
+semantics, and rejected alternatives.
