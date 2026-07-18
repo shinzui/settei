@@ -1,0 +1,1 @@
+{ service = { http = { host = "api.internal", port = 8080 } } }

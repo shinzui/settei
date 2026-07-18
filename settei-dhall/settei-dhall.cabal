@@ -1,18 +1,22 @@
-cabal-version: 3.8
-name:          settei-dhall
-version:       0.1.0.0
-synopsis:      Dhall sources for Settei
+cabal-version:      3.8
+name:               settei-dhall
+version:            0.1.0.0
+synopsis:           Dhall sources for Settei
 description:
   Evaluate typed Dhall expressions into provenance-aware Settei sources with
   explicit, enforceable import policies.
 
-homepage:      https://github.com/shinzui/settei
-bug-reports:   https://github.com/shinzui/settei/issues
-license:       BSD-3-Clause
-author:        shinzui
-maintainer:    shinzui
-category:      Configuration
-build-type:    Simple
+homepage:           https://github.com/shinzui/settei
+bug-reports:        https://github.com/shinzui/settei/issues
+license:            BSD-3-Clause
+author:             shinzui
+maintainer:         shinzui
+category:           Configuration
+build-type:         Simple
+extra-source-files: test/fixtures/characterization/README.md
+data-files:
+  test/fixtures/characterization/*.dhall
+  test/fixtures/characterization/local/*.dhall
 
 source-repository head
   type:     git
@@ -66,11 +70,15 @@ test-suite settei-dhall-prototype-tests
     , transformers  >=0.6.1  && <0.7
 
 test-suite settei-dhall-tests
-  import:         common
-  type:           exitcode-stdio-1.0
-  hs-source-dirs: test
-  main-is:        ProductionMain.hs
-  other-modules:  Settei.DhallTest
+  import:          common
+  type:            exitcode-stdio-1.0
+  hs-source-dirs:  test
+  main-is:         ProductionMain.hs
+  other-modules:
+    Paths_settei_dhall
+    Settei.DhallTest
+
+  autogen-modules: Paths_settei_dhall
   build-depends:
     , base          >=4.21    && <5
     , containers    >=0.6.8   && <0.8

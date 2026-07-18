@@ -39,6 +39,10 @@
           kdl-hs = kdlHsPackage;
           settei = setteiPackage;
         };
+      setteiDhallPackage =
+        haskellPackages.callCabal2nix "settei-dhall" ../settei-dhall {
+          settei = setteiPackage;
+        };
       setteiOptparseApplicativePackage =
         # Cabal runs this package's tests with one coherent solver plan. The nixpkgs
         # tasty derivation still embeds optparse-applicative 0.18, so enabling the same
@@ -73,6 +77,7 @@
     in
     {
       packages.default = setteiPackage;
+      packages.settei-dhall = setteiDhallPackage;
       packages.settei-env = setteiEnvPackage;
       packages.settei-kdl = setteiKdlPackage;
       packages.settei-optparse-applicative = setteiOptparseApplicativePackage;

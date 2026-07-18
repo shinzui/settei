@@ -36,7 +36,9 @@ decoding, precedence, defaults, provenance edges, redaction, and report renderin
   1.7.12 conversion, import-status, cache, and resolver APIs through Mori.
 - [x] (2026-07-18 13:31Z) Prove enforceable no-import and canonical-root local
   policies plus cache-independent transitive closure collection in seven prototype tests.
-- [ ] Add and register the `settei-dhall` package.
+- [x] (2026-07-18 13:58Z) Add the top-level `settei-dhall` Cabal package,
+  dedicated Nix output, source-distribution fixtures, family navigation, and six-package
+  Mori inventory.
 - [x] (2026-07-18 13:47Z) Convert type-checked normalized records, lists,
   optionals, unions, booleans, text, and finite numbers directly through `dhall-json` into
   the core raw tree while preserving association lists as arrays.
@@ -168,7 +170,10 @@ root, and import-graph records through lenses, including `at` and `ix` for maps.
 qualified Dhall imports with postpositive `qualified`, and declare `generic-lens` directly
 when the adapter imports the label instance.
 [ADR 0001](../adr/0001-haskell-project-conventions.md) records the durable rationale and
-rejected alternatives for this baseline.
+rejected alternatives for this baseline. Core precedence, redaction, and report behavior
+come from [ADR 0003](../adr/0003-resolution-provenance-and-default-semantics.md).
+[ADR 0006](../adr/0006-dhall-input-import-and-provenance-semantics.md) records the durable
+Dhall policy, conversion, cache, and provenance decisions established by this plan.
 
 
 ## Plan of Work

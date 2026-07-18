@@ -23,6 +23,13 @@ in  Schema.Project::{
         , description = Some "Inspectable configuration algebra, resolution, provenance, defaults, and reporting"
         }
       , Schema.Package::{
+        , name = "settei-dhall"
+        , type = Schema.PackageType.Library
+        , language = Schema.Language.Haskell
+        , path = Some "settei-dhall"
+        , description = Some "Typed Dhall sources with enforceable import policies and honest import provenance"
+        }
+      , Schema.Package::{
         , name = "settei-env"
         , type = Schema.PackageType.Library
         , language = Schema.Language.Haskell

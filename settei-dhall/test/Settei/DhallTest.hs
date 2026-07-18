@@ -11,6 +11,7 @@ import Data.Text.IO qualified as TextIO
 import Dhall.Core qualified as DhallCore
 import Dhall.Import qualified as DhallImport
 import Dhall.Parser qualified as DhallParser
+import Paths_settei_dhall qualified as Paths
 import Settei
 import Settei.Dhall
 import Settei.Prelude
@@ -110,6 +111,11 @@ tests =
           assertBool
             "text report fabricated leaf attribution"
             ("leaf-level import attribution unavailable after normalization" `Text.isInfixOf` rendered),
+      testCase "the packaged local-import fixture survives source distribution" $ do
+        application <- Paths.getDataFileName "test/fixtures/characterization/local/application.dhall"
+        loaded <- expectDetailed (localOptions (FilePath.takeDirectory application)) (DhallFile application)
+        fmap (FilePath.takeFileName . dhallImportPath) (dhallLoadedImports loaded)
+          @?= ["database.dhall", "service.dhall"],
       testCase "local-only rejects parent and symlink escapes" $
         withSystemTempDirectory "settei-dhall-escape" $ \workspace -> do
           let allowed = workspace FilePath.</> "allowed"

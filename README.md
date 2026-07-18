@@ -48,8 +48,8 @@ Settei is being designed around these requirements:
   Settei sources.
 - [`settei-kdl`](settei-kdl/) translates a canonical, span-preserving KDL v2 subset into
   Settei sources.
-- The planned `settei-dhall` package provides a typed format-specific file source without
-  moving merge semantics out of the core.
+- [`settei-dhall`](settei-dhall/) evaluates typed Dhall records under explicit no-import or
+  canonical-root local-import policies and retains honest root/import-closure provenance.
 
 The public configuration language is planned to support Functor, Applicative, and
 Selective composition without exposing a Monad instance. Selective branches allow Settei
@@ -66,12 +66,12 @@ parser-neutral raw values, secret-safe decoders, typed setting declarations, sel
 composition,
 source-free schema inspection, deterministic precedence, provenance reports, named
 defaults, and text and JSON explanations. `settei-env`,
-`settei-optparse-applicative`, `settei-yaml`, and `settei-kdl` provide the first source
+`settei-optparse-applicative`, `settei-yaml`, `settei-kdl`, and `settei-dhall` provide the first source
 adapters; see the
 [environment and command-line guide](docs/guides/environment-and-cli.md) for a migration
 and precedence example, the [YAML guide](docs/guides/yaml.md) for strict YAML input, and
-the [KDL guide](docs/guides/kdl.md) for the canonical KDL v2 mapping. The Dhall adapter
-remains under active implementation. The
+the [KDL guide](docs/guides/kdl.md) for the canonical KDL v2 mapping, and the
+[Dhall guide](docs/guides/dhall.md) for typed input and import policy. The
 architecture and implementation sequence are documented in the
 [Settei MasterPlan](docs/masterplans/1-build-settei-as-a-provenance-aware-configuration-library-for-haskell.md).
 The child ExecPlans in [`docs/plans/`](docs/plans/) define independently verifiable work for
