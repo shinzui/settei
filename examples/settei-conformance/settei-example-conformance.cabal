@@ -1,0 +1,60 @@
+cabal-version:      3.8
+name:               settei-example-conformance
+version:            0.1.0.0
+synopsis:           Cross-format conformance tests for Settei examples
+description:
+  Verify equivalent YAML, KDL, and Dhall configuration values, provenance
+  structure, precedence, selective requirements, and secret-safe output.
+
+homepage:           https://github.com/shinzui/settei
+bug-reports:        https://github.com/shinzui/settei/issues
+license:            BSD-3-Clause
+author:             shinzui
+maintainer:         shinzui
+category:           Testing
+build-type:         Simple
+extra-source-files: README.md
+data-files:
+  test/fixtures/*.dhall
+  test/fixtures/*.kdl
+  test/fixtures/*.yaml
+
+source-repository head
+  type:     git
+  location: https://github.com/shinzui/settei.git
+
+common common
+  default-language:   GHC2024
+  default-extensions:
+    DeriveAnyClass
+    DuplicateRecordFields
+    OverloadedLabels
+    OverloadedStrings
+
+  ghc-options:        -Wall -Wcompat
+
+test-suite settei-example-conformance-tests
+  import:          common
+  type:            exitcode-stdio-1.0
+  hs-source-dirs:  test
+  main-is:         Main.hs
+  other-modules:
+    Paths_settei_example_conformance
+    Settei.Example.ConformanceTest
+
+  autogen-modules: Paths_settei_example_conformance
+  build-depends:
+    , base                    >=4.21    && <5
+    , containers              >=0.6.8   && <0.8
+    , generic-lens            >=2.2     && <2.4
+    , optparse-applicative    >=0.19    && <0.20
+    , settei                  ==0.1.0.0
+    , settei-dhall            ==0.1.0.0
+    , settei-env              ==0.1.0.0
+    , settei-example-cli      ==0.1.0.0
+    , settei-example-service  ==0.1.0.0
+    , settei-kdl              ==0.1.0.0
+    , settei-yaml             ==0.1.0.0
+    , tasty                   >=1.5     && <1.6
+    , tasty-hunit             >=0.10.2  && <0.11
+    , text                    >=2.1     && <2.2

@@ -28,6 +28,7 @@ in  Schema.Project::{
         , language = Schema.Language.Haskell
         , path = Some "settei-dhall"
         , description = Some "Typed Dhall sources with enforceable import policies and honest import provenance"
+        , dependencies = [ Schema.Dependency.ByName "settei" ]
         }
       , Schema.Package::{
         , name = "settei-env"
@@ -35,6 +36,7 @@ in  Schema.Project::{
         , language = Schema.Language.Haskell
         , path = Some "settei-env"
         , description = Some "Environment-variable sources for Settei"
+        , dependencies = [ Schema.Dependency.ByName "settei" ]
         }
       , Schema.Package::{
         , name = "settei-kdl"
@@ -42,6 +44,7 @@ in  Schema.Project::{
         , language = Schema.Language.Haskell
         , path = Some "settei-kdl"
         , description = Some "Canonical span-preserving KDL v2 sources for Settei"
+        , dependencies = [ Schema.Dependency.ByName "settei" ]
         }
       , Schema.Package::{
         , name = "settei-optparse-applicative"
@@ -49,6 +52,7 @@ in  Schema.Project::{
         , language = Schema.Language.Haskell
         , path = Some "settei-optparse-applicative"
         , description = Some "optparse-applicative configuration sources for Settei"
+        , dependencies = [ Schema.Dependency.ByName "settei" ]
         }
       , Schema.Package::{
         , name = "settei-yaml"
@@ -56,6 +60,56 @@ in  Schema.Project::{
         , language = Schema.Language.Haskell
         , path = Some "settei-yaml"
         , description = Some "Strict location-preserving YAML sources for Settei"
+        , dependencies = [ Schema.Dependency.ByName "settei" ]
+        }
+      , Schema.Package::{
+        , name = "settei-example-cli"
+        , type = Schema.PackageType.Application
+        , language = Schema.Language.Haskell
+        , path = Some "examples/settei-cli"
+        , description = Some "Layered command-line reference application for Settei"
+        , visibility = Schema.Visibility.Internal
+        , dependencies =
+          [ Schema.Dependency.ByName "settei"
+          , Schema.Dependency.ByName "settei-dhall"
+          , Schema.Dependency.ByName "settei-env"
+          , Schema.Dependency.ByName "settei-kdl"
+          , Schema.Dependency.ByName "settei-optparse-applicative"
+          , Schema.Dependency.ByName "settei-yaml"
+          ]
+        }
+      , Schema.Package::{
+        , name = "settei-example-service"
+        , type = Schema.PackageType.Application
+        , language = Schema.Language.Haskell
+        , path = Some "examples/settei-service"
+        , description = Some "Kubernetes-shaped reference service for Settei"
+        , visibility = Schema.Visibility.Internal
+        , dependencies =
+          [ Schema.Dependency.ByName "settei"
+          , Schema.Dependency.ByName "settei-dhall"
+          , Schema.Dependency.ByName "settei-env"
+          , Schema.Dependency.ByName "settei-kdl"
+          , Schema.Dependency.ByName "settei-optparse-applicative"
+          , Schema.Dependency.ByName "settei-yaml"
+          ]
+        }
+      , Schema.Package::{
+        , name = "settei-example-conformance"
+        , type = Schema.PackageType.Other "TestSuite"
+        , language = Schema.Language.Haskell
+        , path = Some "examples/settei-conformance"
+        , description = Some "Cross-format value, provenance, ordering, and redaction conformance suite"
+        , visibility = Schema.Visibility.Internal
+        , dependencies =
+          [ Schema.Dependency.ByName "settei"
+          , Schema.Dependency.ByName "settei-dhall"
+          , Schema.Dependency.ByName "settei-env"
+          , Schema.Dependency.ByName "settei-example-cli"
+          , Schema.Dependency.ByName "settei-example-service"
+          , Schema.Dependency.ByName "settei-kdl"
+          , Schema.Dependency.ByName "settei-yaml"
+          ]
         }
       ]
     }

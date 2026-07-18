@@ -50,7 +50,11 @@ remains outside this plan.
 - [x] (2026-07-18 08:00 PDT) Add ConfigMap, Secret placeholder, and Deployment manifests
   that match the service's explicit mounted-file and environment bindings. The examples
   preserve Kubernetes object/key annotations without contacting a cluster.
-- [ ] Build a cross-format conformance fixture and report comparison suite.
+- [x] (2026-07-18 08:15 PDT) Add the self-contained
+  `settei-example-conformance` package and seven tests covering equal YAML/KDL/Dhall
+  values, normalized report structure, format-specific origin precision, ordering,
+  malformed higher values, CLI precedence, selective service secrets, and captured-output
+  redaction. Cabal, Nix outputs, and Mori now register all three internal examples.
 - [ ] Complete guides, API navigation, compatibility and security documentation.
 - [ ] Validate Cabal, Nix, Haddocks, source distributions, and the release checklist.
 
@@ -74,6 +78,17 @@ remains outside this plan.
   Impact: the service declaration remains exactly as specified, and the conformance
   declaration pairs it with `service.tags :: [Text]` so list equivalence is tested
   without changing the reference service's public configuration type.
+
+- Observation: nixpkgs' Dhall and Tasty closures select optparse-applicative 0.18, while
+  Settei's maintained CLI adapter and reference applications deliberately use 0.19.
+  Evidence: the first example derivations aborted on Cabal's duplicate-version warning;
+  the authoritative Hackage records confirm Dhall 1.42.3, dhall-json 1.7.12, and
+  optparse-applicative 0.19.0.0 as the current releases; the Mori-located upstream
+  sources and released bounds accept optparse versions below 0.20, and the ordinary
+  Cabal workspace already resolves them coherently to 0.19.
+  Impact: Nix overrides Dhall and dhall-json to the pinned 0.19 derivation, builds their
+  and Settei's artifacts without the nixpkgs Tasty tests, and leaves the complete test
+  authority with the pinned Cabal workspace. All three example Nix outputs then build.
 
 
 ## Decision Log
@@ -128,6 +143,15 @@ remains outside this plan.
   this repository.
   Rationale: the project explicitly targets GHC 9.12, and the host toolchain's older
   non-reinstallable `base` cannot solve the declared package bounds.
+  Date: 2026-07-18
+
+- Decision: Make the Nix package graph use one optparse-applicative 0.19 derivation for
+  Dhall, dhall-json, Settei, and the reference applications, while running their tests
+  together through Cabal rather than mixing nixpkgs' older Tasty ABI into those Nix
+  derivations.
+  Rationale: the upstream package bounds accept 0.19 and the unified graph is the same
+  compatibility claim exercised by the workspace; allowing parallel 0.18 and 0.19 ABIs
+  would make the example application derivations fail at configure time.
   Date: 2026-07-18
 
 

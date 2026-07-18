@@ -1,5 +1,6 @@
 packages:
   examples/settei-cli
+  examples/settei-conformance
   examples/settei-service
   settei
   settei-dhall
@@ -27,6 +28,9 @@ package settei-yaml
   tests: True
 
 package settei-example-cli
+  tests: True
+
+package settei-example-conformance
   tests: True
 
 package settei-example-service

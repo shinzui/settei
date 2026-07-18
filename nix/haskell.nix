@@ -24,6 +24,15 @@
 
       optparseApplicativePackage =
         haskellPackages.callCabal2nix "optparse-applicative" inputs.optparse-applicative { };
+      dhallPackage = haskellPackages.dhall.override {
+        optparse-applicative = optparseApplicativePackage;
+      };
+      dhallJsonPackage = pkgs.haskell.lib.dontCheck (
+        haskellPackages.dhall-json.override {
+          dhall = dhallPackage;
+          optparse-applicative = optparseApplicativePackage;
+        }
+      );
       kdlHsPackage = haskellPackages.callCabal2nix "kdl-hs" inputs.kdl-hs { };
       setteiPackage = haskellPackages.callCabal2nix "settei" ../settei { };
       setteiEnvPackage =
@@ -40,9 +49,13 @@
           settei = setteiPackage;
         };
       setteiDhallPackage =
-        haskellPackages.callCabal2nix "settei-dhall" ../settei-dhall {
-          settei = setteiPackage;
-        };
+        pkgs.haskell.lib.dontCheck (
+          haskellPackages.callCabal2nix "settei-dhall" ../settei-dhall {
+            dhall = dhallPackage;
+            dhall-json = dhallJsonPackage;
+            settei = setteiPackage;
+          }
+        );
       setteiOptparseApplicativePackage =
         # Cabal runs this package's tests with one coherent solver plan. The nixpkgs
         # tasty derivation still embeds optparse-applicative 0.18, so enabling the same
@@ -55,6 +68,49 @@
               optparse-applicative = optparseApplicativePackage;
               settei = setteiPackage;
               settei-env = setteiEnvPackage;
+            }
+        );
+      setteiExampleCliPackage =
+        pkgs.haskell.lib.dontCheck (
+          haskellPackages.callCabal2nix "settei-example-cli" ../examples/settei-cli {
+            optparse-applicative = optparseApplicativePackage;
+            settei = setteiPackage;
+            settei-dhall = setteiDhallPackage;
+            settei-env = setteiEnvPackage;
+            settei-kdl = setteiKdlPackage;
+            settei-optparse-applicative = setteiOptparseApplicativePackage;
+            settei-yaml = setteiYamlPackage;
+          }
+        );
+      setteiExampleServicePackage =
+        pkgs.haskell.lib.dontCheck (
+          haskellPackages.callCabal2nix "settei-example-service" ../examples/settei-service {
+            optparse-applicative = optparseApplicativePackage;
+            settei = setteiPackage;
+            settei-dhall = setteiDhallPackage;
+            settei-env = setteiEnvPackage;
+            settei-kdl = setteiKdlPackage;
+            settei-optparse-applicative = setteiOptparseApplicativePackage;
+            settei-yaml = setteiYamlPackage;
+          }
+        );
+      setteiExampleConformancePackage =
+        # Cabal is the test authority for these examples. nixpkgs' tasty closure still
+        # carries optparse-applicative 0.18, while the examples deliberately test the
+        # workspace's pinned 0.19 API, so Nix builds their test-free package artifacts.
+        pkgs.haskell.lib.dontCheck (
+          haskellPackages.callCabal2nix
+            "settei-example-conformance"
+            ../examples/settei-conformance
+            {
+              optparse-applicative = optparseApplicativePackage;
+              settei = setteiPackage;
+              settei-dhall = setteiDhallPackage;
+              settei-env = setteiEnvPackage;
+              settei-example-cli = setteiExampleCliPackage;
+              settei-example-service = setteiExampleServicePackage;
+              settei-kdl = setteiKdlPackage;
+              settei-yaml = setteiYamlPackage;
             }
         );
 
@@ -77,6 +133,9 @@
     in
     {
       packages.default = setteiPackage;
+      packages.settei-example-cli = setteiExampleCliPackage;
+      packages.settei-example-conformance = setteiExampleConformancePackage;
+      packages.settei-example-service = setteiExampleServicePackage;
       packages.settei-dhall = setteiDhallPackage;
       packages.settei-env = setteiEnvPackage;
       packages.settei-kdl = setteiKdlPackage;
