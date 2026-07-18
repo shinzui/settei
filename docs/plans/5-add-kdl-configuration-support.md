@@ -4,6 +4,7 @@ slug: add-kdl-configuration-support
 title: "Add KDL configuration support"
 kind: exec-plan
 created_at: 2026-07-16T23:50:10Z
+intention: "intention_01kxr36cqgem8tmxjjtnq0t6ns"
 master_plan: "docs/masterplans/1-build-settei-as-a-provenance-aware-configuration-library-for-haskell.md"
 ---
 
@@ -30,7 +31,9 @@ the application's settings.
 
 ## Progress
 
-- [ ] Re-inspect the registered `kdl-hs` AST, span, and parser APIs.
+- [x] (2026-07-17 21:35 -0700) Re-inspected Mori's registered `kdl-hs` 1.0.1 source and
+  probed its public AST/parser behavior: it implements KDL v2, retains duplicate entries,
+  represents numbers as exact `Scientific` values, and emits one-based spans when enabled.
 - [ ] Add and register the `settei-kdl` package.
 - [ ] Implement and test the canonical KDL-to-raw-tree mapping.
 - [ ] Preserve useful spans in source origins and structured errors.
@@ -40,7 +43,28 @@ the application's settings.
 
 ## Surprises & Discoveries
 
-(None yet.)
+- Observation: `kdl-hs` 1.0.1's convenience `getProps` helper converts entries with
+  `Map.fromList` and would silently keep the final duplicate property, but the exported
+  `Node.entries` list preserves both properties and their individual spans.
+  Evidence: source inspection of `KDL.Types` plus a parser probe of
+  `service port=1 port=2` returned two ordered `Entry` values at columns 9 and 16.
+  Impact: Settei must translate the entry list directly and reject the second property;
+  it must not use `getProps` at the ambiguity boundary.
+
+- Observation: the registered checkout and Cabal package are `kdl-hs` 1.0.1, while the
+  flake's nixpkgs GHC 9.12 package set exposes 1.1.0, whose source is not in the Mori
+  corpus.
+  Evidence: `mori registry show brandonchinn178/kdl-hs --full`, the registered
+  `kdl-hs.cabal`, and `nix eval` reported those versions; the registered Git subtree has
+  no 1.1.0 object to inspect.
+  Impact: Cabal and Nix will both pin 1.0.1 so implementation and validation use the
+  exact source-inspected API.
+
+- Observation: successful AST elements have exact one-based spans, but the public parser
+  reduces a failed Megaparsec bundle to rendered `Text` that includes a source excerpt.
+  Evidence: a malformed-node probe returned a `1:18:` header followed by the input line.
+  Impact: syntax failures retain only line and column parsed from the header and discard
+  the remainder so a pre-sensitivity error can never retain a secret source excerpt.
 
 
 ## Decision Log
@@ -73,6 +97,21 @@ the application's settings.
   Rationale: every publishable Settei package now uses a same-named repository-root
   directory; creating another package beneath the obsolete `packages/` wrapper would
   immediately require a second move.
+  Date: 2026-07-17
+
+- Decision: Support the KDL v2 grammar implemented by source-inspected `kdl-hs` 1.0.1,
+  reject every node or value type annotation in version one of the adapter, and reject
+  `#inf`, `#-inf`, and `#nan` rather than coercing them.
+  Rationale: finite `Scientific` values convert exactly to the core `Rational`, while
+  annotations and non-finite numbers have no lossless format-independent `RawValue`
+  meaning.
+  Date: 2026-07-17
+
+- Decision: Pin `kdl-hs` 1.0.1 for both Cabal and Nix and use its public `parseWith` API.
+  Rationale: this keeps both build systems on the Mori-located source that was actually
+  inspected. Parsing a failure's first location header and discarding all remaining text
+  preserves useful diagnostics without taking a direct, unregistered Megaparsec API
+  dependency or retaining source snippets.
   Date: 2026-07-17
 
 
