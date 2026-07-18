@@ -1,5 +1,6 @@
 packages:
   examples/settei-cli
+  examples/settei-service
   settei
   settei-dhall
   settei-env
@@ -26,6 +27,9 @@ package settei-yaml
   tests: True
 
 package settei-example-cli
+  tests: True
+
+package settei-example-service
   tests: True
 
 -- dhall-json 1.7.12's Hackage revision predates bytestring 0.12. The registered

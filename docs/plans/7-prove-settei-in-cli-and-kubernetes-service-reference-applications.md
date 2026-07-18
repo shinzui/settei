@@ -43,8 +43,13 @@ remains outside this plan.
   executable, packaged YAML fixture, and six end-to-end tests. The tests prove ordered
   file/environment/repeated-CLI precedence, source-free schema inspection, intent-grouped
   help, usage/source/resolution exit codes 2/3/4, versioned JSON, and secret redaction.
-- [ ] Add a service reference package with derived defaults and selective requirements.
-- [ ] Add Kubernetes ConfigMap, Secret, and Deployment example manifests.
+- [x] (2026-07-18 08:00 PDT) Add the non-published `settei-example-service`
+  library, executable, packaged fixture, and four focused tests. Development/Test/
+  Production rules derive HTTP ports and database pool sizes, while a selective branch
+  requires the redacted password only in Production.
+- [x] (2026-07-18 08:00 PDT) Add ConfigMap, Secret placeholder, and Deployment manifests
+  that match the service's explicit mounted-file and environment bindings. The examples
+  preserve Kubernetes object/key annotations without contacting a cluster.
 - [ ] Build a cross-format conformance fixture and report comparison suite.
 - [ ] Complete guides, API navigation, compatibility and security documentation.
 - [ ] Validate Cabal, Nix, Haddocks, source distributions, and the release checklist.
