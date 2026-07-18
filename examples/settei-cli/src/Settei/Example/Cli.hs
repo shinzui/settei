@@ -1,0 +1,322 @@
+module Settei.Example.Cli
+  ( CliConfig,
+    CliOptions,
+    CliRun,
+    ConfigFormat (..),
+    ConfigInput,
+    DiagnosticMode (..),
+    OutputFormat (..),
+    RuntimeEnvironment (..),
+    cliConfig,
+    cliExitCode,
+    cliOptionsParser,
+    cliParserInfo,
+    cliStandardError,
+    cliStandardOutput,
+    configInputFormat,
+    configInputPath,
+    environmentBindings,
+    resolveCliOptions,
+    runCliWithSnapshot,
+    sourceExitCode,
+    usageExitCode,
+    resolutionExitCode,
+  )
+where
+
+import Control.Applicative qualified as Applicative
+import Data.Generics.Labels ()
+import Data.Map.Strict qualified as Map
+import Data.Text qualified as Text
+import Options.Applicative (Parser, ParserInfo)
+import Options.Applicative qualified as Options
+import Settei
+import Settei.Dhall qualified as Dhall
+import Settei.Env
+import Settei.Kdl qualified as Kdl
+import Settei.Optparse
+import Settei.Prelude
+import Settei.Yaml qualified as Yaml
+
+data RuntimeEnvironment = Development | Test | Production
+  deriving stock (Generic, Eq, Ord, Show)
+
+data OutputFormat = TextOutput | JsonOutput
+  deriving stock (Generic, Eq, Ord, Show)
+
+newtype SecretText = SecretText Text
+  deriving stock (Generic, Eq)
+
+data CliConfig = CliConfig
+  { environment :: !RuntimeEnvironment,
+    endpoint :: !Text,
+    timeout :: !Int,
+    outputFormat :: !OutputFormat,
+    token :: !(Maybe SecretText)
+  }
+  deriving stock (Generic, Eq)
+
+data ConfigFormat = YamlFormat | KdlFormat | DhallFormat
+  deriving stock (Generic, Eq, Ord, Show)
+
+data ConfigInput = ConfigInput
+  { format :: !ConfigFormat,
+    path :: !FilePath
+  }
+  deriving stock (Generic, Eq, Show)
+
+data DiagnosticMode
+  = RunExample
+  | DescribeConfiguration
+  | ExplainConfigurationText
+  | ExplainConfigurationJson
+  | CheckConfiguration
+  deriving stock (Generic, Eq, Ord, Show)
+
+data CliOptions = CliOptions
+  { configInputs :: ![ConfigInput],
+    overrides :: ![CliOverride],
+    diagnosticMode :: !DiagnosticMode
+  }
+  deriving stock (Generic, Eq)
+
+data CliRun = CliRun
+  { exitCode :: !Int,
+    standardOutput :: !Text,
+    standardError :: !Text
+  }
+  deriving stock (Generic, Eq, Show)
+
+usageExitCode, sourceExitCode, resolutionExitCode :: Int
+usageExitCode = 2
+sourceExitCode = 3
+resolutionExitCode = 4
+
+cliExitCode :: CliRun -> Int
+cliExitCode value = value ^. #exitCode
+
+cliStandardOutput :: CliRun -> Text
+cliStandardOutput value = value ^. #standardOutput
+
+cliStandardError :: CliRun -> Text
+cliStandardError value = value ^. #standardError
+
+configInputFormat :: ConfigInput -> ConfigFormat
+configInputFormat value = value ^. #format
+
+configInputPath :: ConfigInput -> FilePath
+configInputPath value = value ^. #path
+
+cliParserInfo :: ParserInfo CliOptions
+cliParserInfo =
+  Options.info
+    (cliOptionsParser Options.<**> Options.helper)
+    ( Options.fullDesc
+        <> Options.progDesc "Resolve and explain layered Settei configuration"
+        <> Options.failureCode usageExitCode
+    )
+
+cliOptionsParser :: Parser CliOptions
+cliOptionsParser =
+  CliOptions
+    <$> Options.parserOptionGroup "Configuration" configurationOptions
+    <*> Options.parserOptionGroup "Configuration" overrideOptions
+    <*> Options.parserOptionGroup "Diagnostics" diagnosticOptions
+  where
+    configurationOptions =
+      Applicative.many
+        ( Options.option
+            configInputReader
+            ( Options.long "config"
+                <> Options.metavar "FORMAT:PATH"
+                <> Options.help "Load yaml:PATH, kdl:PATH, or dhall:PATH in occurrence order"
+            )
+        )
+
+diagnosticOptions :: Parser DiagnosticMode
+diagnosticOptions =
+  Options.flag' DescribeConfiguration (Options.long "describe-config" <> Options.help "Print the static configuration schema")
+    Applicative.<|> Options.flag' ExplainConfigurationText (Options.long "explain-config" <> Options.help "Print the resolved configuration explanation")
+    Applicative.<|> Options.flag' ExplainConfigurationJson (Options.long "explain-config-json" <> Options.help "Print the versioned JSON explanation")
+    Applicative.<|> Options.flag' CheckConfiguration (Options.long "check-config" <> Options.help "Validate configuration without running the example action")
+    Applicative.<|> pure RunExample
+
+configInputReader :: Options.ReadM ConfigInput
+configInputReader = Options.eitherReader $ \input ->
+  let (formatName, separatorAndPath) = break (== ':') input
+      filePath = drop 1 separatorAndPath
+   in if null separatorAndPath || null filePath
+        then Left "expected FORMAT:PATH"
+        else case formatName of
+          "yaml" -> Right (ConfigInput YamlFormat filePath)
+          "kdl" -> Right (ConfigInput KdlFormat filePath)
+          "dhall" -> Right (ConfigInput DhallFormat filePath)
+          _ -> Left "FORMAT must be yaml, kdl, or dhall"
+
+cliConfig :: Config CliConfig
+cliConfig =
+  CliConfig
+    <$> required environmentSetting
+    <*> required endpointSetting
+    <*> required timeoutSetting
+    <*> required outputFormatSetting
+    <*> optional tokenSetting
+
+environmentBindings :: [EnvBinding]
+environmentBindings =
+  [ binding (EnvName "HASKELL_ENV") runtimeEnvironmentKey,
+    binding (EnvName "SERVICE_ENDPOINT") serviceEndpointKey,
+    binding (EnvName "SERVICE_TIMEOUT") serviceTimeoutKey,
+    binding (EnvName "OUTPUT_FORMAT") outputFormatKey,
+    fromKubernetesObject
+      (kubernetesRef SecretObject Nothing "settei-example-cli" (Just "token"))
+      (binding (EnvName "SERVICE_TOKEN") serviceTokenKey)
+  ]
+
+runCliWithSnapshot :: EnvSnapshot -> CliOptions -> IO CliRun
+runCliWithSnapshot snapshot options =
+  case options ^. #diagnosticMode of
+    DescribeConfiguration -> pure (successfulRun (renderSchemaText (describe cliConfig)))
+    _ -> do
+      resolved <- resolveCliOptions snapshot options
+      pure $ case resolved of
+        Left (InputFailure message) -> failedRun sourceExitCode message
+        Left (ResolveFailure problems) -> failedRun resolutionExitCode (renderErrorsText problems)
+        Right result -> successfulRun (renderSuccess options result)
+
+resolveCliOptions :: EnvSnapshot -> CliOptions -> IO (Either CliFailure (ResolveResult CliConfig))
+resolveCliOptions snapshot options = do
+  loaded <- traverse loadConfigInput (options ^. #configInputs)
+  pure $ do
+    fileSources <- firstInputFailure loaded
+    environmentSource <-
+      case envSource "environment" environmentBindings snapshot of
+        Left problems -> Left (InputFailure (Text.pack (show problems)))
+        Right value -> Right value
+    case resolve
+      defaultResolveOptions
+      ( [builtInSource]
+          <> fileSources
+          <> [environmentSource]
+          <> cliSources "arguments" (options ^. #overrides)
+      )
+      cliConfig of
+      Left problems -> Left (ResolveFailure problems)
+      Right value -> Right value
+
+data CliFailure
+  = InputFailure !Text
+  | ResolveFailure !(NonEmpty ConfigError)
+
+firstInputFailure :: [Either Text Source] -> Either CliFailure [Source]
+firstInputFailure = traverse (either (Left . InputFailure) Right)
+
+loadConfigInput :: ConfigInput -> IO (Either Text Source)
+loadConfigInput input =
+  let sourceLabel = Text.pack (input ^. #path)
+   in case input ^. #format of
+        YamlFormat ->
+          fmap
+            (either (Left . Text.pack . show) Right)
+            (Yaml.readYamlSource (Yaml.yamlSourceOptions sourceLabel) (input ^. #path))
+        KdlFormat ->
+          fmap
+            (either (Left . Text.pack . show) Right)
+            (Kdl.readKdlSource (Kdl.kdlSourceOptions sourceLabel) (input ^. #path))
+        DhallFormat ->
+          fmap
+            (either (Left . Text.pack . show) Right)
+            (Dhall.loadDhallSource (Dhall.dhallSourceOptions sourceLabel Dhall.NoImports) (Dhall.DhallFile (input ^. #path)))
+
+renderSuccess :: CliOptions -> ResolveResult CliConfig -> Text
+renderSuccess options result =
+  case options ^. #diagnosticMode of
+    ExplainConfigurationText -> renderResolutionText (result ^. #report)
+    ExplainConfigurationJson -> renderResolutionJson (result ^. #report) <> "\n"
+    CheckConfiguration -> "configuration valid\n"
+    RunExample ->
+      let config = result ^. #value
+       in Text.unlines
+            [ "settei example action",
+              "endpoint: " <> config ^. #endpoint,
+              "timeout: " <> Text.pack (show (config ^. #timeout)),
+              "output: " <> renderOutputFormat (config ^. #outputFormat)
+            ]
+    DescribeConfiguration -> renderSchemaText (describe cliConfig)
+
+successfulRun :: Text -> CliRun
+successfulRun output = CliRun {exitCode = 0, standardOutput = output, standardError = ""}
+
+failedRun :: Int -> Text -> CliRun
+failedRun code message = CliRun {exitCode = code, standardOutput = "", standardError = message}
+
+builtInSource :: Source
+builtInSource =
+  source
+    "CLI built-in defaults"
+    BuiltInSource
+    ( RawObject
+        ( Map.fromList
+            [ ("runtime", RawObject (Map.singleton "environment" (RawText "development"))),
+              ( "service",
+                RawObject
+                  ( Map.fromList
+                      [ ("endpoint", RawText "https://localhost:8443"),
+                        ("timeout", RawNumber 30)
+                      ]
+                  )
+              ),
+              ("output", RawObject (Map.singleton "format" (RawText "text")))
+            ]
+        )
+    )
+
+environmentSetting :: Setting RuntimeEnvironment
+environmentSetting =
+  publicSettingWithRenderer
+    runtimeEnvironmentKey
+    "Runtime environment"
+    (enumDecoder [("development", Development), ("test", Test), ("production", Production)])
+    renderRuntimeEnvironment
+
+endpointSetting :: Setting Text
+endpointSetting = publicSetting serviceEndpointKey "Service endpoint" textDecoder
+
+timeoutSetting :: Setting Int
+timeoutSetting =
+  publicSettingWithRenderer serviceTimeoutKey "Request timeout in seconds" boundedIntegralDecoder (Text.pack . show)
+
+outputFormatSetting :: Setting OutputFormat
+outputFormatSetting =
+  publicSettingWithRenderer
+    outputFormatKey
+    "Output format"
+    (enumDecoder [("text", TextOutput), ("json", JsonOutput)])
+    renderOutputFormat
+
+tokenSetting :: Setting SecretText
+tokenSetting = secretSetting serviceTokenKey "Service authentication token" secretTextDecoder
+
+secretTextDecoder :: Decoder SecretText
+secretTextDecoder = decoder $ \key -> \case
+  RawText value -> Right (SecretText value)
+  _ -> Left (decodeFailure key "text")
+
+renderRuntimeEnvironment :: RuntimeEnvironment -> Text
+renderRuntimeEnvironment Development = "development"
+renderRuntimeEnvironment Test = "test"
+renderRuntimeEnvironment Production = "production"
+
+renderOutputFormat :: OutputFormat -> Text
+renderOutputFormat TextOutput = "text"
+renderOutputFormat JsonOutput = "json"
+
+runtimeEnvironmentKey, serviceEndpointKey, serviceTimeoutKey, outputFormatKey, serviceTokenKey :: Key
+runtimeEnvironmentKey = validKey "runtime.environment"
+serviceEndpointKey = validKey "service.endpoint"
+serviceTimeoutKey = validKey "service.timeout"
+outputFormatKey = validKey "output.format"
+serviceTokenKey = validKey "credentials.token"
+
+validKey :: Text -> Key
+validKey value = either (error . show) id (parseKey value)

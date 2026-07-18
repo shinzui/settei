@@ -118,7 +118,7 @@ silently becoming package policy.
 | EP-8 | Move Settei packages to top-level sibling directories | `docs/plans/8-move-settei-packages-to-top-level-sibling-directories.md` | EP-3, EP-4 | None | Complete |
 | EP-5 | Add KDL configuration support | `docs/plans/5-add-kdl-configuration-support.md` | EP-2, EP-8 | None | Complete |
 | EP-6 | Add Dhall configuration support | `docs/plans/6-add-dhall-configuration-support.md` | EP-2, EP-8 | None | Complete |
-| EP-7 | Prove Settei in CLI and Kubernetes service reference applications | `docs/plans/7-prove-settei-in-cli-and-kubernetes-service-reference-applications.md` | EP-3, EP-4, EP-5, EP-6 | None | Not Started |
+| EP-7 | Prove Settei in CLI and Kubernetes service reference applications | `docs/plans/7-prove-settei-in-cli-and-kubernetes-service-reference-applications.md` | EP-3, EP-4, EP-5, EP-6 | None | In Progress |
 
 Status values are Not Started, In Progress, Complete, and Cancelled. Hard dependencies and
 soft dependencies reference other rows by their EP prefix.

@@ -4,6 +4,7 @@ slug: prove-settei-in-cli-and-kubernetes-service-reference-applications
 title: "Prove Settei in CLI and Kubernetes service reference applications"
 kind: exec-plan
 created_at: 2026-07-16T23:50:16Z
+intention: intention_01kxr36cqgem8tmxjjtnq0t6ns
 master_plan: "docs/masterplans/1-build-settei-as-a-provenance-aware-configuration-library-for-haskell.md"
 ---
 
@@ -33,7 +34,15 @@ remains outside this plan.
 
 ## Progress
 
-- [ ] Add a CLI reference package and end-to-end source-precedence tests.
+- [x] (2026-07-18 07:47 PDT) Audit the completed plans, six ADRs, adapter guides,
+  current public modules, registered convention corpus, package metadata, and named
+  consumer configuration boundaries. The pinned GHC 9.12.4 shell passes all 121
+  pre-change tests; the host Cabal uses an older compiler and is not a valid build
+  environment for this workspace.
+- [x] (2026-07-18 07:53 PDT) Add the non-published `settei-example-cli` library,
+  executable, packaged YAML fixture, and six end-to-end tests. The tests prove ordered
+  file/environment/repeated-CLI precedence, source-free schema inspection, intent-grouped
+  help, usage/source/resolution exit codes 2/3/4, versioned JSON, and secret redaction.
 - [ ] Add a service reference package with derived defaults and selective requirements.
 - [ ] Add Kubernetes ConfigMap, Secret, and Deployment example manifests.
 - [ ] Build a cross-format conformance fixture and report comparison suite.
@@ -43,7 +52,23 @@ remains outside this plan.
 
 ## Surprises & Discoveries
 
-(None yet.)
+- Observation: the host Cabal process uses GHC 9.10 and `base-4.20`, while every Settei
+  package correctly requires GHC 9.12 or newer and `base >=4.21`.
+  Evidence: a direct `cabal test all` solve rejected installed `base-4.20.2.0`, while
+  `nix develop -c cabal test all --test-show-details=direct` selected GHC 9.12.4 and
+  passed all 121 existing tests.
+  Impact: every EP-7 build, test, Haddock, and source-distribution command runs through
+  the pinned Nix development shell unless the active compiler independently reports GHC
+  9.12 or newer.
+
+- Observation: the prescribed `ServiceConfig` shape has no list field, but the
+  cross-format fixture must include a list with at least two elements to exercise KDL's
+  cardinality mapping.
+  Evidence: Milestone 2 fixes the public service records, while Milestone 3 separately
+  requires the shared list and equivalent typed values.
+  Impact: the service declaration remains exactly as specified, and the conformance
+  declaration pairs it with `service.tags :: [Text]` so list equivalence is tested
+  without changing the reference service's public configuration type.
 
 
 ## Decision Log
@@ -85,6 +110,19 @@ remains outside this plan.
   Rationale: EP-6 proved those are the policies the maintained Dhall API can both enforce
   and report completely enough for Settei; the examples must not imply support for
   unrestricted filesystem, environment, or network imports.
+  Date: 2026-07-18
+
+- Decision: Keep `ServiceConfig` unchanged and define the conformance result as the
+  service value paired with a required two-or-more-element `service.tags` list.
+  Rationale: this resolves the plan's list-coverage requirement without teaching a field
+  that the prescribed service application does not consume; YAML, KDL, and Dhall must
+  still produce one equal typed conformance result and one equal normalized report.
+  Date: 2026-07-18
+
+- Decision: Treat the Nix development shell as the executable validation boundary for
+  this repository.
+  Rationale: the project explicitly targets GHC 9.12, and the host toolchain's older
+  non-reinstallable `base` cannot solve the declared package bounds.
   Date: 2026-07-18
 
 

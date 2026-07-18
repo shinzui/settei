@@ -1,0 +1,7 @@
+runtime:
+  environment: test
+service:
+  endpoint: https://file.example
+  timeout: 7000
+output:
+  format: text
