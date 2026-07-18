@@ -110,7 +110,7 @@ separate declarations.
 | EP-3 | Add environment and optparse-applicative configuration sources | `docs/plans/3-add-environment-and-optparse-applicative-configuration-sources.md` | EP-2 | None | Complete |
 | EP-4 | Add YAML configuration support | `docs/plans/4-add-yaml-configuration-support.md` | EP-2 | None | Complete |
 | EP-8 | Move Settei packages to top-level sibling directories | `docs/plans/8-move-settei-packages-to-top-level-sibling-directories.md` | EP-3, EP-4 | None | Complete |
-| EP-5 | Add KDL configuration support | `docs/plans/5-add-kdl-configuration-support.md` | EP-2, EP-8 | None | In Progress |
+| EP-5 | Add KDL configuration support | `docs/plans/5-add-kdl-configuration-support.md` | EP-2, EP-8 | None | Complete |
 | EP-6 | Add Dhall configuration support | `docs/plans/6-add-dhall-configuration-support.md` | EP-2, EP-8 | None | Not Started |
 | EP-7 | Prove Settei in CLI and Kubernetes service reference applications | `docs/plans/7-prove-settei-in-cli-and-kubernetes-service-reference-applications.md` | EP-3, EP-4, EP-5, EP-6 | None | Not Started |
 
@@ -216,7 +216,7 @@ are annotations supplied by the application or deployment, not discovered by the
 - [x] EP-4: translate YAML documents into provenance-aware sources.
 - [x] EP-8: move the core and implemented adapters to top-level sibling package roots
   while preserving all package identities and behavior.
-- [ ] EP-5: translate canonical KDL documents while preserving node locations.
+- [x] EP-5: translate canonical KDL documents while preserving node locations.
 - [ ] EP-6: translate normalized Dhall values and report honest import provenance.
 - [ ] EP-7: demonstrate CLI and Kubernetes service use cases end to end.
 - [ ] EP-7: publish package-family documentation and complete the release checklist.
@@ -305,6 +305,23 @@ are annotations supplied by the application or deployment, not discovered by the
   `../packages/<name>`.
   Impact: EP-8 explicitly owns package-local documentation and golden paths, explicit Nix
   source roots, source-distribution inspection, and Mori package-path validation.
+
+- Observation: `kdl-hs` 1.0.1 preserves ordered duplicate properties in `Node.entries`,
+  but its `getProps` helper passes them through `Map.fromList`; its public parse failure is
+  rendered text containing both a location header and a source excerpt.
+  Evidence: EP-5's Mori-backed source inspection and parser probes found both ordered
+  duplicate entries and the rendered excerpt, while all mapping and syntax-redaction tests
+  pass against the direct translator.
+  Impact: `settei-kdl` traverses entries directly, reports both duplicate spans, and keeps
+  only the safe line/column header from syntax failures. Cabal and Nix pin the inspected
+  1.0.1 release rather than nixpkgs' unregistered 1.1.0 source.
+
+- Observation: KDL positional-argument cardinality cannot distinguish a scalar from an
+  array containing exactly one element under the canonical version-one mapping.
+  Evidence: EP-5's precedence test needed two arguments for an array decoder, while one
+  argument correctly remained a scalar.
+  Impact: ADR 0005 and the KDL guide make the limitation explicit, and EP-7 now requires
+  at least two elements in its cross-format list fixture.
 
 
 ## Decision Log
@@ -418,6 +435,14 @@ are annotations supplied by the application or deployment, not discovered by the
   same refactor.
   Date: 2026-07-17
 
+- Decision: Adopt ADR 0005's canonical KDL v2 mapping, exact finite-number conversion,
+  explicit ambiguity and annotation rejection, direct duplicate-preserving AST traversal,
+  one-based span provenance, safe syntax-error truncation, and `kdl-hs` 1.0.1 pin.
+  Rationale: KDL sources need one deterministic adapter-neutral tree meaning while
+  retaining evidence and never allowing parser excerpts or convenience helpers to hide
+  secrets or duplicate input.
+  Date: 2026-07-17
+
 
 ## Outcomes & Retrospective
 
@@ -467,6 +492,15 @@ package checks, inspected source distributions, four Nix package outputs, full f
 formatting, and Mori inventory all pass. ADR 0001 already preserves the durable layout
 decision. EP-5 and EP-6 are now dependency-ready and may proceed independently.
 
+EP-5 completed on 2026-07-17. It added the top-level `settei-kdl` package, a direct
+canonical KDL v2 AST translator, exact finite-number conversion, explicit ambiguity and
+unsupported-feature failures, one-based full-span origins, secret-safe syntax and mapping
+errors, mounted-file metadata, and a complete guide. ADR 0005 preserves the mapping and
+the source-inspected `kdl-hs` 1.0.1 Cabal/Nix pin. Its 18 focused tests bring the workspace
+to 100 passing tests; all builds, five package checks, Haddocks, source distributions,
+Mori inventory, dedicated/default Nix builds, formatting, and the full host-platform flake
+check pass. EP-6 is now the first dependency-ready plan, and EP-7 remains blocked on it.
+
 Before this MasterPlan is complete, distill the durable resolution semantics, adapter
 boundary, and Dhall provenance limitation into `docs/adr/`, and compare the shipped package
 family and demonstrations with the vision above. The final retrospective must also confirm
@@ -514,3 +548,9 @@ through the affected child plans, and amended ADR 0001 with the durable layout d
 2026-07-17: Marked EP-8 complete after content-identical package moves and the full Cabal,
 Haddock, source-distribution, Mori, Nix, flake, formatting, and 82-test acceptance gate.
 EP-5 and EP-6 are now dependency-ready.
+
+2026-07-17: Marked EP-5 complete after its canonical KDL v2 translator, guide, ADR 0005,
+100-test workspace suite, five package checks, Haddocks, source distributions, Mori
+inventory, dedicated/default Nix builds, formatting, and full host-platform flake check.
+Propagated the one-element positional-array limitation to EP-7; EP-6 is now the first
+dependency-ready plan.

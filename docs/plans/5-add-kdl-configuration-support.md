@@ -48,6 +48,10 @@ the application's settings.
 - [x] (2026-07-17 22:05 -0700) Published the KDL guide and ADR 0005 with canonical
   examples, provenance behavior, rejected forms, and the one-element argument-array
   limitation.
+- [x] (2026-07-17 22:20 -0700) Passed `nix fmt`, all five Cabal builds and package
+  checks, all 100 workspace tests, Haddocks with 100% coverage for `Settei.Kdl`, all
+  source distributions, Mori inventory, the dedicated and default Nix builds, and the
+  full host-platform flake check.
 
 
 ## Surprises & Discoveries
@@ -134,11 +138,27 @@ the application's settings.
 
 ## Outcomes & Retrospective
 
-To be filled during and after implementation. Any change to the canonical mapping must be
-recorded here and in the format guide because configuration files will depend on it.
-Completion also requires the package to declare the canonical package-local GHC2024 common
-stanza, every component to import it, and the code to pass the shared prelude, record,
-deriving, lens, and import-style audit.
+EP-5 completed on 2026-07-17. `settei-kdl` now translates KDL v2 directly from the
+source-inspected `kdl-hs` 1.0.1 AST into core `RawValue` trees without introducing a
+second schema or merge layer. The package implements the canonical scalar, positional
+array, null, property/object, child, and repeated-sibling mappings; rejects duplicate or
+ambiguous structures, annotations, invalid key segments, and non-finite numbers; and
+preserves one-based starts plus complete spans in secret-safe provenance.
+
+The implementation exposed two compatibility constraints that are now durable in the
+guide and ADR 0005. Direct `Node.entries` traversal is required because `getProps` would
+collapse duplicate properties, and argument cardinality means a one-element array has no
+version-one argument spelling. The latter finding was propagated to EP-7's conformance
+fixture design. Cabal and Nix both pin `kdl-hs` 1.0.1 so builds use the exact Mori-located
+source that informed those decisions.
+
+The completed package uses the canonical package-local GHC2024 common stanza in its
+library and test suite and passes the shared prelude, strict-record, explicit-deriving,
+lens, and qualified-import conventions. Its 18 focused tests bring the workspace total
+to 100. All Cabal builds, tests, package checks, Haddocks, and source distributions pass;
+the KDL archive contains its public module, characterization and behavior tests, and
+fixtures. Mori lists all five package roots, both dedicated and default Nix builds pass,
+and the full host-platform flake check is clean.
 
 
 ## Context and Orientation
