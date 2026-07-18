@@ -332,6 +332,15 @@ are annotations supplied by the application or deployment, not discovered by the
   preflighted `LocalImportsWithin` graphs. EP-7 should use import-free or local-only Dhall
   fixtures and must not imply that unrestricted standard imports are supported.
 
+- Observation: the Hackage revision of `dhall-json` 1.7.12 predates the dependency-bound
+  widenings already present in the registered monorepo source for Aeson, bytestring, and
+  text on GHC 9.12.
+  Evidence: EP-6's Cabal solver rejected each stale ceiling, while Mori-backed inspection
+  found `<2.3`, `<0.13`, and `<2.2` respectively in the registered source.
+  Impact: the workspace relaxes only those three `dhall-json` bounds and the Nix package
+  applies the equivalent local jailbreak; EP-7 inherits the pinned, tested adapter rather
+  than adding another Dhall dependency workaround.
+
 
 ## Decision Log
 

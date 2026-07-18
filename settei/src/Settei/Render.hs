@@ -112,7 +112,7 @@ renderOriginText prefix origin = prefix <> originDescription origin <> "\n"
 
 originDescription :: Origin -> Text
 originDescription origin =
-  baseDescription <> kubernetesSuffix origin
+  baseDescription <> dhallSuffix origin <> kubernetesSuffix origin
   where
     baseDescription = case origin ^. #kind of
       BuiltInSource -> "built-in source " <> origin ^. #name
@@ -135,6 +135,19 @@ originDescription origin =
             (origin ^. #annotations . at "command-line.occurrence")
       DerivedSource -> "default rule " <> origin ^. #name
       CustomSource customKind -> customKind <> " source " <> origin ^. #name
+
+dhallSuffix :: Origin -> Text
+dhallSuffix origin = case origin ^. #kind of
+  FileSource "Dhall" ->
+    case origin ^. #annotations . at "dhall.root" of
+      Nothing -> ""
+      Just root ->
+        " rooted at "
+          <> root
+          <> " evaluated with "
+          <> fromMaybe "0" (origin ^. #annotations . at "dhall.import-count")
+          <> " local imports; leaf-level import attribution unavailable after normalization"
+  _ -> ""
 
 kubernetesSuffix :: Origin -> Text
 kubernetesSuffix origin =

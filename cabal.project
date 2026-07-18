@@ -23,3 +23,8 @@ package settei-optparse-applicative
 
 package settei-yaml
   tests: True
+
+-- dhall-json 1.7.12's Hackage revision predates bytestring 0.12. The registered
+-- dhall-haskell monorepo widens the same release's source bound to <0.13, and
+-- the adapter is tested against GHC 9.12's bytestring 0.12 API.
+allow-newer: dhall-json:aeson, dhall-json:bytestring, dhall-json:text

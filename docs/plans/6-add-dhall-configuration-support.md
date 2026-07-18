@@ -37,8 +37,12 @@ decoding, precedence, defaults, provenance edges, redaction, and report renderin
 - [x] (2026-07-18 13:31Z) Prove enforceable no-import and canonical-root local
   policies plus cache-independent transitive closure collection in seven prototype tests.
 - [ ] Add and register the `settei-dhall` package.
-- [ ] Convert supported normalized Dhall values into the core raw tree.
-- [ ] Add honest root/import provenance, errors, redaction, and cache isolation.
+- [x] (2026-07-18 13:47Z) Convert type-checked normalized records, lists,
+  optionals, unions, booleans, text, and finite numbers directly through `dhall-json` into
+  the core raw tree while preserving association lists as arrays.
+- [x] (2026-07-18 13:47Z) Add structured root/import provenance, stable
+  secret-safe error phases, honest text rendering, adversarial redaction coverage, and a
+  test-process-local Dhall cache directory.
 - [ ] Test local imports and publish a Dhall schema-evolution and limitations guide.
 
 
@@ -64,6 +68,16 @@ decoding, precedence, defaults, provenance edges, redaction, and report renderin
   alternatives, and structural semantic-hash retention.
   Impact: the production runner can remain a small adapter around public upstream APIs;
   it does not need to copy or fork Dhall's import interpreter.
+
+- Observation: the Hackage revision for `dhall-json` 1.7.12 retains
+  `aeson <2.2`, `bytestring <0.12`, and `text <2.1`, while the registered monorepo source
+  for the same release has already widened those bounds to `<2.3`, `<0.13`, and `<2.2`;
+  GHC 9.12's package generation uses those newer dependency lines.
+  Evidence: successive GHC 9.12 Cabal solves rejected the Hackage revision on those bounds,
+  while direct inspection of registered `dhall-json/dhall-json.cabal` shows the widened
+  bounds.
+  Impact: Cabal relaxes only the three stale `dhall-json` dependency ceilings, and Nix
+  applies the equivalent package-local jailbreak while retaining `dhall-json` 1.7.12.
 
 
 ## Decision Log
@@ -106,6 +120,13 @@ decoding, precedence, defaults, provenance edges, redaction, and report renderin
   can prove every canonical path is contained before reading it and can collect the exact
   transitive closure independent of upstream cache state; unrestricted or fallback graphs
   cannot provide the same guarantee without copying the upstream interpreter.
+  Date: 2026-07-18
+
+- Decision: Use `Dhall.JSON.NoConversion` at the official `dhall-json` boundary and expose
+  `loadDhallSourceDetailed` alongside the simpler `loadDhallSource`.
+  Rationale: retaining association lists as arrays avoids silently collapsing duplicate
+  `mapKey` values, while the detailed result gives callers structured canonical paths,
+  import modes, and semantic hashes without encoding them back out of flat annotations.
   Date: 2026-07-18
 
 
