@@ -14,4 +14,34 @@ in  Schema.Project::{
       , owners = [ "shinzui" ]
       }
     , repos = [ Schema.Repo::{ name = "settei", github = Some "shinzui/settei" } ]
+    , packages =
+      [ Schema.Package::{
+        , name = "settei"
+        , type = Schema.PackageType.Library
+        , language = Schema.Language.Haskell
+        , path = Some "settei"
+        , description = Some "Inspectable configuration algebra, resolution, provenance, defaults, and reporting"
+        }
+      , Schema.Package::{
+        , name = "settei-env"
+        , type = Schema.PackageType.Library
+        , language = Schema.Language.Haskell
+        , path = Some "settei-env"
+        , description = Some "Environment-variable sources for Settei"
+        }
+      , Schema.Package::{
+        , name = "settei-optparse-applicative"
+        , type = Schema.PackageType.Library
+        , language = Schema.Language.Haskell
+        , path = Some "settei-optparse-applicative"
+        , description = Some "optparse-applicative configuration sources for Settei"
+        }
+      , Schema.Package::{
+        , name = "settei-yaml"
+        , type = Schema.PackageType.Library
+        , language = Schema.Language.Haskell
+        , path = Some "settei-yaml"
+        , description = Some "Strict location-preserving YAML sources for Settei"
+        }
+      ]
     }

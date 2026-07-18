@@ -38,11 +38,14 @@ Settei is being designed around these requirements:
 
 ## Packages
 
-- `settei` provides the declaration algebra, hierarchical resolver, provenance model,
-  derived defaults, and report rendering.
-- `settei-env` translates explicitly mapped environment variables into Settei sources.
-- `settei-optparse-applicative` provides reusable command-line configuration options.
-- `settei-yaml` translates a strict, location-preserving YAML subset into Settei sources.
+- [`settei`](settei/) provides the declaration algebra, hierarchical resolver, provenance
+  model, derived defaults, and report rendering.
+- [`settei-env`](settei-env/) translates explicitly mapped environment variables into
+  Settei sources.
+- [`settei-optparse-applicative`](settei-optparse-applicative/) provides reusable
+  command-line configuration options.
+- [`settei-yaml`](settei-yaml/) translates a strict, location-preserving YAML subset into
+  Settei sources.
 - The planned `settei-kdl` and `settei-dhall` packages provide further format-specific
   file sources without moving merge semantics out of the core.
 
@@ -56,8 +59,8 @@ not treated as a provenance system.
 
 ## Project status
 
-The root `settei` package now provides validated hierarchical keys, parser-neutral raw
-values, secret-safe decoders, typed setting declarations, selective composition,
+The core package under [`settei/`](settei/) now provides validated hierarchical keys,
+parser-neutral raw values, secret-safe decoders, typed setting declarations, selective composition,
 source-free schema inspection, deterministic precedence, provenance reports, named
 defaults, and text and JSON explanations. `settei-env`,
 `settei-optparse-applicative`, and `settei-yaml` provide the first source adapters; see the

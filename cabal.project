@@ -1,8 +1,8 @@
 packages:
-  .
-  packages/settei-env
-  packages/settei-optparse-applicative
-  packages/settei-yaml
+  settei
+  settei-env
+  settei-optparse-applicative
+  settei-yaml
 
 package settei
   tests: True

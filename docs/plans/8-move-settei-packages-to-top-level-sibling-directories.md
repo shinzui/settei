@@ -36,12 +36,16 @@ path refers to `packages/`, root `src/`, root `test/`, or root `settei.cabal`.
   environment, CLI, and YAML suites passed 47 + 7 + 8 + 20 tests, respectively, for 82
   total. Inventoried the path-sensitive Cabal, Nix, Mori, documentation, fixture, and
   source-distribution references named by this plan.
-- [ ] Relocate the core and three implemented adapters into top-level package directories
-  without changing Cabal package names or Haskell module paths.
-- [ ] Rewire `cabal.project`, `nix/haskell.nix`, package metadata, and package-local data
-  files for the new roots.
-- [ ] Update active documentation and planning paths, including superseding historical
-  layout decisions without erasing what the completed plans originally did.
+- [x] (2026-07-17 21:09 -0700) Relocated the core and three implemented adapters into
+  top-level package directories. Git recognizes every existing Cabal, Haskell, test,
+  golden, and fixture file as a content-identical rename; package and module names are
+  unchanged.
+- [x] (2026-07-17 21:09 -0700) Rewired `cabal.project`, `nix/haskell.nix`, and `mori.dhall`
+  for the new roots, added the package-local core README, built the workspace with Cabal,
+  and built all three adapter Nix outputs against the relocated core.
+- [x] (2026-07-17 21:09 -0700) Updated the family README and active planning paths while
+  retaining old-layout references only in completed-plan history, revision notes, and
+  this plan's explicit before/after migration instructions.
 - [ ] Run package, workspace, source-distribution, Haddock, Mori, formatting, and flake
   validation and prove that the obsolete layout has no active references.
 
