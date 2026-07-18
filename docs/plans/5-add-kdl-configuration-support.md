@@ -35,9 +35,15 @@ the application's settings.
   probed its public AST/parser behavior: it implements KDL v2, retains duplicate entries,
   represents numbers as exact `Scientific` values, and emits one-based spans when enabled.
 - [ ] Add and register the `settei-kdl` package.
-- [ ] Implement and test the canonical KDL-to-raw-tree mapping.
-- [ ] Preserve useful spans in source origins and structured errors.
-- [ ] Test hierarchy, repeated nodes, collisions, precedence, and redaction.
+- [x] (2026-07-17 21:56 -0700) Implemented and tested the canonical KDL-to-raw-tree
+  mapping for scalars, argument arrays, nulls, properties, children, and repeated sibling
+  arrays, with explicit rejection of every ambiguous form.
+- [x] (2026-07-17 21:56 -0700) Preserved exact one-based success spans in origins and
+  annotations, primary and related spans in mapping errors, and the safe header location
+  from syntax errors while discarding parser excerpts.
+- [x] (2026-07-17 21:56 -0700) Added focused tests for hierarchy, repeated nodes,
+  duplicate properties, property/child collisions, mixed shapes, precedence, array
+  replacement, Kubernetes annotations, file IO, and secret redaction.
 - [ ] Publish a KDL guide with canonical examples and limitations.
 
 
@@ -65,6 +71,14 @@ the application's settings.
   Evidence: a malformed-node probe returned a `1:18:` header followed by the input line.
   Impact: syntax failures retain only line and column parsed from the header and discard
   the remainder so a pre-sensitivity error can never retain a secret source excerpt.
+
+- Observation: the canonical positional-argument rule distinguishes a scalar from an
+  array solely by cardinality: one argument is a scalar and two or more are an array.
+  Evidence: the first precedence test supplied `names "three"`; core correctly rejected
+  that scalar for an array decoder, while `names "three" "four"` resolved as an array.
+  Impact: argument-style arrays cannot express exactly one element in version one. The
+  guide and format ADR must state this rather than implying that every array cardinality
+  has a direct spelling.
 
 
 ## Decision Log

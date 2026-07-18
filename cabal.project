@@ -1,6 +1,7 @@
 packages:
   settei
   settei-env
+  settei-kdl
   settei-optparse-applicative
   settei-yaml
 
@@ -8,6 +9,9 @@ package settei
   tests: True
 
 package settei-env
+  tests: True
+
+package settei-kdl
   tests: True
 
 package settei-optparse-applicative

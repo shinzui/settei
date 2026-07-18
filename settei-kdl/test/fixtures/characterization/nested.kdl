@@ -1,0 +1,6 @@
+service {
+  http {
+    host "fixture.internal"
+    port 8080
+  }
+}
