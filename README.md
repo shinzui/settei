@@ -46,8 +46,10 @@ Settei is being designed around these requirements:
   command-line configuration options.
 - [`settei-yaml`](settei-yaml/) translates a strict, location-preserving YAML subset into
   Settei sources.
-- The planned `settei-kdl` and `settei-dhall` packages provide further format-specific
-  file sources without moving merge semantics out of the core.
+- [`settei-kdl`](settei-kdl/) translates a canonical, span-preserving KDL v2 subset into
+  Settei sources.
+- The planned `settei-dhall` package provides a typed format-specific file source without
+  moving merge semantics out of the core.
 
 The public configuration language is planned to support Functor, Applicative, and
 Selective composition without exposing a Monad instance. Selective branches allow Settei
@@ -60,13 +62,16 @@ not treated as a provenance system.
 ## Project status
 
 The core package under [`settei/`](settei/) now provides validated hierarchical keys,
-parser-neutral raw values, secret-safe decoders, typed setting declarations, selective composition,
+parser-neutral raw values, secret-safe decoders, typed setting declarations, selective
+composition,
 source-free schema inspection, deterministic precedence, provenance reports, named
 defaults, and text and JSON explanations. `settei-env`,
-`settei-optparse-applicative`, and `settei-yaml` provide the first source adapters; see the
+`settei-optparse-applicative`, `settei-yaml`, and `settei-kdl` provide the first source
+adapters; see the
 [environment and command-line guide](docs/guides/environment-and-cli.md) for a migration
-and precedence example and the [YAML guide](docs/guides/yaml.md) for strict file input.
-KDL and Dhall adapters remain under active implementation. The
+and precedence example, the [YAML guide](docs/guides/yaml.md) for strict YAML input, and
+the [KDL guide](docs/guides/kdl.md) for the canonical KDL v2 mapping. The Dhall adapter
+remains under active implementation. The
 architecture and implementation sequence are documented in the
 [Settei MasterPlan](docs/masterplans/1-build-settei-as-a-provenance-aware-configuration-library-for-haskell.md).
 The child ExecPlans in [`docs/plans/`](docs/plans/) define independently verifiable work for

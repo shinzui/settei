@@ -240,10 +240,12 @@ Create the non-published package
 `examples/settei-conformance/settei-example-conformance.cabal`. Its test suite owns
 fixtures beneath `examples/settei-conformance/test/fixtures/`, where the same nested public
 configuration is encoded in YAML, KDL, and Dhall, including environment, HTTP settings,
-database host/port/pool, and a list. Register this example package in `cabal.project` and
-Nix checks, declare the canonical package-local common stanza, and keep its fixtures in
-the package's source distribution. Do not put a real or stable secret in fixtures. Load
-each through its adapter and resolve the same `Config ServiceConfig`.
+database host/port/pool, and a list with at least two elements so KDL's documented
+cardinality mapping represents it as an array. Register this example package in
+`cabal.project` and Nix checks, declare the canonical package-local common stanza, and
+keep its fixtures in the package's source distribution. Do not put a real or stable
+secret in fixtures. Load each through its adapter and resolve the same
+`Config ServiceConfig`.
 
 Assert that all typed public values match. Normalize reports only by replacing the
 format-specific origin payload with its source class; then assert equal key sets, selected
@@ -421,3 +423,7 @@ the reference application's scope.
 and adapters are consumed from their top-level package roots, while CLI, service, and the
 new self-contained conformance test package remain beneath `examples/`; conformance
 fixtures no longer recreate a repository-root `test/` tree.
+
+2026-07-17: Propagated Plan 5's accepted KDL cardinality mapping into the conformance
+fixture design. The shared list now requires at least two elements because one KDL
+positional argument is canonically a scalar, while two or more arguments form an array.

@@ -30,6 +30,13 @@ in  Schema.Project::{
         , description = Some "Environment-variable sources for Settei"
         }
       , Schema.Package::{
+        , name = "settei-kdl"
+        , type = Schema.PackageType.Library
+        , language = Schema.Language.Haskell
+        , path = Some "settei-kdl"
+        , description = Some "Canonical span-preserving KDL v2 sources for Settei"
+        }
+      , Schema.Package::{
         , name = "settei-optparse-applicative"
         , type = Schema.PackageType.Library
         , language = Schema.Language.Haskell

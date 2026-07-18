@@ -24,6 +24,7 @@
 
       optparseApplicativePackage =
         haskellPackages.callCabal2nix "optparse-applicative" inputs.optparse-applicative { };
+      kdlHsPackage = haskellPackages.callCabal2nix "kdl-hs" inputs.kdl-hs { };
       setteiPackage = haskellPackages.callCabal2nix "settei" ../settei { };
       setteiEnvPackage =
         haskellPackages.callCabal2nix "settei-env" ../settei-env {
@@ -31,6 +32,11 @@
         };
       setteiYamlPackage =
         haskellPackages.callCabal2nix "settei-yaml" ../settei-yaml {
+          settei = setteiPackage;
+        };
+      setteiKdlPackage =
+        haskellPackages.callCabal2nix "settei-kdl" ../settei-kdl {
+          kdl-hs = kdlHsPackage;
           settei = setteiPackage;
         };
       setteiOptparseApplicativePackage =
@@ -68,6 +74,7 @@
     {
       packages.default = setteiPackage;
       packages.settei-env = setteiEnvPackage;
+      packages.settei-kdl = setteiKdlPackage;
       packages.settei-optparse-applicative = setteiOptparseApplicativePackage;
       packages.settei-yaml = setteiYamlPackage;
 

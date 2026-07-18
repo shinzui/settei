@@ -95,6 +95,19 @@
         "type": "github"
       }
     },
+    "kdl-hs": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1000000000,
+        "narHash": "sha256-XlNHId1y8i9OIjId09/W8oup+8Ma+bi6WkmR7MgDqSg=",
+        "type": "tarball",
+        "url": "https://hackage.haskell.org/package/kdl-hs-1.0.1/kdl-hs-1.0.1.tar.gz"
+      },
+      "original": {
+        "type": "tarball",
+        "url": "https://hackage.haskell.org/package/kdl-hs-1.0.1/kdl-hs-1.0.1.tar.gz"
+      }
+    },
     "nixpkgs": {
       "locked": {
         "lastModified": 1780336545,
@@ -166,6 +179,7 @@
       "inputs": {
         "flake-parts": "flake-parts",
         "haskell-nix-dev": "haskell-nix-dev",
+        "kdl-hs": "kdl-hs",
         "nixpkgs": [
           "haskell-nix-dev",
           "nixpkgs"

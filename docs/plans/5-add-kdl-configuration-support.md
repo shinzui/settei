@@ -34,7 +34,8 @@ the application's settings.
 - [x] (2026-07-17 21:35 -0700) Re-inspected Mori's registered `kdl-hs` 1.0.1 source and
   probed its public AST/parser behavior: it implements KDL v2, retains duplicate entries,
   represents numbers as exact `Scientific` values, and emits one-based spans when enabled.
-- [ ] Add and register the `settei-kdl` package.
+- [x] (2026-07-17 22:05 -0700) Added the top-level `settei-kdl` package and registered
+  it in Cabal, Nix, and Mori with the source-inspected `kdl-hs` 1.0.1 pin.
 - [x] (2026-07-17 21:56 -0700) Implemented and tested the canonical KDL-to-raw-tree
   mapping for scalars, argument arrays, nulls, properties, children, and repeated sibling
   arrays, with explicit rejection of every ambiguous form.
@@ -44,7 +45,9 @@ the application's settings.
 - [x] (2026-07-17 21:56 -0700) Added focused tests for hierarchy, repeated nodes,
   duplicate properties, property/child collisions, mixed shapes, precedence, array
   replacement, Kubernetes annotations, file IO, and secret redaction.
-- [ ] Publish a KDL guide with canonical examples and limitations.
+- [x] (2026-07-17 22:05 -0700) Published the KDL guide and ADR 0005 with canonical
+  examples, provenance behavior, rejected forms, and the one-element argument-array
+  limitation.
 
 
 ## Surprises & Discoveries
@@ -398,3 +401,9 @@ access, a direct package dependency, and postpositive qualified imports.
 changed the future package root from `packages/settei-kdl/` to `settei-kdl/`. This keeps
 the plan self-contained against the relocated `settei/` core and prevents new work from
 reintroducing the rejected package container.
+
+2026-07-17: Reconciled the plan with the implemented `kdl-hs` 1.0.1 AST translator. The
+living sections now record the duplicate-preserving entry traversal, parser-excerpt
+redaction, exact Cabal/Nix pin, supported KDL v2 scalar policy, and the cardinality rule
+that prevents an argument-style one-element array. ADR 0005 now owns those durable format
+decisions.
