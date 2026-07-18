@@ -45,7 +45,8 @@ decoding, precedence, defaults, provenance edges, redaction, and report renderin
 - [x] (2026-07-18 13:47Z) Add structured root/import provenance, stable
   secret-safe error phases, honest text rendering, adversarial redaction coverage, and a
   test-process-local Dhall cache directory.
-- [ ] Test local imports and publish a Dhall schema-evolution and limitations guide.
+- [x] (2026-07-18 14:06Z) Test local imports and publish the Dhall
+  schema-evolution, import-policy, cache, provenance, and limitations guide.
 
 
 ## Surprises & Discoveries
@@ -134,11 +135,34 @@ decoding, precedence, defaults, provenance edges, redaction, and report renderin
 
 ## Outcomes & Retrospective
 
-To be filled during and after implementation. Completion requires evidence for the
-enforceable import policies and a durable ADR or guide section documenting provenance
-precision. It also requires the package and its tests to inherit the common GHC2024 stanza
-by declaring it package-locally and importing it from every component, and to pass the
-shared prelude, strict-record, explicit-deriving, lens, and import-style audit.
+EP-6 completed on 2026-07-18. The new top-level `settei-dhall` package evaluates typed
+Dhall records through the maintained parser, import loader, type checker, normalizer, and
+`dhall-json` conversion boundary, then exposes them through the shared `Source` model.
+`loadDhallSource` covers the normal path, while `loadDhallSourceDetailed` returns the
+structured canonical import closure, modes, and semantic hashes needed by callers that
+want more than report annotations.
+
+The public policy is deliberately smaller and stronger than the initial aspiration.
+`NoImports` rejects every import, while `LocalImportsWithin` preflights a no-alternative
+local graph, canonicalizes each file before reading it, rejects `..` and symlink escapes,
+and records a cache-independent transitive closure. There is no unrestricted standard
+mode because upstream cannot intercept all local and environment reads or fully suppress
+its separate semi-semantic cache. Provenance therefore names the root and substantiated
+closure and explicitly states that normalization prevents reliable per-leaf import
+attribution. ADR 0006 preserves this contract and `docs/guides/dhall.md` documents policy,
+cache behavior, conversion, schema evolution, ordering, errors, and secret handling.
+
+Seven import-policy characterization tests and fourteen production tests cover typed
+records, lists, optionals, unions, finite numbers, association-list preservation, ordered
+sources, local chains, escape attempts, unsupported capabilities, errors, provenance, and
+redaction. They bring the workspace to 121 passing tests. Cabal build, package check,
+Haddock generation with 100% public-module coverage, source-distribution inspection, the
+dedicated Nix build, full flake check, formatting, and the six-package Mori inventory all
+pass. Every package component imports its package-local GHC2024 common stanza, and the
+shared prelude, strict unprefixed record, explicit deriving, lens, and postpositive
+qualified-import audits pass. The remaining inherent limitation is filesystem TOCTOU
+between preflight and upstream evaluation; the guide and ADR state that this is capability
+confinement for cooperative local files, not an operating-system sandbox.
 
 
 ## Context and Orientation
@@ -404,3 +428,8 @@ from reintroducing the rejected package container.
 local/environment interception hook nor a complete cache-independent standard-import
 closure. Local-only import alternatives are now explicitly rejected so preflight can
 validate and substantiate the entire graph before evaluation.
+
+2026-07-18: Completed the adapter with 21 focused tests, stable secret-safe errors,
+structured import details, honest report rendering, a schema-evolution and limitations
+guide, and ADR 0006. Cabal, Haddock, source-distribution, Nix, flake, formatting,
+convention, and Mori acceptance gates all pass.

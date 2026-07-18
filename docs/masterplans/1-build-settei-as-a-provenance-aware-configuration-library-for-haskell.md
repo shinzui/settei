@@ -111,7 +111,7 @@ separate declarations.
 | EP-4 | Add YAML configuration support | `docs/plans/4-add-yaml-configuration-support.md` | EP-2 | None | Complete |
 | EP-8 | Move Settei packages to top-level sibling directories | `docs/plans/8-move-settei-packages-to-top-level-sibling-directories.md` | EP-3, EP-4 | None | Complete |
 | EP-5 | Add KDL configuration support | `docs/plans/5-add-kdl-configuration-support.md` | EP-2, EP-8 | None | Complete |
-| EP-6 | Add Dhall configuration support | `docs/plans/6-add-dhall-configuration-support.md` | EP-2, EP-8 | None | In Progress |
+| EP-6 | Add Dhall configuration support | `docs/plans/6-add-dhall-configuration-support.md` | EP-2, EP-8 | None | Complete |
 | EP-7 | Prove Settei in CLI and Kubernetes service reference applications | `docs/plans/7-prove-settei-in-cli-and-kubernetes-service-reference-applications.md` | EP-3, EP-4, EP-5, EP-6 | None | Not Started |
 
 Status values are Not Started, In Progress, Complete, and Cancelled. Hard dependencies and
@@ -217,7 +217,7 @@ are annotations supplied by the application or deployment, not discovered by the
 - [x] EP-8: move the core and implemented adapters to top-level sibling package roots
   while preserving all package identities and behavior.
 - [x] EP-5: translate canonical KDL documents while preserving node locations.
-- [ ] EP-6: translate normalized Dhall values and report honest import provenance.
+- [x] EP-6: translate normalized Dhall values and report honest import provenance.
 - [ ] EP-7: demonstrate CLI and Kubernetes service use cases end to end.
 - [ ] EP-7: publish package-family documentation and complete the release checklist.
 
@@ -469,6 +469,12 @@ are annotations supplied by the application or deployment, not discovered by the
   maintained `dhall` 1.42.3 API.
   Date: 2026-07-18
 
+- Decision: Preserve the Dhall input, import, conversion, cache, and provenance contract
+  in ADR 0006 and make EP-7 demonstrate only those enforceable policies.
+  Rationale: reference applications must inherit the adapter's actual security and
+  observability boundary instead of recreating the broader initial aspiration.
+  Date: 2026-07-18
+
 
 ## Outcomes & Retrospective
 
@@ -527,6 +533,17 @@ to 100 passing tests; all builds, five package checks, Haddocks, source distribu
 Mori inventory, dedicated/default Nix builds, formatting, and the full host-platform flake
 check pass. EP-6 is now the first dependency-ready plan, and EP-7 remains blocked on it.
 
+EP-6 completed on 2026-07-18. It added the top-level `settei-dhall` package, official
+typed Dhall-to-JSON-to-raw-tree conversion, `NoImports` and canonical-root-confined
+`LocalImportsWithin` policies, cache-independent structured import closure details,
+stable secret-safe errors, honest root-plus-closure provenance, and explicit
+post-normalization leaf-attribution limits. ADR 0006 and the Dhall guide preserve the
+security, cache, conversion, schema-evolution, and provenance contract. Its 21 focused
+tests bring the workspace to 121 passing tests; Cabal build/check/Haddock/source
+distribution, the dedicated Nix package build, full flake check, formatting, convention
+audit, and six-package Mori inventory all pass. EP-7 is now dependency-ready and is the
+only remaining child plan.
+
 Before this MasterPlan is complete, distill the durable resolution semantics, adapter
 boundary, and Dhall provenance limitation into `docs/adr/`, and compare the shipped package
 family and demonstrations with the vision above. The final retrospective must also confirm
@@ -580,3 +597,9 @@ EP-5 and EP-6 are now dependency-ready.
 inventory, dedicated/default Nix builds, formatting, and full host-platform flake check.
 Propagated the one-element positional-array limitation to EP-7; EP-6 is now the first
 dependency-ready plan.
+
+2026-07-18: Marked EP-6 complete after its typed Dhall adapter, enforceable no-import and
+root-confined local policies, structured closure provenance, stable secret-safe errors,
+guide, ADR 0006, 121-test workspace suite, and full Cabal, Nix, flake, formatting,
+convention, source-distribution, Haddock, and Mori gates. Propagated the actual import
+contract to EP-7, which is now dependency-ready and the only remaining child plan.

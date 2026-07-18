@@ -80,6 +80,13 @@ remains outside this plan.
   `test/` package from recreating the special workspace layout removed by Plan 8.
   Date: 2026-07-17
 
+- Decision: Default every reference-app Dhall load to `NoImports`; allow only an explicit
+  `LocalImportsWithin` canonical root where a local graph is part of the demonstration.
+  Rationale: EP-6 proved those are the policies the maintained Dhall API can both enforce
+  and report completely enough for Settei; the examples must not imply support for
+  unrestricted filesystem, environment, or network imports.
+  Date: 2026-07-18
+
 
 ## Outcomes & Retrospective
 
@@ -133,7 +140,10 @@ optparse-applicative's ordinary help section for `--help`. Shell completions, he
 and terminal-width reflow are deliberately outside this small reference CLI unless later
 requirements explicitly add them.
 [ADR 0001](../adr/0001-haskell-project-conventions.md) records the durable rationale and
-rejected alternatives for this baseline.
+rejected alternatives for this baseline. Read
+[ADR 0006](../adr/0006-dhall-input-import-and-provenance-semantics.md) before wiring Dhall
+into either reference application; it defines the enforceable import surface and the
+honest root-plus-closure provenance precision.
 
 
 ## Plan of Work
@@ -162,8 +172,9 @@ named built-in defaults
 
 Use an explicit format tag rather than guessing from content. A convenience may infer a
 format from `.yaml`, `.yml`, `.kdl`, or `.dhall`, but ambiguity and unknown extensions must
-produce an actionable error. Dhall evaluation uses a documented import policy option with
-a safe default.
+produce an actionable error. Dhall evaluation defaults to `NoImports`. If the CLI exposes
+local imports, the user must provide an explicit root for `LocalImportsWithin`; do not add
+an unrestricted or implicit standard-import mode.
 
 Add `--describe-config` for the static schema, `--explain-config` for the actual text
 report, `--explain-config-json` for the versioned JSON report, and `--check-config` to
@@ -244,7 +255,9 @@ database host/port/pool, and a list with at least two elements so KDL's document
 cardinality mapping represents it as an array. Register this example package in
 `cabal.project` and Nix checks, declare the canonical package-local common stanza, and
 keep its fixtures in the package's source distribution. Do not put a real or stable
-secret in fixtures. Load each through its adapter and resolve the same
+secret in fixtures. Keep the Dhall conformance fixture import-free and load it with
+`NoImports`; exercise `LocalImportsWithin` separately only if the examples need to
+demonstrate an import graph. Load each through its adapter and resolve the same
 `Config ServiceConfig`.
 
 Assert that all typed public values match. Normalize reports only by replacing the
@@ -381,7 +394,8 @@ signing steps.
 ## Idempotence and Recovery
 
 Examples and tests use injected environment snapshots and local fixture files, so they are
-repeatable and do not require a cluster. Dhall conformance uses no network imports.
+repeatable and do not require a cluster. Dhall conformance uses `NoImports`, so it cannot
+read the network, process environment, or another file.
 Kubernetes assets contain placeholders only; never generate or commit a real Secret value.
 
 Source-distribution creation and Haddock generation are repeatable. Unpack distributions
@@ -427,3 +441,8 @@ fixtures no longer recreate a repository-root `test/` tree.
 2026-07-17: Propagated Plan 5's accepted KDL cardinality mapping into the conformance
 fixture design. The shared list now requires at least two elements because one KDL
 positional argument is canonically a scalar, while two or more arguments form an array.
+
+2026-07-18: Propagated Plan 6's accepted Dhall contract into both reference applications
+and the conformance suite. Dhall now defaults to `NoImports`, any demonstrated local graph
+must use an explicit `LocalImportsWithin` root, and the examples must neither expose nor
+imply an unrestricted standard-import mode.
