@@ -73,6 +73,13 @@ remains outside this plan.
   registered convention corpus.
   Date: 2026-07-16
 
+- Decision: Keep all non-published reference and conformance packages beneath
+  `examples/`, while every publishable Settei library remains a same-named top-level
+  sibling.
+  Rationale: the directory boundary makes release ownership visible and prevents a root
+  `test/` package from recreating the special workspace layout removed by Plan 8.
+  Date: 2026-07-17
+
 
 ## Outcomes & Retrospective
 
@@ -93,10 +100,13 @@ This plan depends on all adapter plans:
 - `docs/plans/5-add-kdl-configuration-support.md`
 - `docs/plans/6-add-dhall-configuration-support.md`
 
-It also relies transitively on the declaration and resolution work in Plans 1 and 2. Read
-the completed plans, ADRs, guides, and actual public modules before starting. If any
-adapter was deliberately narrowed, make the examples demonstrate its real guarantee rather
-than the initial aspiration.
+It also relies on the completed sibling-package migration in
+`docs/plans/8-move-settei-packages-to-top-level-sibling-directories.md` and transitively on
+the declaration and resolution work in Plans 1 and 2. Read the completed plans, ADRs,
+guides, and actual public modules before starting. The core is rooted at `settei/`, every
+publishable adapter is a same-named top-level sibling, and non-published packages belong
+beneath `examples/`. If any adapter was deliberately narrowed, make the examples
+demonstrate its real guarantee rather than the initial aspiration.
 
 The CLI use case needs interactive errors, explicit file ordering, environment overrides,
 command-line overrides, schema display, and text or JSON explanations. The service use case
@@ -226,10 +236,14 @@ fixtures; no cluster deployment is required.
 
 ### Milestone 3: create a cross-format conformance suite
 
-Under `test/conformance/fixtures/`, encode the same nested public configuration in YAML,
-KDL, and Dhall, including environment, HTTP settings, database host/port/pool, and a list.
-Do not put a real or stable secret in fixtures. Load each through its adapter and resolve
-the same `Config ServiceConfig`.
+Create the non-published package
+`examples/settei-conformance/settei-example-conformance.cabal`. Its test suite owns
+fixtures beneath `examples/settei-conformance/test/fixtures/`, where the same nested public
+configuration is encoded in YAML, KDL, and Dhall, including environment, HTTP settings,
+database host/port/pool, and a list. Register this example package in `cabal.project` and
+Nix checks, declare the canonical package-local common stanza, and keep its fixtures in
+the package's source distribution. Do not put a real or stable secret in fixtures. Load
+each through its adapter and resolve the same `Config ServiceConfig`.
 
 Assert that all typed public values match. Normalize reports only by replacing the
 format-specific origin payload with its source class; then assert equal key sets, selected
@@ -292,9 +306,9 @@ mori registry dependents QUALIFIED_PROJECT_NAME --packages
 Exercise the CLI example with local fixtures:
 
 ```bash
-cabal run settei-example-cli -- --config yaml:test/conformance/fixtures/service.yaml --check-config
-cabal run settei-example-cli -- --config kdl:test/conformance/fixtures/service.kdl --describe-config
-cabal run settei-example-cli -- --config dhall:test/conformance/fixtures/service.dhall --explain-config
+cabal run settei-example-cli -- --config yaml:examples/settei-conformance/test/fixtures/service.yaml --check-config
+cabal run settei-example-cli -- --config kdl:examples/settei-conformance/test/fixtures/service.kdl --describe-config
+cabal run settei-example-cli -- --config dhall:examples/settei-conformance/test/fixtures/service.dhall --explain-config
 ```
 
 Exercise service development and production behavior with the example's documented
@@ -380,6 +394,8 @@ assertions.
 `settei-example-cli` depends on all six publishable Settei packages and uses only their
 public modules. `settei-example-service` depends on `settei`, `settei-env`, and the file
 adapters it demonstrates; it may use `settei-optparse-applicative` for diagnostic flags.
+`settei-example-conformance` depends on the core and all format adapters and owns the
+cross-format fixtures and report-normalization tests.
 Each example package declares `generic-lens` directly when its modules import
 `Data.Generics.Labels ()`; each `.cabal` file declares the canonical package-local
 `common common` stanza and imports it from all components. Examples are non-published
@@ -400,3 +416,8 @@ reusable labels and explicit deriving, record access is lens-based, example pack
 their own generic-lens dependency when needed, qualified imports are postpositive, and the
 CLI presents intent-based Configuration and Diagnostics option groups without expanding
 the reference application's scope.
+
+2026-07-17: Aligned the reference work with Plan 8's sibling-package convention. The core
+and adapters are consumed from their top-level package roots, while CLI, service, and the
+new self-contained conformance test package remain beneath `examples/`; conformance
+fixtures no longer recreate a repository-root `test/` tree.

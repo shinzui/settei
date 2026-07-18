@@ -161,6 +161,12 @@ rendering, and shadow-order decisions needed by later adapters.
 
 ## Context and Orientation
 
+Layout note added on 2026-07-17: this completed plan records adapter paths before
+`docs/plans/8-move-settei-packages-to-top-level-sibling-directories.md`. That plan moves
+`packages/settei-env/` to `settei-env/` and
+`packages/settei-optparse-applicative/` to `settei-optparse-applicative/` without changing
+package names, modules, behavior, or the validation evidence below.
+
 This plan has a hard dependency on
 `docs/plans/2-implement-hierarchical-resolution-provenance-and-derived-defaults.md`.
 The completed core must provide validated `Key` values, `RawValue`, ordered `Source`
@@ -475,3 +481,7 @@ occurrence number.
 2026-07-17: Completed both adapters and the audited migration guide, recorded the
 optparse-applicative 0.19 Nix pin and temporary library-only Nix check policy, and replaced
 the provisional retrospective with the 62-test acceptance evidence.
+
+2026-07-17: Documented Plan 8's behavior-neutral move from `packages/` to same-named
+top-level adapter roots while retaining the original completed milestone paths as
+historical evidence.

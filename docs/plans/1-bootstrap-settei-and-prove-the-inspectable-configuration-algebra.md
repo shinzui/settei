@@ -123,6 +123,14 @@ precedence or user-facing provenance; those are the subject of Plan 2.
   the lens operators used by the project conventions.
   Date: 2026-07-17
 
+- Decision: Supersede the initial root-package-plus-`packages/` layout with the top-level
+  sibling-package migration in
+  `docs/plans/8-move-settei-packages-to-top-level-sibling-directories.md`.
+  Rationale: the first layout made bootstrap expedient but differs from the owner's normal
+  Haskell workspace structure. The later migration preserves every package and module
+  identity while moving the core beneath `settei/` and adapters to same-named roots.
+  Date: 2026-07-17
+
 
 ## Outcomes & Retrospective
 
@@ -149,6 +157,13 @@ rendering; none of those semantics were pulled prematurely into this bootstrap.
 
 
 ## Context and Orientation
+
+Layout note added on 2026-07-17: this completed plan intentionally retains the paths it
+used when bootstrapping the project. Plan 8 subsequently owns the behavior-neutral move;
+after it completes, root `settei.cabal`, `src/`, and `test/` correspond to
+`settei/settei.cabal`, `settei/src/`, and `settei/test/`, and adapter paths no longer use
+`packages/`. The implementation evidence below remains historical rather than an
+instruction to recreate the superseded layout.
 
 The repository currently contains `flake.nix`, `nix/haskell.nix`, formatting and
 pre-commit configuration, and planning skills. It has no `settei.cabal`, `cabal.project`,
@@ -447,3 +462,7 @@ prelude exclusion revealed by the compiling public API.
 2026-07-17: Completed EP-1, added ADR 0002 and public declaration/inspection Haddocks,
 recorded the full validation evidence, and distilled durable discoveries into ADR 0001 and
 the parent MasterPlan.
+
+2026-07-17: Marked the initial root-plus-`packages/` decision as superseded by Plan 8 and
+documented the old-to-new path mapping without rewriting EP-1's historical implementation
+or validation evidence.

@@ -4,6 +4,8 @@ Status: Accepted
 
 Date: 2026-07-16
 
+Amended: 2026-07-17
+
 
 ## Context
 
@@ -25,6 +27,13 @@ EP-3's dependency audit resolved optparse-applicative 0.19.0.0 and its
 `parserOptionGroup` API. Nixpkgs' GHC 9.12.4 package set still carries 0.18, and its
 `tasty` derivation embeds that older ABI, so simply overriding the adapter dependency
 would mix incompatible optparse-applicative instances in the Nix test component.
+
+The initial implementation put the core package at the repository root and adapter
+packages beneath `packages/`. A 2026-07-17 layout review found that this differs from the
+owner's established multi-package Haskell repositories. Mori resolved the registered
+`shinzui/mori` and `shinzui/shibuya` source trees; their `cabal.project` files list
+package-named top-level siblings such as `mori-core`, `mori-cli`, and `shibuya-core`
+directly, without a generic package container or a special package rooted at `.`.
 
 
 ## Decision
@@ -72,6 +81,21 @@ nixpkgs `tasty` graph advances to the same ABI, only the Nix derivation for
 `settei-optparse-applicative` uses `pkgs.haskell.lib.dontCheck`; the library still builds
 against 0.19, and `cabal test all` must run all adapter tests.
 
+Every publishable Settei package lives in a same-named directory directly beneath the
+repository root. The core is rooted at `settei/`; adapters are rooted at `settei-env/`,
+`settei-optparse-applicative/`, `settei-yaml/`, `settei-kdl/`, and `settei-dhall/`. Each
+package directory owns its `.cabal` file, `src/`, `test/`, fixtures, and package-specific
+documentation. The repository root owns `cabal.project`, Nix and Mori workspace metadata,
+the package-family README, shared documentation, and planning records. Non-published
+reference packages remain beneath `examples/` so their role is visibly distinct from the
+publishable package family.
+
+Package and Haskell module identities do not depend on these source-tree paths. Moving a
+package changes Cabal, Nix, Mori, documentation, fixture, and source-distribution paths but
+does not rename the package, its exposed modules, or its public API. Active plans and build
+configuration must use the sibling roots; completed plan history may retain an old path
+only when a revision note identifies the later migration.
+
 
 ## Consequences
 
@@ -94,6 +118,14 @@ API used by Cabal. Temporarily disabling that derivation's checks avoids an ABI-
 test graph without removing any test from the repository's acceptance suite. The exception
 is narrowly scoped and should be removed once nixpkgs supplies a compatible `tasty` graph.
 
+All package additions now have one predictable location. Cabal and Nix configuration must
+name explicit package roots instead of relying on the entire repository as the core source,
+and each package source distribution must be self-contained within its directory. In
+particular, the core needs package-local documentation and tests beneath `settei/`, while
+the root README remains the family-wide navigation document. Layout-only moves require the
+full workspace test suite and source-distribution checks because package-relative fixtures
+and goldens can fail even when Haskell module imports are unchanged.
+
 
 ## Rejected Alternatives
 
@@ -112,3 +144,9 @@ Requiring every module to import `Settei.Prelude hiding (Setting)` was rejected 
 the collision is universal to Settei consumers and can be resolved once at the prelude
 boundary. Renaming Settei's domain type was rejected because `Setting` is the clearest
 public name for one declared configuration value.
+Keeping the core at the repository root while placing adapters under `packages/` was
+rejected because it gives one package exceptional structure and conflicts with the owner's
+other multi-package Haskell workspaces. Moving only the adapters to top-level siblings was
+also rejected because the root package would remain the same exception. Putting
+non-published reference applications beside publishable packages was rejected because it
+would blur package-family and example ownership; `examples/` remains the explicit boundary.

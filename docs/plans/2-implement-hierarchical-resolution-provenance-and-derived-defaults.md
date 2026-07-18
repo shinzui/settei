@@ -155,6 +155,12 @@ default, provenance, redaction, and reporting contract for adapter plans.
 
 ## Context and Orientation
 
+Layout note added on 2026-07-17: this completed plan records core paths before
+`docs/plans/8-move-settei-packages-to-top-level-sibling-directories.md`. After that
+behavior-neutral migration, every root `src/Settei/...` path below corresponds to
+`settei/src/Settei/...`; package names, modules, interfaces, and the recorded validation
+remain unchanged.
+
 This plan depends on the checked-in design in
 `docs/plans/1-bootstrap-settei-and-prove-the-inspectable-configuration-algebra.md`.
 That plan establishes a root package named `settei`, a non-empty segmented `Key`, a common
@@ -504,3 +510,7 @@ requires `Settei.Prelude`, local generic-lens instance imports, lens-based recor
 updates, and postpositive qualified imports throughout implementation and tests. The
 durable convention baseline is in `docs/adr/0001-haskell-project-conventions.md`, and the
 resolution ADR moves to number 0003 after the algebra ADR.
+
+2026-07-17: Documented that Plan 8 relocates the completed core from root `src/` to
+`settei/src/`. Historical milestone paths remain intact so this plan continues to describe
+the work and evidence that actually produced ADR 0003.

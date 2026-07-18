@@ -136,6 +136,11 @@ explicit deriving, local generic-lens, and postpositive qualified-import audit.
 
 ## Context and Orientation
 
+Layout note added on 2026-07-17: this completed plan records the adapter path before
+`docs/plans/8-move-settei-packages-to-top-level-sibling-directories.md`. That plan moves
+`packages/settei-yaml/` to `settei-yaml/` without changing the Cabal package, `Settei.Yaml`
+module, fixtures, behavior, or validation evidence below.
+
 This plan depends on
 `docs/plans/2-implement-hierarchical-resolution-provenance-and-derived-defaults.md`.
 That plan supplies `RawValue`, `Source`, extensible `Origin`, hierarchical lookup,
@@ -383,3 +388,7 @@ wrapper, and records the 20-test characterization evidence.
 2026-07-17: Marked the plan complete after publishing the YAML guide and passing the
 82-test workspace suite, 100%-covered adapter Haddocks, package checks, formatting,
 dedicated Nix adapter build, full flake check, and convention audit.
+
+2026-07-17: Documented Plan 8's behavior-neutral move from `packages/settei-yaml/` to the
+top-level `settei-yaml/` package root while retaining the completed milestone paths as
+historical evidence.

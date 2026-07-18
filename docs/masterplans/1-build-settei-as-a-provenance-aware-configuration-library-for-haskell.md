@@ -32,6 +32,14 @@ errors, and text and JSON reports. Kubernetes support means reading environment 
 and mounted files and attaching operator-supplied ConfigMap or Secret metadata to their
 origins; it does not mean talking to the Kubernetes API.
 
+Every publishable package lives in a same-named directory directly beneath the repository
+root: `settei/`, `settei-env/`, `settei-optparse-applicative/`, `settei-yaml/`,
+`settei-kdl/`, and `settei-dhall/`. Each owns its `.cabal` file, `src/`, `test/`, fixtures,
+and package documentation. The repository root owns workspace configuration and
+package-family documentation, while non-published reference applications remain beneath
+`examples/`. A generic `packages/` container and a special core package rooted at `.` are
+both deliberately excluded.
+
 All packages follow the registered `shinzui/haskell-jitsurei` core conventions. They use
 GHC 9.12 or newer. Each `.cabal` file declares the same package-local `common common`
 stanza with `default-language: GHC2024`, `DeriveAnyClass`, `DuplicateRecordFields`,
@@ -55,16 +63,18 @@ the import information it can substantiate.
 
 ## Decomposition Strategy
 
-The work is divided into three waves. The first wave establishes a buildable package and
+The work is divided into four waves. The first wave establishes a buildable package and
 proves that the configuration language can be both selective at runtime and inspectable
 before evaluation. The second wave defines the resolution and provenance contract. The
-third wave implements independent source adapters against that contract, followed by an
-integration plan that exercises the whole package family in CLI and Kubernetes-shaped
-deployments.
+third wave implements source adapters against that contract and includes a structural
+gate: after the environment, CLI, and YAML packages, EP-8 moves every existing package to
+the top-level sibling layout before KDL or Dhall adds another package. The fourth wave is
+the integration plan that exercises the whole package family in CLI and
+Kubernetes-shaped deployments.
 
-Seven ExecPlans keep the risky algebra decision separate from runtime semantics, give each
-serialization format an independently testable boundary, and let the four adapter plans
-run in parallel once the core is stable. Environment and `optparse-applicative` share one
+Eight ExecPlans keep the risky algebra decision separate from runtime semantics, give each
+serialization format an independently testable boundary, and isolate the repository move
+from behavior changes. Environment and `optparse-applicative` share one
 plan because they jointly define the normal CLI/service precedence story and both map
 already-tokenized scalar input into the same source abstraction. YAML, KDL, and Dhall each
 have separate plans because their syntax, error locations, duplicate-key behavior, and
@@ -78,8 +88,8 @@ rejected because merge and provenance behavior would drift. Migrating production
 consumers in this initiative was rejected because it would couple API discovery to several
 unrelated release cycles.
 [ADR 0001](../adr/0001-haskell-project-conventions.md) records the
-cross-plan implementation baseline adopted during this revision. Plans 1 and 2 must add
-the algebra and resolution ADRs once their prototypes have supplied evidence.
+cross-plan implementation and repository-layout baseline. Plans 1 and 2 added the algebra
+and resolution ADRs after their prototypes supplied implementation evidence.
 
 The convention audit uses `mori registry show shinzui/haskell-jitsurei --full` and
 `mori registry docs shinzui/haskell-jitsurei` as the source locator. The child plans embed
@@ -99,8 +109,9 @@ separate declarations.
 | EP-2 | Implement hierarchical resolution, provenance, and derived defaults | `docs/plans/2-implement-hierarchical-resolution-provenance-and-derived-defaults.md` | EP-1 | None | Complete |
 | EP-3 | Add environment and optparse-applicative configuration sources | `docs/plans/3-add-environment-and-optparse-applicative-configuration-sources.md` | EP-2 | None | Complete |
 | EP-4 | Add YAML configuration support | `docs/plans/4-add-yaml-configuration-support.md` | EP-2 | None | Complete |
-| EP-5 | Add KDL configuration support | `docs/plans/5-add-kdl-configuration-support.md` | EP-2 | None | Not Started |
-| EP-6 | Add Dhall configuration support | `docs/plans/6-add-dhall-configuration-support.md` | EP-2 | None | Not Started |
+| EP-8 | Move Settei packages to top-level sibling directories | `docs/plans/8-move-settei-packages-to-top-level-sibling-directories.md` | EP-3, EP-4 | None | In Progress |
+| EP-5 | Add KDL configuration support | `docs/plans/5-add-kdl-configuration-support.md` | EP-2, EP-8 | None | Not Started |
+| EP-6 | Add Dhall configuration support | `docs/plans/6-add-dhall-configuration-support.md` | EP-2, EP-8 | None | Not Started |
 | EP-7 | Prove Settei in CLI and Kubernetes service reference applications | `docs/plans/7-prove-settei-in-cli-and-kubernetes-service-reference-applications.md` | EP-3, EP-4, EP-5, EP-6 | None | Not Started |
 
 Status values are Not Started, In Progress, Complete, and Cancelled. Hard dependencies and
@@ -109,25 +120,32 @@ soft dependencies reference other rows by their EP prefix.
 
 ## Dependency Graph
 
-EP-1 has no predecessor. It produces the repository layout, public declaration algebra,
+EP-1 has no predecessor. It produces the initial workspace, public declaration algebra,
 static schema model, test harness, and an ADR-backed decision about the internal
 free-selective representation. EP-2 depends on those types and adds the shared `Source`,
 resolver, origin, explanation, and default-rule contracts. Those contracts must be stable
 before any parser translates external data into a Settei source.
 
-EP-3, EP-4, EP-5, and EP-6 all depend on EP-2 and can proceed in parallel. Each owns only
-its input boundary and must consume the core source and provenance types rather than
-reimplement merging. EP-7 depends on all four adapter plans because its acceptance cases
-compare equivalent configurations across environment variables, CLI options, YAML, KDL,
-and Dhall and demonstrate the complete Kubernetes delivery model.
+EP-3 and EP-4 depend on EP-2 and own only their input boundaries. EP-8 depends on both
+because it migrates the core and every implemented adapter together and proves the whole
+current workspace still builds. EP-5 and EP-6 depend on EP-2's adapter contract and on
+EP-8's completed sibling-package layout; after the structural gate they can proceed in
+parallel without creating more paths that would immediately need migration. Every adapter
+consumes the core source and provenance types rather than reimplementing merging. EP-7
+depends on all four adapter feature plans because its acceptance cases compare equivalent
+configurations across environment variables, CLI options, YAML, KDL, and Dhall and
+demonstrate the complete Kubernetes delivery model.
 
 The dependency shape is therefore:
 
 ```text
-EP-1 -> EP-2 -> EP-3 --\
-               EP-4 ---+
-               EP-5 ---+-> EP-7
-               EP-6 --/
+EP-1 -> EP-2
+EP-2 -> EP-3
+EP-2 -> EP-4
+EP-3 + EP-4 -> EP-8
+EP-2 + EP-8 -> EP-5
+EP-2 + EP-8 -> EP-6
+EP-3 + EP-4 + EP-5 + EP-6 -> EP-7
 ```
 
 
@@ -157,11 +175,14 @@ honor the core sensitivity marker and redact secret values. A source may retain 
 secret long enough to build the typed application value, but reports must never contain
 it.
 
-The package workspace is established in EP-1. Adapter plans add packages beneath
-`packages/`, register them in `cabal.project`, and extend the Nix and CI build without
-changing the identity of the root `settei` package. EP-7 adds examples beneath `examples/`
-and is responsible for testing package interoperability, documentation navigation, and
-release readiness.
+The package workspace is established in EP-1 and normalized by EP-8. EP-8 moves the core
+from the repository root to `settei/`, moves each implemented adapter out of `packages/`,
+and updates Cabal, Nix, Mori metadata, documentation paths, package-local data files, and
+source-distribution validation without changing any package or module identity. EP-5 and
+EP-6 then add `settei-kdl/` and `settei-dhall/` as direct repository-root siblings. EP-7
+adds non-published examples beneath `examples/` and is responsible for testing package
+interoperability, documentation navigation, and release readiness. The durable layout
+rationale is recorded in [ADR 0001](../adr/0001-haskell-project-conventions.md).
 
 EP-1 also owns the Haskell convention baseline shared by every package. It defines the
 canonical Cabal `common` stanza contents and `Settei.Prelude`, including `lens` re-exports
@@ -193,6 +214,8 @@ are annotations supplied by the application or deployment, not discovered by the
 - [x] EP-2: implement constant and dependency-aware defaults with safe explanations.
 - [x] EP-3: load explicit environment bindings and command-line overrides.
 - [x] EP-4: translate YAML documents into provenance-aware sources.
+- [ ] EP-8: move the core and implemented adapters to top-level sibling package roots
+  while preserving all package identities and behavior.
 - [ ] EP-5: translate canonical KDL documents while preserving node locations.
 - [ ] EP-6: translate normalized Dhall values and report honest import provenance.
 - [ ] EP-7: demonstrate CLI and Kubernetes service use cases end to end.
@@ -263,6 +286,25 @@ are annotations supplied by the application or deployment, not discovered by the
   `decodeMarked`; block and flow duplicate tests now fail at the second key.
   Impact: format adapters must select parser layers by the provenance and ambiguity
   contract they need, rather than assuming a convenient value conversion preserves it.
+
+- Observation: the owner's registered Mori and Shibuya Haskell workspaces place Cabal
+  packages in package-named top-level sibling directories rather than under a generic
+  `packages/` directory or in a special repository-root package.
+  Evidence: `mori registry show shinzui/mori --full` and
+  `mori registry show shinzui/shibuya --full` resolved the source trees, whose
+  `cabal.project` files directly list siblings such as `mori-core`, `mori-cli`, and
+  `shibuya-core`.
+  Impact: EP-8 must migrate the exceptional Settei layout before unfinished adapters add
+  more packages, and EP-5 and EP-6 now depend on that structural gate.
+
+- Observation: moving the core involves more than changing `cabal.project` because its
+  source distribution and Nix derivation currently assume that the package root is the
+  repository root.
+  Evidence: `settei.cabal` names root `README.md` and `test/golden/*`, while
+  `nix/haskell.nix` builds `settei` from `inputs.self` and adapters from
+  `../packages/<name>`.
+  Impact: EP-8 explicitly owns package-local documentation and golden paths, explicit Nix
+  source roots, source-distribution inspection, and Mori package-path validation.
 
 
 ## Decision Log
@@ -361,6 +403,21 @@ are annotations supplied by the application or deployment, not discovered by the
   merge behavior or lossy Aeson conversion into the shared core.
   Date: 2026-07-17
 
+- Decision: Standardize every publishable Settei package as a same-named top-level
+  sibling, including relocating the core to `settei/`; retain non-published reference
+  applications beneath `examples/`.
+  Rationale: this matches the owner's established Haskell workspace convention, removes
+  the root-package exception and generic `packages/` wrapper, and gives future adapters
+  one predictable location without changing any package or module identity.
+  Date: 2026-07-17
+
+- Decision: Add EP-8 after the completed environment, CLI, and YAML work and make KDL and
+  Dhall depend on it.
+  Rationale: one behavior-neutral migration can move the complete current workspace and
+  validate it before unfinished plans create more paths that would immediately need the
+  same refactor.
+  Date: 2026-07-17
+
 
 ## Outcomes & Retrospective
 
@@ -377,7 +434,8 @@ redacted deterministic text and JSON reports. ADR 0003 fixes those semantics for
 adapter. The 45-test suite includes exhaustive source-ordering, golden rendering, and an
 adversarial secret-leak audit; Cabal build/test/check/Haddock, Nix formatting/check/build,
 JSON parsing, and Mori identity validation all pass. EP-3 through EP-6 are now
-dependency-ready and may implement adapters independently against this core contract.
+API-ready against this core contract; EP-3 and EP-4 completed, while EP-5 and EP-6 now
+wait for EP-8's structural migration.
 
 EP-3 completed on 2026-07-17. It added pure explicit environment bindings, opt-in prefix
 derivation, trusted Kubernetes annotations, ordered optparse-applicative overrides, named
@@ -385,7 +443,8 @@ options, grouped reusable parsers, and an audited migration guide. Per-key annot
 descending shadow traces were added to core so every adapter can preserve exact origins.
 The 62-test suite and Cabal build/check/Haddock, Nix format/check, and explicit adapter
 builds pass; ADRs 0001 and 0003 retain the cross-plan packaging, provenance, rendering,
-and redaction decisions. EP-4 through EP-6 remain dependency-ready.
+and redaction decisions. EP-4 completed next; EP-5 and EP-6 remain API-ready but now wait
+for EP-8's structural migration.
 
 EP-4 completed on 2026-07-17. It added a direct marked-event YAML translator, strict
 single-mapping input semantics, duplicate and unsupported-feature rejection, exact
@@ -393,7 +452,12 @@ successful-node locations, structured secret-safe errors, file IO, mounted Confi
 Secret metadata, and a complete format guide. ADR 0004 preserves the portable YAML
 contract. The 82-test workspace suite, 100%-covered YAML Haddocks, package checks, Nix
 formatting, dedicated YAML build, full flake check, and convention audit pass. EP-5 and
-EP-6 remain dependency-ready.
+EP-6 remain API-ready but now wait for EP-8 to normalize the package layout.
+
+The first four completed plans produced a working root `settei` package plus adapters
+beneath `packages/`. That structure is now intentionally provisional. EP-8 must preserve
+the 82-test behavior and all public identities while moving the current packages to
+top-level siblings; KDL and Dhall implementation begins only after that migration passes.
 
 Before this MasterPlan is complete, distill the durable resolution semantics, adapter
 boundary, and Dhall provenance limitation into `docs/adr/`, and compare the shipped package
@@ -433,3 +497,8 @@ secret-safe CLI metadata, migration guide, and optparse-applicative 0.19 Nix con
 2026-07-17: Marked EP-4 complete after its strict marked-event implementation, format ADR
 and guide, 82-test workspace suite, 100%-covered adapter Haddocks, package checks,
 formatting, dedicated Nix build, full flake check, and convention audit.
+
+2026-07-17: Replaced the exceptional root-plus-`packages/` layout with a planned
+top-level sibling-package convention. Added EP-8 to relocate the core and implemented
+adapters without API changes, made KDL and Dhall depend on that gate, cascaded future paths
+through the affected child plans, and amended ADR 0001 with the durable layout decision.

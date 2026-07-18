@@ -70,6 +70,13 @@ decoding, precedence, defaults, provenance edges, redaction, and report renderin
   with the rest of the package family while avoiding ambiguous direct selectors.
   Date: 2026-07-16
 
+- Decision: Create the package at top-level root `settei-dhall/`, after the sibling-layout
+  migration in Plan 8.
+  Rationale: every publishable Settei package now uses a same-named repository-root
+  directory; creating another package beneath the obsolete `packages/` wrapper would
+  immediately require a second move.
+  Date: 2026-07-17
+
 
 ## Outcomes & Retrospective
 
@@ -83,9 +90,12 @@ shared prelude, strict-record, explicit-deriving, lens, and import-style audit.
 ## Context and Orientation
 
 This plan depends on
-`docs/plans/2-implement-hierarchical-resolution-provenance-and-derived-defaults.md`.
-The core supplies `RawValue`, `Source`, extensible origins and annotations, structured
-errors, and secret-safe reports. Read its actual interface and ADR before coding.
+`docs/plans/2-implement-hierarchical-resolution-provenance-and-derived-defaults.md` and
+`docs/plans/8-move-settei-packages-to-top-level-sibling-directories.md`. The core plan
+supplies `RawValue`, `Source`, extensible origins and annotations, structured errors, and
+secret-safe reports. The layout plan moves the core to `settei/` and establishes
+same-named top-level roots for adapters. Read their actual implementation, the relevant
+ADRs, and the relocated core modules before coding.
 
 At planning time, Mori locates the Dhall Haskell project at
 `/Users/shinzui/Keikaku/hub/haskell/dhall-haskell-project`, including package `dhall`
@@ -147,7 +157,7 @@ or restrict test policies accordingly.
 
 ### Milestone 2: implement value conversion
 
-Create `packages/settei-dhall/settei-dhall.cabal`, expose `Settei.Dhall`, and register the
+Create `settei-dhall/settei-dhall.cabal`, expose `Settei.Dhall`, and register the
 package in Cabal and Nix. Repeat Plan 1's canonical package-local `common common` stanza
 and import it from the library and test components. Because import resolution and cache
 access are effects, expose an IO boundary rather than falsely presenting evaluation as
@@ -328,3 +338,8 @@ YAML, KDL, environment, CLI, Kubernetes, or effect-system packages.
 The root, policy, and option sketches now use strict fields and explicit deriving without
 type-name prefixes, and the plan requires the shared prelude, local generic-lens import,
 lens-based access, a direct dependency, and postpositive qualified imports.
+
+2026-07-17: Made the completed sibling-layout migration in Plan 8 a hard dependency and
+changed the future package root from `packages/settei-dhall/` to `settei-dhall/`. This
+keeps the plan self-contained against the relocated `settei/` core and prevents new work
+from reintroducing the rejected package container.

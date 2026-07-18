@@ -68,6 +68,13 @@ the application's settings.
   API consistent with the other source packages without ambiguous selector usage.
   Date: 2026-07-16
 
+- Decision: Create the package at top-level root `settei-kdl/`, after the sibling-layout
+  migration in Plan 8.
+  Rationale: every publishable Settei package now uses a same-named repository-root
+  directory; creating another package beneath the obsolete `packages/` wrapper would
+  immediately require a second move.
+  Date: 2026-07-17
+
 
 ## Outcomes & Retrospective
 
@@ -81,9 +88,12 @@ deriving, lens, and import-style audit.
 ## Context and Orientation
 
 This plan depends on
-`docs/plans/2-implement-hierarchical-resolution-provenance-and-derived-defaults.md`.
-The core supplies the raw value tree, ordered `Source` semantics, per-key origin extension,
-locations, structured errors, and redaction. Read its actual implementation and ADR first.
+`docs/plans/2-implement-hierarchical-resolution-provenance-and-derived-defaults.md` and
+`docs/plans/8-move-settei-packages-to-top-level-sibling-directories.md`. The core plan
+supplies the raw value tree, ordered `Source` semantics, per-key origin extension,
+locations, structured errors, and redaction. The layout plan moves the core to `settei/`
+and establishes same-named top-level roots for adapters. Read their actual implementation,
+the relevant ADRs, and the relocated core modules before coding.
 
 At planning time, `mori registry search kdl` locates the `kdl-hs` project at
 `/Users/shinzui/Keikaku/hub/kdl-hs-project`, package version 1.0.1. Source inspection found
@@ -126,7 +136,7 @@ silently erase semantic annotations.
 
 ### Milestone 2: implement the canonical document mapping
 
-Create `packages/settei-kdl/settei-kdl.cabal`, expose `Settei.Kdl`, and register the
+Create `settei-kdl/settei-kdl.cabal`, expose `Settei.Kdl`, and register the
 package in Cabal and Nix. Repeat Plan 1's canonical package-local `common common` stanza
 and import it from the library and test components. Provide pure text parsing and a file
 convenience:
@@ -330,3 +340,8 @@ effect-system packages.
 The option API now uses strict unprefixed fields and explicit deriving, while implementation
 guidance requires the shared prelude, local generic-lens import, lens-based record and map
 access, a direct package dependency, and postpositive qualified imports.
+
+2026-07-17: Made the completed sibling-layout migration in Plan 8 a hard dependency and
+changed the future package root from `packages/settei-kdl/` to `settei-kdl/`. This keeps
+the plan self-contained against the relocated `settei/` core and prevents new work from
+reintroducing the rejected package container.
