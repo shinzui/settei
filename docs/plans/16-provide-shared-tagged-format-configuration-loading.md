@@ -56,7 +56,7 @@ that one deliberate pass rewrites the conformance-boundary examples.
       `renderFormatLoadErrorText`).
 - [x] (2026-07-19T20:05:00Z) Milestone 1: package registered in `cabal.project`, `nix/haskell.nix`, and `mori.dhall`;
       `nix develop -c cabal build settei-formats` succeeds.
-- [ ] Milestone 2: `Settei.Formats.Optparse` implemented (`configInputReader`,
+- [x] (2026-07-19T20:08:00Z) Milestone 2: `Settei.Formats.Optparse` implemented (`configInputReader`,
       `configInputOption`, `configInputOptions`).
 - [ ] Milestone 3: test suite `settei-formats-tests` with fixtures written and green via
       `nix develop -c cabal test settei-formats-tests --test-show-details=direct`.
