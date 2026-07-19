@@ -97,13 +97,14 @@ This section must always reflect the actual current state of the work.
       0.1.0.0 entry; the four packages changed by EP-9..EP-13 carry dated behavior lines,
       while the untouched environment and optparse adapters retain their original entry.
 - [x] (2026-07-19T18:50:42Z) Milestone 3: collateral changes committed.
-- [ ] Milestone 4: ADR amendments from EP-9..EP-13 (docs/adr/0003, 0004, 0005, 0006)
+- [x] (2026-07-19T18:53:36Z) Milestone 4: ADR amendments from EP-9..EP-13 (docs/adr/0003, 0004, 0005, 0006)
       verified present and mutually coherent; gaps filled.
-- [ ] Milestone 4: remaining durable context from the five child plans' Decision Logs and
-      Surprises sections promoted into ADRs (or recorded as "nothing left to promote").
-- [ ] Milestone 4: MasterPlan Progress boxes checked, Outcomes & Retrospective filled,
+- [x] (2026-07-19T18:53:36Z) Milestone 4: remaining durable context from the five child plans'
+      Decision Logs, Surprises, and Outcomes reviewed; nothing remained outside ADRs
+      0003-0006. EP-14's conformance-boundary decision was promoted to ADR 0007.
+- [x] (2026-07-19T18:53:36Z) Milestone 4: MasterPlan Progress boxes checked, Outcomes & Retrospective filled,
       registry row for EP-14 marked Complete.
-- [ ] This plan's own Outcomes & Retrospective written and its ADR distillation pass done.
+- [x] (2026-07-19T18:53:36Z) This plan's own Outcomes & Retrospective written and its ADR distillation pass done.
 
 
 ## Surprises & Discoveries
@@ -186,7 +187,31 @@ Compare the result against the original purpose. Before marking the plan complet
 distill durable project context from the Decision Log, Surprises & Discoveries, and
 this section into docs/adr/. Keep task-local execution details here.
 
-(To be filled during and after implementation.)
+EP-14 is complete. Four new conformance cases lock the correctness initiative at the
+public composition boundary: YAML 1.2 `no`/`on` text semantics, format-specific rejection
+of huge YAML and KDL exponents, normalized-equal failure reports with file provenance
+across YAML/KDL/Dhall, and failure-path secret redaction. The conformance suite now passes
+11 tests.
+
+The release gate passed without reopening a child plan: all nine workspace packages
+build, 192 tests pass across 10 suites, all six publishable packages pass `cabal check`,
+Haddocks and source distributions build, and 169 publishable-package tests pass from a
+fresh unpacked-sdist workspace. Formatting changed no files, host-system flake checks
+passed, and CLI/service success, failure-provenance, and explicit secret-sentinel smokes
+matched their documented exit and output contracts.
+
+Release collateral now records the 2026-07-19 re-validation, the direct `scientific` and
+`megaparsec` dependencies, the hardened adapter contracts, the failure-report security
+guarantee, and the correct workspace/sdist test counts. Manual tagging, signing, Hackage
+upload, and public-registry installation remain deliberately unchecked and unauthorized.
+
+The ADR promotion pass found EP-9 through EP-13's durable decisions complete and coherent
+in ADRs 0003-0006. EP-14's durable testing decision — use standalone fixtures at the
+public conformance boundary and compare shared failure semantics without erasing
+format-specific categories or origins — is recorded in ADR 0007. The main execution
+lesson was that a redaction smoke must populate a secret; an absent optional secret
+correctly renders as missing rather than `<redacted>`. No EP-14 work was descoped and no
+correctness defect remains open in this initiative.
 
 
 ## Context and Orientation
@@ -898,3 +923,10 @@ the promotion pass), the parent MasterPlan file, and the living sections of the 
 child plan files. The manual publication steps at the bottom of docs/release-checklist.md
 (tagging, signing, Hackage upload) remain out of scope and unauthorized, exactly as the
 checklist states.
+
+
+## Revision Note
+
+2026-07-19: Implemented the plan, recorded every release-gate transcript and collateral
+decision in the living sections, distilled the conformance-boundary rule into ADR 0007,
+and marked EP-14 complete after closing the parent MasterPlan.

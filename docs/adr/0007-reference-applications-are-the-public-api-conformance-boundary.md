@@ -4,6 +4,8 @@ Status: Accepted
 
 Date: 2026-07-18
 
+Amended: 2026-07-19
+
 
 ## Context
 
@@ -72,3 +74,20 @@ Forcing byte-identical reports across YAML, KDL, and Dhall was rejected because 
 erase or fabricate provenance. Publishing the example libraries was rejected because
 their APIs exist to make tests inspectable, not to create a second supported abstraction
 layer.
+
+
+## Amendment 2026-07-19: hardening behaviors belong at the conformance boundary
+
+Release-critical behavior regressions that do not belong in the reference applications'
+domain models use standalone fixtures in the conformance package and exercise public
+adapter, source, and resolver functions directly. This keeps the CLI and service examples
+realistic while still proving that the package family composes at its supported boundary.
+
+The conformance suite now locks YAML 1.2 boolean interpretation, the YAML and KDL numeric
+exponent bounds with their format-specific stable error categories, and normalized-equal
+failure reports across YAML, KDL, and Dhall. Failure reports must retain honest consulted
+origins, and the end-to-end sentinel scan covers text and JSON reports plus errors on the
+failure path. Cross-format comparison still normalizes only shared semantics; it does not
+invent a common adapter error type or erase format-specific provenance.
+
+(`docs/plans/14-revalidate-correctness-and-update-release-collateral.md`)

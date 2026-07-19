@@ -90,7 +90,7 @@ authority). docs/adr/0001-haskell-project-conventions.md governs code style in e
 | 11 | Adopt YAML 1.2 core-schema boolean scalars | docs/plans/11-adopt-yaml-1-2-core-schema-boolean-scalars.md | None | EP-10 | Complete |
 | 12 | Report resolution provenance and warnings on failure | docs/plans/12-report-resolution-provenance-and-warnings-on-failure.md | None | EP-9 | Complete |
 | 13 | Harden source construction and adapter diagnostics | docs/plans/13-harden-source-construction-and-adapter-diagnostics.md | None | EP-10, EP-11, EP-12 | Complete |
-| 14 | Revalidate correctness and update release collateral | docs/plans/14-revalidate-correctness-and-update-release-collateral.md | EP-9, EP-10, EP-11, EP-12, EP-13 | None | In Progress |
+| 14 | Revalidate correctness and update release collateral | docs/plans/14-revalidate-correctness-and-update-release-collateral.md | EP-9, EP-10, EP-11, EP-12, EP-13 | None | Complete |
 
 Status values: Not Started, In Progress, Complete, Cancelled.
 Hard Deps and Soft Deps reference other rows by their # prefix (e.g., EP-9).
@@ -169,19 +169,19 @@ EP-12's always-available report semantics (amend docs/adr/0003).
 - [x] EP-12: reference applications surface failure reports; guides updated
 - [x] EP-13: annotation merge, validated source construction, YAML decode hardening landed
 - [x] EP-13: Dhall parse locations, decimal rendering, docs and ADR notes landed
-- [ ] EP-14: full workspace validation green (tests, goldens, examples, sdist, nix)
-- [ ] EP-14: security model, compatibility matrix, changelogs, README reconciled
+- [x] EP-14: full workspace validation green (tests, goldens, examples, sdist, nix)
+- [x] EP-14: security model, compatibility matrix, changelogs, README reconciled
 
 
 ## Surprises & Discoveries
 
 - During plan authoring (2026-07-19), EP-10 research found that settei-kdl has no direct
-  `scientific` dependency even though kdl-hs hands it `Scientific` values; EP-10 adds
-  `scientific >=0.3.7 && <0.4` (matching settei-yaml) and EP-14's compatibility-matrix
-  reconciliation must reflect the new bound.
+  `scientific` dependency even though kdl-hs hands it `Scientific` values; EP-10 added
+  `scientific >=0.3.7 && <0.4` (matching settei-yaml), and EP-14's compatibility-matrix
+  reconciliation reflects the new bound.
 - During EP-10 implementation (2026-07-19), Hackage and the authoritative upstream tags
   both identified `scientific` 0.3.8.1 as current, confirming that the added
-  `>=0.3.7 && <0.4` range covers the released package line. EP-14 can record that range
+  `>=0.3.7 && <0.4` range covers the released package line. EP-14 recorded that range
   without a compatibility workaround or narrower pin.
 - EP-14 research found the conformance package already contains a secret-sentinel scan
   (`never-render-this-conformance-secret` in its Security test group), so EP-9's
@@ -190,25 +190,32 @@ EP-12's always-available report semantics (amend docs/adr/0003).
   sensitivity-conflict errors in one expression made the cyclic-default test stop because
   conflict detection builds the static schema and follows the deliberate cycle forever.
   Core now keeps default-cycle validation as the first gate and runs schema-based
-  sensitivity validation second. EP-12 must preserve this order when reshaping failure
+  sensitivity validation second. EP-12 preserved this order while reshaping failure
   results.
 - During EP-12 implementation (2026-07-19), the requirement to return a schema-shaped
   report for a default-cycle failure could not use the ordinary static schema: schema
   construction follows the cyclic default dependencies and cannot terminate. Core now
   uses a `RuleName`-guarded declaration traversal for that exit, retains
   most-restrictive sensitivity, returns no warnings, and still never inspects a source.
-  ADR 0003 records this durable preflight constraint; EP-13 must preserve it while
-  hardening source construction and diagnostics.
+  ADR 0003 records this durable preflight constraint; EP-13 preserved it while hardening
+  source construction and diagnostics.
 - EP-12's repository-wide stale-signature scan found five additional public guides
-  beyond its initial document inventory. They were migrated, and EP-14 should validate
-  release collateral with repository-wide API searches rather than only its enumerated
-  file list.
+  beyond its initial document inventory. They were migrated, and EP-14 validated release
+  collateral with repository-wide API searches rather than only its enumerated file list.
 - During EP-13 implementation (2026-07-19), Mori and direct source inspection found that
   Megaparsec 9.x `reachOffsetNoLine` returns an updated `PosState`, not the tuple assumed
   by the authored plan. EP-13 reads `pstateSourcePos` structurally, adds the direct
   `megaparsec >=9 && <10` bound to settei-dhall, and resolves 9.8.1. Hackage and upstream
-  tags both identify 9.8.1 as current; EP-14 must include this new direct bound in the
+  tags both identify 9.8.1 as current; EP-14 included this new direct bound in the
   compatibility-matrix reconciliation.
+- During EP-14 re-validation (2026-07-19), the authored CLI JSON smoke did not populate
+  its optional secret, so the node correctly rendered as missing rather than redacted. A
+  second run with an explicit sentinel proved `<redacted>` output and sentinel absence;
+  future redaction smokes must provide a secret value if they assert the marker itself.
+- The isolated source-distribution workspace passed 169 tests after unpacking the six
+  publishable packages together and carrying forward the repository's solver allowances
+  and pinned optparse-applicative/KDL tarballs. No fixture, golden, or package manifest
+  drift was found, and no child plan needed to be reopened.
 
 
 ## Decision Log
@@ -265,4 +272,37 @@ EP-12's always-available report semantics (amend docs/adr/0003).
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+The initiative is complete. EP-9 closed the shared-key redaction hole with
+most-restrictive sensitivity and a structured conflict error. EP-10 bounded YAML/KDL
+numeric exponent conversion, EP-11 adopted YAML 1.2 core booleans, EP-12 made reports and
+warnings available on every resolution attempt, and EP-13 completed the source,
+exception, position, and exact-rendering hardening sweep. EP-14 then locked the behaviors
+at the public conformance boundary and reconciled the release record.
+
+Validation on 2026-07-19 used GHC 9.12.4 and Cabal 3.16.1.0 on `aarch64-darwin`. All nine
+workspace packages built; 192 tests passed across 10 suites; all six publishable packages
+passed `cabal check`, Haddock, and sdist generation; and 169 tests passed from the six
+freshly unpacked publishable source distributions. Formatting, the host-system Nix flake
+checks, CLI/service smokes, failure provenance, and secret-sentinel scans all passed.
+Core goldens did not drift during the initiative.
+
+The decomposition kept every semantic change independently reviewable and allowed the
+final gate to distinguish collateral drift from behavior defects. The one integration
+constraint that mattered most was validation order: default cycles must remain ahead of
+schema-dependent sensitivity checks, and their failure reports require a guarded
+declaration traversal. The final gate found no defect requiring a child-plan reopen and
+no scope item was cancelled or deferred.
+
+Durable semantics live in ADR 0003 (sensitivity, failure reports, source construction,
+annotations, exact rendering), ADR 0004 (YAML exponent, boolean, and exception rules), ADR
+0005 (KDL exponent rule), ADR 0006 (Dhall import and positioned-error rules), and ADR 0007
+(reference applications and standalone fixtures as the conformance boundary). Release
+collateral states the same contracts. Publication, signing, Kubernetes integration,
+hot reload, and the separate ergonomics initiative remain outside this MasterPlan.
+
+
+## Revision Note
+
+2026-07-19: Completed EP-14, closed every Progress item and registry row, recorded final
+validation evidence and retrospective lessons, and verified that durable decisions from
+EP-9 through EP-14 are represented in ADRs 0003-0007.
