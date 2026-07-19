@@ -7,6 +7,7 @@ import Data.Generics.Labels ()
 import Data.List (permutations)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
+import Data.Text qualified as Text
 import Settei
 import Settei.Internal.Schema (mergeSensitivity)
 import Settei.Prelude
@@ -103,6 +104,88 @@ tests =
         case (resolve defaultResolveOptions [environmentSource "production"] productionPassword) ^. #answer of
           Left errors -> fmap errorKey (NonEmpty.toList errors) @?= [databasePassword]
           Right _ -> fail "production should require a password",
+      testCase "whenEq reports an unselected branch in development" $ do
+        let result =
+              resolve defaultResolveOptions [environmentSource "development"] sugaredProductionPassword
+        value <- expectAnswer result
+        value @?= Nothing
+        case result ^. #report . #nodes . at databasePassword of
+          Just node -> node ^. #outcome @?= NotSelected
+          Nothing -> fail "expected a not-selected password node"
+        case result ^. #report . #branches of
+          [branch] -> do
+            branch ^. #dependencies @?= [runtimeEnvironment]
+            branch ^. #settings @?= [databasePassword]
+            branch ^. #selected @?= False
+          _ -> fail "expected one selective branch trace",
+      testCase "whenEq reports a selected missing branch in production" $ do
+        let result =
+              resolve defaultResolveOptions [environmentSource "production"] sugaredProductionPassword
+        case result ^. #answer of
+          Left errors -> fmap errorKey (NonEmpty.toList errors) @?= [databasePassword]
+          Right _ -> fail "production should require a password"
+        case result ^. #report . #nodes . at databasePassword of
+          Just node -> node ^. #outcome @?= MissingValue
+          Nothing -> fail "expected a missing password node"
+        case result ^. #report . #branches of
+          [branch] -> do
+            branch ^. #dependencies @?= [runtimeEnvironment]
+            branch ^. #settings @?= [databasePassword]
+            branch ^. #selected @?= True
+          _ -> fail "expected one selective branch trace",
+      testCase "fallbackTo suppresses the legacy key when the primary is present" $ do
+        let result =
+              resolve
+                defaultResolveOptions
+                [serviceTextSource "primary" "endpoint" "new.example"]
+                endpointWithFallback
+        value <- expectAnswer result
+        value @?= "new.example"
+        case result ^. #report . #nodes . at serviceUrl of
+          Just node -> node ^. #outcome @?= NotSelected
+          Nothing -> fail "expected a not-selected legacy URL node"
+        case result ^. #report . #branches of
+          [branch] -> do
+            branch ^. #dependencies @?= [serviceEndpoint]
+            branch ^. #settings @?= [serviceUrl]
+            branch ^. #selected @?= False
+          _ -> fail "expected one fallback branch trace",
+      testCase "fallbackTo evaluates the legacy key when the primary is absent" $ do
+        let result =
+              resolve
+                defaultResolveOptions
+                [serviceTextSource "legacy" "url" "old.example"]
+                endpointWithFallback
+        value <- expectAnswer result
+        value @?= "old.example"
+        case result ^. #report . #branches of
+          [branch] -> do
+            branch ^. #dependencies @?= [serviceEndpoint]
+            branch ^. #settings @?= [serviceUrl]
+            branch ^. #selected @?= True
+          _ -> fail "expected one fallback branch trace",
+      testCase "publicShowSetting renders a typed default" $
+        expectDefaultDisplay
+          "8080"
+          (publicShowSetting servicePort "Service port" boundedIntegralDecoder),
+      testCase "a rendererless public setting keeps the derived marker" $
+        expectDefaultDisplay
+          "<derived>"
+          (publicSetting servicePort "Service port" boundedIntegralDecoder),
+      testCase "withRenderer displays a public typed default" $
+        expectDefaultDisplay
+          "8080"
+          ( withRenderer
+              (Text.pack . show)
+              (publicSetting servicePort "Service port" boundedIntegralDecoder)
+          ),
+      testCase "withRenderer cannot expose a secret typed default" $
+        expectDefaultDisplay
+          "<redacted>"
+          ( withRenderer
+              (Text.pack . show)
+              (secretSetting servicePort "Service port" boundedIntegralDecoder)
+          ),
       testCase "failure report retains evaluated provenance" $ do
         let input = treeSource "only-port" (RawNumber 8080) Map.empty
             result = resolve defaultResolveOptions [input] serviceConfig
@@ -275,6 +358,21 @@ expectAnswer result = case result ^. #answer of
   Left errors -> fail ("expected successful resolution: " <> show errors)
   Right value -> pure value
 
+expectDefaultDisplay :: Text -> Setting Int -> IO ()
+expectDefaultDisplay expected settingSpec = do
+  let declaration =
+        withDefault
+          settingSpec
+          (constantDefault (RuleName "built-in-port") "Built-in service port" 8080)
+      result = resolve defaultResolveOptions [] declaration
+  value <- expectAnswer result
+  value @?= 8080
+  case result ^. #report . #nodes . at servicePort of
+    Just node -> case node ^. #outcome of
+      Resolved reported -> renderReportedValue reported @?= expected
+      _ -> fail "expected a resolved default value"
+    Nothing -> fail "expected a derived service port node"
+
 errorKey :: ConfigError -> Key
 errorKey = \case
   MissingRequired problem -> problem ^. #key
@@ -295,6 +393,14 @@ productionPassword = select selector branch
       (\environment -> if environment == "production" then Left () else Right Nothing)
         <$> required environmentSetting
     branch = (\password _ -> Just password) <$> required passwordSetting
+
+sugaredProductionPassword :: Config (Maybe Text)
+sugaredProductionPassword =
+  whenEq (required environmentSetting) "production" (required passwordSetting)
+
+endpointWithFallback :: Config Text
+endpointWithFallback =
+  optional endpointSetting `fallbackTo` required urlSetting
 
 secretThenPublic :: Config (Text, Text)
 secretThenPublic =
@@ -338,6 +444,12 @@ environmentSetting = publicSetting runtimeEnvironment "Runtime environment" text
 
 passwordSetting :: Setting Text
 passwordSetting = secretSetting databasePassword "Database password" textDecoder
+
+endpointSetting :: Setting Text
+endpointSetting = publicSetting serviceEndpoint "Service endpoint" textDecoder
+
+urlSetting :: Setting Text
+urlSetting = publicSetting serviceUrl "Legacy service URL" textDecoder
 
 publicPasswordSetting :: Setting Text
 publicPasswordSetting = publicSetting databasePassword "Metrics password label" textDecoder
@@ -408,6 +520,18 @@ environmentSource value =
         )
     )
 
+serviceTextSource :: Text -> Text -> Text -> Source
+serviceTextSource name field value =
+  source
+    name
+    (CustomSource "test")
+    ( RawObject
+        ( Map.singleton
+            "service"
+            (RawObject (Map.singleton field (RawText value)))
+        )
+    )
+
 serviceHost :: Key
 serviceHost = validKey "service.host"
 
@@ -416,6 +540,12 @@ servicePort = validKey "service.port"
 
 serviceHosts :: Key
 serviceHosts = validKey "service.hosts"
+
+serviceEndpoint :: Key
+serviceEndpoint = validKey "service.endpoint"
+
+serviceUrl :: Key
+serviceUrl = validKey "service.url"
 
 runtimeEnvironment :: Key
 runtimeEnvironment = validKey "runtime.environment"

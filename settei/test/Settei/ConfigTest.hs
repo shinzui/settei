@@ -31,6 +31,23 @@ tests =
             conditionDependencies condition @?= Set.singleton environmentKey
             conditionSettings condition @?= Set.singleton passwordKey
           conditions -> fail ("expected one condition, found " <> show (length conditions)),
+      testCase "whenEq matches the raw selective schema" $ do
+        let schema = describe sugaredProductionOnly
+        schema @?= describe productionOnly
+        assertProductionSchema schema,
+      testCase "whenConfig preserves the conditional schema footprint" $
+        assertProductionSchema (describe whenConfigProductionOnly),
+      testCase "fallbackTo makes only the fallback key conditional" $ do
+        let schema = describe endpointWithFallback
+        keySet (schemaPossible schema)
+          @?= Set.fromList [serviceEndpointKey, serviceUrlKey]
+        keySet (schemaNecessary schema)
+          @?= Set.singleton serviceEndpointKey
+        case schemaConditions schema of
+          [condition] -> do
+            conditionDependencies condition @?= Set.singleton serviceEndpointKey
+            conditionSettings condition @?= Set.singleton serviceUrlKey
+          conditions -> fail ("expected one condition, found " <> show (length conditions)),
       testCase "free-selective prototype agrees on possible effects" $
         Set.fromList (freePossibleKeys environmentKey passwordKey)
           @?= Set.fromList [environmentKey, passwordKey],
@@ -43,6 +60,20 @@ tests =
       testCase "production requests its secret" $
         runConfig (interpret productionValues) productionOnly
           @?= Left (Missing passwordKey),
+      testCase "whenEq skips, requires, and returns its conditional value" $ do
+        runConfig (interpret developmentValues) sugaredProductionOnly
+          @?= Right Nothing
+        runConfig (interpret productionValues) sugaredProductionOnly
+          @?= Left (Missing passwordKey)
+        runConfig (interpret productionWithPasswordValues) sugaredProductionOnly
+          @?= Right (Just "fleet-secret"),
+      testCase "fallbackTo prefers the primary and otherwise evaluates the fallback" $ do
+        runConfig (interpret primaryEndpointValues) endpointWithFallback
+          @?= Right "new.example"
+        runConfig (interpret fallbackEndpointValues) endpointWithFallback
+          @?= Right "old.example"
+        runConfig (interpret Map.empty) endpointWithFallback
+          @?= Left (Missing serviceUrlKey),
       testCase "duplicate sensitivity is secret-biased in either applicative order" $ do
         schemaSettingSensitivity (schemaEntry passwordKey (describe secretThenPublic))
           @?= Secret
@@ -71,6 +102,20 @@ productionOnly = select selector productionBranch
       (\environment -> if environment == "production" then Left () else Right Nothing)
         <$> required environmentSetting
     productionBranch = (\password _ -> Just password) <$> required passwordSetting
+
+sugaredProductionOnly :: Config (Maybe Text)
+sugaredProductionOnly =
+  whenEq (required environmentSetting) "production" (required passwordSetting)
+
+whenConfigProductionOnly :: Config (Maybe Text)
+whenConfigProductionOnly =
+  whenConfig
+    ((== "production") <$> required environmentSetting)
+    (required passwordSetting)
+
+endpointWithFallback :: Config Text
+endpointWithFallback =
+  optional endpointSetting `fallbackTo` required urlSetting
 
 secretThenPublic :: Config (Text, Text)
 secretThenPublic =
@@ -114,6 +159,19 @@ developmentValues = Map.singleton environmentKey (RawText "development")
 productionValues :: Map Key RawValue
 productionValues = Map.singleton environmentKey (RawText "production")
 
+productionWithPasswordValues :: Map Key RawValue
+productionWithPasswordValues =
+  Map.fromList
+    [ (environmentKey, RawText "production"),
+      (passwordKey, RawText "fleet-secret")
+    ]
+
+primaryEndpointValues :: Map Key RawValue
+primaryEndpointValues = Map.singleton serviceEndpointKey (RawText "new.example")
+
+fallbackEndpointValues :: Map Key RawValue
+fallbackEndpointValues = Map.singleton serviceUrlKey (RawText "old.example")
+
 environmentSetting :: Setting Text
 environmentSetting =
   publicSetting environmentKey "Runtime environment" textDecoder
@@ -126,17 +184,43 @@ publicPasswordSetting :: Setting Text
 publicPasswordSetting =
   publicSetting passwordKey "Metrics password label" textDecoder
 
+endpointSetting :: Setting Text
+endpointSetting =
+  publicSetting serviceEndpointKey "Service endpoint" textDecoder
+
+urlSetting :: Setting Text
+urlSetting =
+  publicSetting serviceUrlKey "Legacy service URL" textDecoder
+
 environmentKey :: Key
 environmentKey = validKey "runtime.environment"
 
 passwordKey :: Key
 passwordKey = validKey "database.password"
 
+serviceEndpointKey :: Key
+serviceEndpointKey = validKey "service.endpoint"
+
+serviceUrlKey :: Key
+serviceUrlKey = validKey "service.url"
+
 validKey :: Text -> Key
 validKey value = either (error . show) id (parseKey value)
 
 keySet :: [SchemaSetting] -> Set Key
 keySet = Set.fromList . fmap schemaSettingKey
+
+assertProductionSchema :: Schema -> IO ()
+assertProductionSchema schema = do
+  keySet (schemaPossible schema)
+    @?= Set.fromList [environmentKey, passwordKey]
+  keySet (schemaNecessary schema)
+    @?= Set.singleton environmentKey
+  case schemaConditions schema of
+    [condition] -> do
+      conditionDependencies condition @?= Set.singleton environmentKey
+      conditionSettings condition @?= Set.singleton passwordKey
+    conditions -> fail ("expected one condition, found " <> show (length conditions))
 
 schemaEntry :: Key -> Schema -> SchemaSetting
 schemaEntry key schema =

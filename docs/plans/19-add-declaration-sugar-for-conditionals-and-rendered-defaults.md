@@ -72,9 +72,9 @@ This section must always reflect the actual current state of the work.
 - [x] (2026-07-19) Milestone 1: add `whenConfig`, `whenEq`, `fallbackTo` to settei/src/Settei/Config.hs with schema-footprint haddocks; rewrite the module haddock example to teach `whenEq` first while keeping `select` documented.
 - [x] (2026-07-19) Milestone 1: add `publicShowSetting` and `withRenderer` to settei/src/Settei/Setting.hs with haddocks covering the Show-renderer caveat and secret-setting behavior.
 - [x] (2026-07-19) Milestone 1: library compiles warning-clean (`nix develop -c cabal build settei`).
-- [ ] Milestone 2: describe-level tests in settei/test/Settei/ConfigTest.hs (schema possible/necessary/condition rows for all three combinators, plus agreement with the raw `select` encoding) and runConfig-level tests for both branch outcomes.
-- [ ] Milestone 2: resolution-report tests in settei/test/Settei/ResolveTest.hs (selected / not-selected outcomes and `BranchTrace` rows for `whenEq` and `fallbackTo`; rendered-default tests for `publicShowSetting`, `withRenderer`, and secret redaction).
-- [ ] Milestone 2: `nix develop -c cabal test settei-tests --test-show-details=direct` passes.
+- [x] (2026-07-19) Milestone 2: describe-level tests in settei/test/Settei/ConfigTest.hs (schema possible/necessary/condition rows for all three combinators, plus agreement with the raw `select` encoding) and runConfig-level tests for both branch outcomes.
+- [x] (2026-07-19) Milestone 2: resolution-report tests in settei/test/Settei/ResolveTest.hs (selected / not-selected outcomes and `BranchTrace` rows for `whenEq` and `fallbackTo`; rendered-default tests for `publicShowSetting`, `withRenderer`, and secret redaction).
+- [x] (2026-07-19) Milestone 2: `nix develop -c cabal test settei-tests --test-show-details=direct` passes (102 tests).
 - [ ] Milestone 3: examples/settei-service/src/Settei/Example/Service.hs uses `whenEq` for `productionPassword` and `publicShowSetting` instead of the hand-rolled `publicInteger`; examples/settei-cli/src/Settei/Example/Cli.hs uses `publicShowSetting` for `timeoutSetting`. Diffs kept minimal.
 - [ ] Milestone 3: `nix develop -c cabal test all --test-show-details=direct` passes.
 - [ ] Milestone 4: docs/guides/kubernetes-service.md conditional section teaches `whenEq`; docs/guides/getting-started.md gains a short conditional-declaration and rendered-default passage; README.md checked (updated only if it shows a raw `select` conditional).
