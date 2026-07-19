@@ -87,7 +87,7 @@ authority). docs/adr/0001-haskell-project-conventions.md governs code style in e
 |---|-------|------|-----------|-----------|--------|
 | 9 | Close the shared-key sensitivity redaction hole | docs/plans/9-close-the-shared-key-sensitivity-redaction-hole.md | None | None | Complete |
 | 10 | Bound numeric scalar conversion in the YAML and KDL adapters | docs/plans/10-bound-numeric-scalar-conversion-in-the-yaml-and-kdl-adapters.md | None | None | Complete |
-| 11 | Adopt YAML 1.2 core-schema boolean scalars | docs/plans/11-adopt-yaml-1-2-core-schema-boolean-scalars.md | None | EP-10 | In Progress |
+| 11 | Adopt YAML 1.2 core-schema boolean scalars | docs/plans/11-adopt-yaml-1-2-core-schema-boolean-scalars.md | None | EP-10 | Complete |
 | 12 | Report resolution provenance and warnings on failure | docs/plans/12-report-resolution-provenance-and-warnings-on-failure.md | None | EP-9 | Not Started |
 | 13 | Harden source construction and adapter diagnostics | docs/plans/13-harden-source-construction-and-adapter-diagnostics.md | None | EP-10, EP-11, EP-12 | Not Started |
 | 14 | Revalidate correctness and update release collateral | docs/plans/14-revalidate-correctness-and-update-release-collateral.md | EP-9, EP-10, EP-11, EP-12, EP-13 | None | Not Started |
@@ -163,8 +163,8 @@ EP-12's always-available report semantics (amend docs/adr/0003).
 - [x] EP-9: adversarial secret-sentinel tests, docs, and security model updated
 - [x] EP-10: exponent-bounded numeric conversion in settei-yaml and settei-kdl with tests
 - [x] EP-10: ADR 0004/0005 amendments, guides, and changelogs updated
-- [ ] EP-11: YAML untagged booleans restricted to true/false with characterization tests
-- [ ] EP-11: ADR 0004 amendment, YAML guide, and conformance fixtures updated
+- [x] EP-11: YAML untagged booleans restricted to true/false with characterization tests
+- [x] EP-11: ADR 0004 amendment, YAML guide, and conformance fixtures updated
 - [ ] EP-12: resolve returns report and warnings on failure; renderers and core tests updated
 - [ ] EP-12: reference applications surface failure reports; guides updated
 - [ ] EP-13: annotation merge, validated source construction, YAML decode hardening landed

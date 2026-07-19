@@ -65,9 +65,9 @@ This section must always reflect the actual current state of the work.
 - [x] (2026-07-19 10:23 PDT) Update the boolean sentence in settei-yaml/test/fixtures/characterization/README.md.
 - [x] (2026-07-19 10:23 PDT) Add the behavior change to settei-yaml/CHANGELOG.md.
 - [x] (2026-07-19 10:23 PDT) Commit the documentation changes (Conventional Commit with the three required trailers); the 32-test YAML suite remained green before commit.
-- [ ] Run `nix develop -c cabal test all --test-show-details=direct` and confirm the entire workspace, including examples/settei-conformance, stays green.
-- [ ] Update the MasterPlan: tick the two EP-11 Progress boxes and set the registry status to Complete.
-- [ ] Fill in Outcomes & Retrospective in this plan and perform the ADR distillation pass (the ADR 0004 amendment covers the durable context; confirm nothing else needs promotion).
+- [x] (2026-07-19 10:24 PDT) Run `nix develop -c cabal test all --test-show-details=direct` and confirm all 10 suites and 166 named tests, including examples/settei-conformance, stay green.
+- [x] (2026-07-19 10:24 PDT) Update the MasterPlan: tick the two EP-11 Progress boxes and set the registry status to Complete.
+- [x] (2026-07-19 10:24 PDT) Fill in Outcomes & Retrospective in this plan and perform the ADR distillation pass; ADR 0004 contains the durable context and nothing else needs promotion.
 
 
 ## Surprises & Discoveries
@@ -146,7 +146,25 @@ Compare the result against the original purpose. Before marking the plan complet
 distill durable project context from the Decision Log, Surprises & Discoveries, and
 this section into docs/adr/. Keep task-local execution details here.
 
-(To be filled during and after implementation.)
+Completed on 2026-07-19. The YAML adapter now recognizes only case-insensitive `true`
+and `false` as booleans. The former YAML 1.1 spellings `y`, `yes`, `on`, `n`, `no`, and
+`off` remain text when untagged, while an explicitly tagged value such as `!!bool yes`
+fails with the existing structured `YamlInvalidScalar` error. Quoted `"true"` remains
+text, and the null and numeric paths are unchanged.
+
+The new tests provided a direct red/green proof: before the production edit, the Norway
+case reported that `country: no` did not remain text and `!!bool yes` decoded
+successfully; after the edit, all 32 YAML tests passed. The final workspace run passed 10
+suites containing 166 named tests, including the unchanged reference applications and
+cross-format conformance/security suite. No fixture or example silently depended on the
+YAML 1.1 vocabulary.
+
+The only implementation detour was test-local: `RawValue` has no `Show` instance, so the
+plan's proposed `@?=` assertions were replaced with the suite's existing `assertBool`
+pattern. That does not change project architecture and remains in Surprises & Discoveries.
+The ADR distillation pass is complete: the appended ADR 0004 amendment records the durable
+YAML 1.2 vocabulary, tagged-scalar consistency, unchanged null semantics, core
+`boolDecoder` alignment, and rejected compatibility alternative.
 
 
 ## Context and Orientation
