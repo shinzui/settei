@@ -10,6 +10,11 @@
 - `boundedIntegralDecoder` failures now state the accepted range, for example
   `integer between -32768 and 32767`.
 - Document `enumDecoder`'s case-sensitive matching.
+- Add `whenConfig`, `whenEq`, and `fallbackTo` to `Settei.Config`. Each combinator
+  desugars to the existing `Functor` and `Selective` operations without changing the
+  inspectable declaration algebra.
+- Add `publicShowSetting` and `withRenderer` to `Settei.Setting` for concise typed-default
+  rendering; secret settings continue to redact regardless of attached renderers.
 
 ## 0.1.0.0 — 2026-07-19
 

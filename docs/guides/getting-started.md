@@ -81,11 +81,10 @@ hostSetting =
 
 portSetting :: Setting Int
 portSetting =
-  publicSettingWithRenderer
+  publicShowSetting
     (validKey "service.port")
     "Service port"
     boundedIntegralDecoder
-    (Text.pack . show)
 
 apiTokenSetting :: Setting Text
 apiTokenSetting =
@@ -99,8 +98,11 @@ renderEnvironment Development = "development"
 renderEnvironment Production = "production"
 ```
 
-Use `publicSettingWithRenderer` when a public typed value may be produced by a default.
-The renderer lets explanations show that typed default. Source values do not need it.
+Use `publicShowSetting` for primitive and enum-like public settings whose typed defaults
+should appear as real values instead of `<derived>` in explanations. Use
+`publicSettingWithRenderer` when the operator-facing format should differ from `Show`, as
+it does for the lowercase environment spelling above. Source values do not need a typed
+default renderer.
 Use `secretSetting` for every credential or sensitive value; Settei then redacts the value
 before constructing errors and reports. Declaring the same key with different sensitivity
 in one declaration is a resolve-time `SensitivityConflict`, and schemas and reports always
@@ -175,6 +177,24 @@ The request combinators have distinct absence behavior:
 | `required setting` | Resolution returns `MissingRequired`. |
 | `optional setting` | The typed result contains `Nothing`. |
 | `withDefault setting rule` | The named rule is evaluated. |
+
+Conditional declarations keep their complete static schema while skipping unused work at
+resolution time. Use `whenEq` for the common equality case, and use `fallbackTo` when a
+renamed key should fall back to its legacy spelling:
+
+```haskell
+productionToken :: Config (Maybe Text)
+productionToken =
+  whenEq (required environmentSetting) Production (required apiTokenSetting)
+
+serviceEndpoint :: Config Text
+serviceEndpoint =
+  optional newEndpointSetting `fallbackTo` required legacyEndpointSetting
+```
+
+The fallback is declaration-level: a value for the new key in any source suppresses the
+legacy key. The schema still lists the conditional credential or legacy key, and resolution
+reports skipped settings as not selected.
 
 Use `constantDefault` for a fixed fallback, `derivedDefault` for a computed fallback, and
 `caseDefault` for a finite mapping. Defaults run only when the setting is absent from all

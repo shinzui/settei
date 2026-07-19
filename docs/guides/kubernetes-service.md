@@ -23,7 +23,6 @@ For a YAML and environment deployment, add:
 
 ```cabal
 build-depends:
-  , selective
   , settei
   , settei-env
   , settei-yaml
@@ -40,7 +39,6 @@ uses those inputs.
 The declaration excerpts use:
 
 ```haskell
-import Control.Selective (select)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -123,23 +121,18 @@ httpPortDefault =
 ```
 
 If a credential is required only in Production, express the condition in the `Config`
-declaration with `select` from the `selective` package:
+declaration with `whenEq`:
 
 ```haskell
 productionPassword :: Config (Maybe SecretText)
-productionPassword = select selector branch
-  where
-    selector =
-      (\environment -> if environment == Production then Left () else Right Nothing)
-        <$> required environmentSetting
-    branch =
-      (\password _ -> Just password)
-        <$> required databasePasswordSetting
+productionPassword =
+  whenEq (required environmentSetting) Production (required databasePasswordSetting)
 ```
 
 Static schema inspection still lists `database.password`. A Development resolution does
 not require or decode it and reports the setting as not selected. Test every conditional
-branch explicitly.
+branch explicitly. The general `select` operation from the `selective` package remains
+available for arbitrary branch shapes.
 
 ## Bind Kubernetes-delivered environment variables
 

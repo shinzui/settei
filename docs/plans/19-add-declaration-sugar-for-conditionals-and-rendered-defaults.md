@@ -77,8 +77,8 @@ This section must always reflect the actual current state of the work.
 - [x] (2026-07-19) Milestone 2: `nix develop -c cabal test settei-tests --test-show-details=direct` passes (102 tests).
 - [x] (2026-07-19) Milestone 3: examples/settei-service/src/Settei/Example/Service.hs uses `whenEq` for `productionPassword` and `publicShowSetting` instead of the hand-rolled `publicInteger`; examples/settei-cli/src/Settei/Example/Cli.hs uses `publicShowSetting` for `timeoutSetting`. Diffs kept minimal.
 - [x] (2026-07-19) Milestone 3: `nix develop -c cabal test all --test-show-details=direct` passes.
-- [ ] Milestone 4: docs/guides/kubernetes-service.md conditional section teaches `whenEq`; docs/guides/getting-started.md gains a short conditional-declaration and rendered-default passage; README.md checked (updated only if it shows a raw `select` conditional).
-- [ ] Milestone 4: settei/CHANGELOG.md entry added; dated amendment appended to docs/adr/0002-inspectable-configuration-algebra.md.
+- [x] (2026-07-19) Milestone 4: docs/guides/kubernetes-service.md conditional section teaches `whenEq`; docs/guides/getting-started.md gains a short conditional-declaration and rendered-default passage; README.md checked and required no edit.
+- [x] (2026-07-19) Milestone 4: settei/CHANGELOG.md entry added; dated amendment appended to docs/adr/0002-inspectable-configuration-algebra.md.
 - [ ] Milestone 5: final full validation, MasterPlan registry/progress updated, this plan's living sections completed, ADR distillation pass done.
 
 
@@ -87,7 +87,11 @@ This section must always reflect the actual current state of the work.
 Document unexpected behaviors, bugs, optimizations, or insights discovered during
 implementation. Provide concise evidence.
 
-(None yet.)
+- The stale-teaching check in Concrete Step 5 says to expect no `if environment ==`
+  hits in `settei/src/Settei/Config.hs`, but Milestone 1 and the acceptance criteria also
+  require that module to retain a raw `select` desugaring after teaching `whenEq` first.
+  The implementation kept that one intentional Haddock hit; the user guides and README
+  contain no raw conditional encoding.
 
 
 ## Decision Log

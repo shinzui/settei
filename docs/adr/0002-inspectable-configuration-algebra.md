@@ -110,3 +110,15 @@ metadata. Providing a `Monad Config` instance was rejected because runtime-gener
 declarations contradict complete static enumeration. Treating Selective itself as the
 provenance graph was rejected because its laws do not represent origins, shadowed
 candidates, named defaults, redaction, or branch explanations.
+
+
+## Amendment: declaration sugar combinators (2026-07-19)
+
+`whenConfig`, `whenEq`, and `fallbackTo` are definitionally expressible through the
+existing `Functor` and `Selective` operations. They introduce no new `Config` syntax
+nodes, so they inherit the algebra's complete static inspection, conditional-setting
+classification, and runtime branch tracing.
+
+The no-`Monad` rule is unchanged. Future declaration sugar must likewise desugar to the
+existing `Functor`, `Applicative`, and `Selective` operations rather than gain
+bind-equivalent power that could construct setting keys from resolved values.
