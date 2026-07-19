@@ -32,7 +32,7 @@ After this plan is complete, three things are true that are not true today. Firs
 cross-format conformance suite in examples/settei-conformance locks the new semantics at
 the application boundary: a YAML document containing `no` or `on` observably resolves as
 text in a full adapter round-trip, a `1e1000000000` scalar is observably rejected by both
-the YAML and KDL adapters with the same error category, and a failed resolution observably
+the YAML and KDL adapters with their stable format-specific bound categories, and a failed resolution observably
 yields the same normalized provenance report shape from YAML, KDL, and Dhall sources.
 Second, every automated release gate from docs/release-checklist.md passes on the merged
 tree, and the evidence (including the new total test count) is recorded here. Third, every
@@ -53,16 +53,16 @@ Use a checklist to summarize granular steps. Every stopping point must be docume
 even if it requires splitting a partially completed task into two ("done" vs. "remaining").
 This section must always reflect the actual current state of the work.
 
-- [ ] Preflight: confirm EP-9 through EP-13 are marked Complete in the MasterPlan registry
+- [x] (2026-07-19T18:26:22Z) Preflight: confirmed EP-9 through EP-13 are marked Complete in the MasterPlan registry
       and their plan files' own Progress sections agree; abort and report if not.
-- [ ] Preflight: read the landed code for the exact post-remediation API shapes this plan
+- [x] (2026-07-19T18:26:22Z) Preflight: read the landed code for the exact post-remediation API shapes this plan
       asserts (resolve's failure shape, the numeric-bound error category names in
       settei-yaml and settei-kdl, the sensitivity-conflict error constructor) and record
       them in this plan's Context section.
 - [ ] Milestone 1: add the Norway-regression YAML conformance fixture and test (untagged
       `no`/`on` are text through the public adapter).
 - [ ] Milestone 1: add the huge-exponent rejection fixtures and tests for YAML and KDL,
-      asserting the same EP-10 error category from both adapters.
+      asserting each adapter's stable EP-10 bound category.
 - [ ] Milestone 1: add the resolution-failure fixtures (YAML, KDL, Dhall) and the test
       asserting the EP-12 failure report shape is normalized-equal across all three.
 - [ ] Milestone 1: extend the existing conformance secret-sentinel scan so it also covers
@@ -108,7 +108,10 @@ This section must always reflect the actual current state of the work.
 Document unexpected behaviors, bugs, optimizations, or insights discovered during
 implementation. Provide concise evidence.
 
-(None yet.)
+- The landed EP-10 adapters deliberately use format-specific stable categories for the
+  same exponent-bound rejection: `YamlInvalidScalar` and `KdlUnsupportedValue`. The
+  authored plan's phrase "same error category" was corrected to require the exact
+  category from each public adapter rather than inventing a cross-package category.
 
 
 ## Decision Log
@@ -259,16 +262,22 @@ deliberately not hard-coded. The first implementation step is to read the landed
 plans and fill in this subsection (replacing the "to be recorded" markers) so the plan
 stays self-contained for anyone restarting it:
 
-- The failure shape of `resolve` in settei/src/Settei/Resolve.hs after EP-12: the exact
-  type returned on the failure side (how the errors, the report, and the warnings are
-  carried) and how the reference applications destructure it. (To be recorded at
-  preflight.)
-- The numeric-bound error category after EP-10: the exact constructor/category name in
-  the settei-yaml error type and in the settei-kdl error type, and the exponent limit
-  chosen. (To be recorded at preflight.)
-- The sensitivity-conflict error constructor after EP-9 in settei/src/Settei/Error.hs, in
-  case the conformance secret-sentinel scan should cover its rendering. (To be recorded
-  at preflight.)
+- The landed resolver is total: `resolve :: ResolveOptions -> [Source] -> Config a ->
+  ResolveResult a`. `ResolveResult` contains `answer :: Either (NonEmpty ConfigError) a`,
+  `report :: ResolutionReport`, and `warnings :: [ConfigWarning]`; errors are the `Left`
+  inside `answer`, while report and warnings remain available beside it. The reference
+  CLI and service first handle input-loading `Either` failures, then inspect
+  `result ^. #answer`; their failure renderers append `failureReport options result` to
+  the structured errors in explain modes.
+- The landed numeric limit is an adapter-local absolute base-10 exponent of 4096 in both
+  adapters. YAML reports an out-of-range scalar as `YamlInvalidScalar`; KDL reports it as
+  `KdlUnsupportedValue`. Both fixed messages state that the numeric exponent is outside
+  the supported range. These are distinct public error types, so conformance asserts the
+  exact stable category from each adapter rather than a nonexistent shared constructor.
+- The landed core constructor is
+  `SensitivityConflict (SensitivityConflictProblem { key :: Key })`. It participates in
+  the existing exhaustive `problemKey` helper in the conformance suite, and both text and
+  JSON renderers are already covered by core secret-sentinel tests.
 
 ### Relevant ADRs consulted
 
@@ -383,10 +392,10 @@ http {
 (Adjust the KDL numeric literal spelling if the landed EP-10 tests use a different one —
 copy the exact rejected literal from settei-kdl's own tests so the conformance fixture and
 the unit tests agree on what is rejected.) Add a test case "huge exponents are rejected by
-YAML and KDL with the same error category". Call `Yaml.readYamlSource` and
-`Kdl.readKdlSource` on the two fixtures and assert both return `Left`; then assert each
-error carries the EP-10 bound-exceeded category recorded at preflight (pattern-match the
-constructor, or compare a category-projection function if the adapters expose one). The
+YAML and KDL with stable categories". Call `Yaml.readYamlSource` and
+`Kdl.readKdlSource` on the two fixtures and assert both return `Left`; then assert YAML
+reports `YamlInvalidScalar` and KDL reports `KdlUnsupportedValue`, as recorded at
+preflight. The
 test must assert the *category*, not the rendered message text, so wording can evolve.
 Dhall needs no such fixture: `1e1000000000` is a Dhall `Double`, which is bounded, and
 EP-10 did not change settei-dhall — state this in a comment in the test so a future reader
@@ -597,7 +606,7 @@ Settei
   Conformance
     ...
     YAML 1.2 booleans: no and on are text at the adapter boundary: OK
-    huge exponents are rejected by YAML and KDL with the same error category: OK
+    huge exponents are rejected by YAML and KDL with stable categories:       OK
     failure reports are format-independent and carry provenance:  OK
   Security
     no captured output contains secret sentinels:                 OK
