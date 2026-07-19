@@ -1,20 +1,39 @@
 # YAML configuration
 
-`settei-yaml` translates one strict YAML mapping into a provenance-aware Settei
-`Source`. It only translates input: the core `Setting` declarations decode application
-types, and the application decides which files to discover and where each source belongs
-in the precedence order.
+Use `settei-yaml` to load a YAML mapping as a provenance-aware `Source`. YAML supplies
+the structural values; the application's core `Config` declaration still owns decoding,
+defaults, sensitivity, and precedence.
 
-The accepted subset is intentionally smaller than general YAML. Ambiguous features fail
-at the input boundary instead of being interpreted differently by another tool.
+## Add the package
 
+```cabal
+build-depends:
+  , bytestring
+  , settei
+  , settei-yaml
+  , text
+```
 
-## Load one document
+```haskell
+import Data.Bifunctor (first)
+import Data.ByteString (ByteString)
+import Data.List.NonEmpty (NonEmpty)
+import Data.List.NonEmpty qualified as NonEmpty
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Settei
+import Settei.Yaml
+```
 
-This document supplies three structural keys: `service.host`, `service.port`, and
-`service.names`.
+## Write a supported YAML document
+
+A configuration file contains one top-level mapping. Use nested mappings for dotted
+Settei keys:
 
 ```yaml
+runtime:
+  environment: production
+
 service:
   host: api.internal
   port: 8080
@@ -23,60 +42,51 @@ service:
     - health
 ```
 
-Use `readYamlSource` at an IO boundary. The source name is a stable label for reports;
-the path supplied to `readYamlSource` is retained in successful origins and errors.
+This document supplies `runtime.environment`, `service.host`, `service.port`, and
+`service.names`.
 
-```haskell
-import Data.ByteString (ByteString)
-import Data.List.NonEmpty qualified as NonEmpty
-import Data.Text qualified as Text
-import Settei
-import Settei.Prelude
-import Settei.Yaml
+Do not write dotted mapping keys:
 
-loadApplicationYaml :: FilePath -> IO (Either Text Source)
-loadApplicationYaml path = do
-  loaded <- readYamlSource (yamlSourceOptions "application YAML") path
-  pure (either (Left . renderYamlErrors) Right loaded)
-
-renderYamlErrors :: NonEmpty YamlSourceError -> Text
-renderYamlErrors =
-  Text.intercalate "\n"
-    . fmap
-      ( \problem ->
-          Text.intercalate
-            ": "
-            [ Text.pack (show (yamlErrorCategory problem)),
-              yamlErrorContext problem,
-              yamlErrorMessage problem
-            ]
-      )
-    . NonEmpty.toList
+```yaml
+# Rejected: the dot is not treated as nesting.
+service.port: 8080
 ```
 
-For bytes already obtained by the application, use `decodeYamlSource`. A logical or real
-path can still be attached for provenance:
+## Load a file
+
+Use `readYamlSource` at the executable's IO boundary:
 
 ```haskell
-options :: YamlSourceOptions
-options =
-  withYamlSourcePath
-    "generated/application.yaml"
-    (yamlSourceOptions "generated YAML")
-
-translated :: ByteString -> Either (NonEmpty YamlSourceError) Source
-translated = decodeYamlSource options
+loadYaml :: FilePath -> IO (Either (NonEmpty YamlSourceError) Source)
+loadYaml path =
+  readYamlSource (yamlSourceOptions "application configuration") path
 ```
 
-`yamlSourceOptions` has no implicit path or annotations. `readYamlSource` always replaces
-an option's existing path with the path it actually reads.
+The source name appears in reports and should be stable and safe to display. The file path
+passed to `readYamlSource` is retained in successful origins and structured errors. It
+replaces any path already attached to the options.
 
+If the application already has strict `ByteString` input, use the pure decoder and attach
+a logical path when useful:
 
-## Declare types and resolve ordered files
+```haskell
+decodeGeneratedYaml
+  :: ByteString
+  -> Either (NonEmpty YamlSourceError) Source
+decodeGeneratedYaml =
+  decodeYamlSource
+    ( withYamlSourcePath
+        "generated/application.yaml"
+        (yamlSourceOptions "generated configuration")
+    )
+```
 
-YAML scalar inference produces `RawText`, `RawBool`, `RawNumber`, or `RawNull`; sequences
-produce `RawArray`, and mappings produce `RawObject`. Application decoders remain in the
-core declaration:
+Use `decodeYamlSource` in parser tests and when another trusted component owns the IO. Use
+`readYamlSource` when Settei should distinguish file IO failures as `YamlIoError`.
+
+## Declare decoders and resolve the source
+
+The declaration is independent of YAML:
 
 ```haskell
 data ServiceConfig = ServiceConfig
@@ -84,7 +94,7 @@ data ServiceConfig = ServiceConfig
     port :: !Int,
     names :: ![Text]
   }
-  deriving stock (Generic, Eq)
+  deriving stock (Eq)
 
 serviceConfig :: Config ServiceConfig
 serviceConfig =
@@ -94,126 +104,177 @@ serviceConfig =
     <*> required (publicSetting (validKey "service.names") "Service names" textListDecoder)
 
 textListDecoder :: Decoder [Text]
-textListDecoder = decoder $ \key -> \case
-  RawArray values -> traverse (textElement key) values
-  _ -> Left (decodeFailure key "an array of text")
+textListDecoder = decoder $ \targetKey -> \case
+  RawArray values -> traverse (textElement targetKey) values
+  _ -> Left (decodeFailure targetKey "an array of text")
 
 textElement :: Key -> RawValue -> Either DecodeFailure Text
-textElement key = \case
+textElement targetKey = \case
   RawText value -> Right value
-  _ -> Left (decodeFailure key "an array of text")
+  _ -> Left (decodeFailure targetKey "an array of text")
 
 validKey :: Text -> Key
 validKey value = either (error . show) id (parseKey value)
 ```
 
-Pass sources to `resolve` from lowest to highest precedence. The following stack lets a
-local file override a shared file:
+Load errors and resolution errors are separate:
 
 ```haskell
-resolveFiles :: Source -> Source -> Either (NonEmpty ConfigError) (ResolveResult ServiceConfig)
+resolveYamlFile
+  :: FilePath
+  -> IO (Either Text (ResolveResult ServiceConfig))
+resolveYamlFile path = do
+  loaded <- loadYaml path
+  pure $ do
+    yamlSource <- first renderYamlErrors loaded
+    first renderErrorsText
+      (resolve defaultResolveOptions [yamlSource] serviceConfig)
+```
+
+Keeping the phases separate lets a CLI assign distinct exit codes to unreadable or
+malformed files and to typed configuration failures.
+
+## Layer multiple files
+
+Pass sources from lowest to highest precedence:
+
+```haskell
+resolveFiles
+  :: Source
+  -> Source
+  -> Either (NonEmpty ConfigError) (ResolveResult ServiceConfig)
 resolveFiles shared local =
   resolve defaultResolveOptions [shared, local] serviceConfig
 ```
 
-Merging is leaf-wise. If the shared file supplies `service.host` and `service.port` while
-the local file supplies only `service.port`, the shared host remains and the local port
-wins. Arrays are values rather than mergeable collections: a higher-precedence array
-replaces the lower array wholesale. A malformed winning value is an error; resolution
-does not silently fall back.
+If `shared` supplies `service.host` and `service.port`, while `local` supplies only
+`service.port`, the shared host remains and the local port wins. Arrays are values rather
+than mergeable collections, so a higher `service.names` array replaces the lower array in
+full.
 
-File discovery is not built into `settei-yaml`. An application may load one conventional
-path, use repeated `--config PATH` options, or implement another explicit policy. Likewise,
-the adapter does not impose a file/environment/CLI order. A typical application stack is:
+File discovery is application policy. Load one conventional path, accept repeated config
+arguments, or implement another documented strategy. When combined with other adapters,
+a common order is:
 
 ```haskell
-allSources = yamlSources <> [environmentSource] <> commandLineSources
+orderedSources = yamlSources <> [environmentSource] <> commandLineSources
 ```
 
-That order makes later YAML files override earlier YAML files, environment override all
-files, and command-line fragments override environment. See the
-[environment and command-line guide](environment-and-cli.md) for those adapters.
+See [Environment and command-line configuration](environment-and-cli.md) for the later
+layers.
 
+## Understand YAML-to-Settei values
 
-## Keys, null, numbers, and locations
+| YAML input | `RawValue` |
+| --- | --- |
+| string | `RawText` |
+| boolean | `RawBool` |
+| finite integer or decimal | exact `RawNumber` |
+| `null`, `~`, or an empty plain scalar | `RawNull` |
+| sequence | `RawArray` |
+| mapping | `RawObject` |
 
-Nested mappings define key segments. A literal dot in a mapping key is rejected, so write:
+Plain boolean spellings `y`, `yes`, `on`, `true`, `n`, `no`, `off`, and `false` are
+recognized case-insensitively. Quote a word when the application needs text instead:
 
 ```yaml
-service:
-  port: 8080
+featureLabel: "on"
 ```
 
-instead of `service.port: 8080`. Mapping keys must be scalar strings and must be unique at
-their mapping level. Both block and flow duplicates fail with `YamlDuplicateKey`; no
-first-wins or last-wins behavior is hidden behind the source abstraction.
+Quoted and block scalars always remain text. Plain decimal and exponent numbers, `0x`
+hexadecimal integers, and `0o` octal integers become exact rational values. Large
+integers do not pass through a machine `Int`; the eventual decoder decides whether a
+number fits its application type. `.inf`, `-.inf`, and `.nan` are rejected.
 
-An explicit YAML `null`, `~`, or empty plain scalar is a present `RawNull` candidate. It
-does not mean that the source omitted the key. Whether null is accepted is therefore a
-property of the setting's decoder. A higher-precedence null shadows a lower value just as
-any other present candidate does.
+An explicit null is present input. It shadows lower-precedence candidates and reaches the
+setting decoder as `RawNull`. It does not behave like an omitted key. Use a custom decoder
+if null has an application-specific meaning.
 
-Integers and finite decimal or exponent forms are retained as exact `Rational` values in
-`RawNumber`; large integers do not pass through a machine `Int` or floating-point value.
-Hexadecimal and `0o` octal integer forms are accepted. The eventual decoder decides
-whether a number fits its application type. Non-finite values such as `.inf` and `.nan`
-are rejected.
+YAML sequences can represent zero, one, or many elements. A higher-precedence sequence
+replaces the previous sequence instead of merging element by element.
 
-Successful scalar and array leaves retain the parser's start mark. Reports expose the
-source path (or source name when no path was supplied) and one-based line and column.
-Mapping values used only as containers have no separately addressable candidate. Syntax
-and translation errors expose one-based locations when the parser can identify one.
+## Supported document rules
 
+The adapter accepts an empty document or top-level null as an empty source. Otherwise it
+requires exactly one top-level mapping. It rejects:
 
-## Mounted ConfigMaps and Secrets
-
-`fromKubernetesMountedFile` adds a caller-asserted Kubernetes reference to every origin
-from a mounted document. It performs no cluster lookup and does not verify that the file
-was mounted from that object.
-
-```haskell
-mountedOptions :: YamlSourceOptions
-mountedOptions =
-  fromKubernetesMountedFile
-    ( kubernetesRef
-        SecretObject
-        (Just "production")
-        "service-database"
-        (Just "application.yaml")
-    )
-    (yamlSourceOptions "mounted database configuration")
-
-loadMountedSecret :: IO (Either (NonEmpty YamlSourceError) Source)
-loadMountedSecret =
-  readYamlSource mountedOptions "/var/run/config/application.yaml"
-```
-
-The resulting origin annotations can name the object kind, namespace, object name, and
-object key. They are metadata only. Calling this helper does not make every setting
-secret, and it cannot make a secret setting public. Sensitivity belongs exclusively to
-the `Setting`; core text and JSON renderers redact candidates for `secretSetting` values.
-Only trusted, secret-safe values should be passed to `annotateYamlSourceOptions`.
-
-
-## Strict subset and safe errors
-
-The adapter accepts exactly one top-level mapping. An empty document and a top-level null
-produce an empty source. It rejects:
-
-- multiple documents and top-level sequences or scalars;
-- duplicate, non-string, or dotted mapping keys;
+- multiple YAML documents;
+- a top-level scalar or sequence;
+- duplicate keys, including duplicates in flow mappings;
+- non-string or dotted mapping keys;
 - anchors, aliases, and merge keys;
 - custom scalar or collection tags;
-- special or otherwise invalid numeric scalars; and
-- malformed syntax and invalid UTF-8.
+- invalid and non-finite numeric values;
+- malformed syntax; and
+- invalid UTF-8.
 
-Quoted and block strings always remain text. Plain YAML boolean spellings are recognized.
-Strings are never interpolated: `${NAME}` remains literal text, and parsing never reads
-the process environment.
+Strings are literal. `${NAME}` is not interpolated and loading YAML never reads the
+process environment.
 
-Failures use the stable `YamlErrorCategory` constructors and the `yamlErrorName`,
-`yamlErrorPath`, `yamlErrorLine`, `yamlErrorColumn`, `yamlErrorContext`, and
-`yamlErrorMessage` accessors. IO failures are distinguished as `YamlIoError`. Error values
-never retain a raw scalar or source excerpt, because YAML parsing occurs before the core
-knows which keys are secret. Applications should render those structured fields rather
-than attaching the original input to an exception.
+## Render YAML errors
+
+`YamlSourceError` exposes stable fields for application diagnostics:
+
+```haskell
+renderYamlErrors :: NonEmpty YamlSourceError -> Text
+renderYamlErrors =
+  Text.intercalate "\n"
+    . fmap renderYamlError
+    . NonEmpty.toList
+
+renderYamlError :: YamlSourceError -> Text
+renderYamlError problem =
+  Text.intercalate
+    ": "
+    [ Text.pack (show (yamlErrorCategory problem)),
+      yamlErrorContext problem,
+      yamlErrorMessage problem
+    ]
+```
+
+Use `yamlErrorPath`, `yamlErrorLine`, and `yamlErrorColumn` to add a location when present.
+Lines and columns are one-based. `yamlErrorContext` names a structural path such as
+`$.service.names[0]`.
+
+Successful scalar and array leaves also retain a one-based start location for resolution
+reports. Adapter errors intentionally do not expose raw source excerpts or scalar values,
+because parsing happens before a setting's sensitivity is known.
+
+## Load a mounted ConfigMap or Secret
+
+Attach Kubernetes delivery metadata when the application knows the mounted file's origin:
+
+```haskell
+mountedYamlOptions :: YamlSourceOptions
+mountedYamlOptions =
+  fromKubernetesMountedFile
+    ( kubernetesRef
+        ConfigMapObject
+        (Just "production")
+        "service-config"
+        (Just "application.yaml")
+    )
+    (yamlSourceOptions "mounted application configuration")
+
+loadMountedYaml :: IO (Either (NonEmpty YamlSourceError) Source)
+loadMountedYaml =
+  readYamlSource mountedYamlOptions "/etc/service/application.yaml"
+```
+
+The reference is trusted descriptive metadata; no Kubernetes API request is made. It may
+appear in reports, so keep names and custom annotations safe to display. Mark every
+sensitive application key with `secretSetting` regardless of whether its file was mounted
+from a Secret.
+
+## Production checklist
+
+- Validate files with the same declaration used by the running application.
+- Document the low-to-high order when more than one file is accepted.
+- Quote boolean-like or numeric-looking values that must remain text.
+- Treat null as explicit input and test the chosen decoder behavior.
+- Render structured adapter fields instead of echoing the original YAML.
+- Reject or report unknown keys according to the application's rollout policy.
+- Use `fromKubernetesMountedFile` only for metadata the deployment actually guarantees.
+
+See [Building a CLI application](cli-application.md) for file-option handling and
+[Building a Kubernetes service](kubernetes-service.md) for a mounted-file deployment.

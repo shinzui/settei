@@ -121,6 +121,8 @@ not receive a recoverable secret value.
 
 ## Guides and examples
 
+- [Getting started](docs/guides/getting-started.md)
+- [Guide index](docs/guides/README.md)
 - [Environment and CLI sources](docs/guides/environment-and-cli.md)
 - [YAML adapter](docs/guides/yaml.md)
 - [KDL v2 adapter](docs/guides/kdl.md)

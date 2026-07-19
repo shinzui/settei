@@ -1,103 +1,305 @@
 # Building a CLI application
 
-The [`settei-example-cli`](../../examples/settei-cli/) package is an executable reference
-for applications that combine built-in values, explicit files, environment variables,
-and command-line overrides. Its declaration lives in a library module so tests and other
-tools can inspect the schema without spawning a process.
+This guide assembles a command-line application with built-in values, explicit config
+files, environment variables, command-line overrides, and safe diagnostics. The complete
+working implementation is the [`settei-example-cli`](../../examples/settei-cli/) package.
 
+Start with [Getting started](getting-started.md) if you have not yet defined the
+application's `Setting` and `Config` values.
 
-## Declaration and layers
+## Add dependencies and split the modules
 
-The example declares these keys:
+A CLI that accepts all supported file formats needs:
 
-| Key | Requirement |
-| --- | --- |
-| `runtime.environment` | Required enum: `development`, `test`, or `production`. |
-| `service.endpoint` | Required text. |
-| `service.timeout` | Required integral seconds. |
-| `output.format` | Required enum: `text` or `json`. |
-| `credentials.token` | Optional secret text. |
+```cabal
+build-depends:
+  , containers
+  , generic-lens
+  , optparse-applicative
+  , settei
+  , settei-dhall
+  , settei-env
+  , settei-kdl
+  , settei-optparse-applicative
+  , settei-yaml
+  , text
+```
 
-The executable constructs sources in this low-to-high order:
+Use fewer adapter packages when the application supports fewer formats.
+
+The code excerpts below use these imports in addition to application modules:
+
+```haskell
+import Data.Generics.Labels ()
+import Data.List.NonEmpty (NonEmpty)
+import Data.Map.Strict qualified as Map
+import Data.Text (Text)
+import Data.Text qualified as Text
+import Options.Applicative qualified as Options
+import Settei
+import Settei.Dhall qualified as Dhall
+import Settei.Env
+import Settei.Kdl qualified as Kdl
+import Settei.Optparse
+import Settei.Prelude ((^.))
+import Settei.Yaml qualified as Yaml
+```
+
+Keep these responsibilities separate:
 
 ```text
-CLI built-in values
+App.Config    typed records, settings, Config declaration, environment bindings
+App.Options   optparse-applicative parser and explicit file-format policy
+App.Run       load sources, resolve, render diagnostics, run the application action
+Main          read arguments/environment, write stdout/stderr, select exit code
+```
+
+Putting the declaration and runner in library modules makes them directly testable. `Main`
+should remain a small IO wrapper.
+
+## Choose a visible source order
+
+The reference CLI uses this low-to-high order:
+
+```text
+built-in values
 < each --config file in occurrence order
 < explicitly bound environment variables
 < each --set override in occurrence order
 ```
 
-Later candidates do not destroy earlier provenance. The selected node records every
-shadowed origin, which makes a repeated override such as `9000` followed by `9001`
-explainable rather than merely last-write-wins.
+Put the assembly in one function so reviewers and tests can see the complete order:
 
-
-## File input
-
-Pass each file as `--config FORMAT:PATH`, where `FORMAT` is `yaml`, `kdl`, or `dhall`.
-The tag is required; the example never guesses from content or an ambiguous extension.
-
-```bash
-nix develop -c cabal run settei-example-cli -- \
-  --config yaml:examples/settei-conformance/test/fixtures/service.yaml \
-  --check-config
+```haskell
+resolveCli
+  :: [Source]
+  -> Source
+  -> [CliOverride]
+  -> Either (NonEmpty ConfigError) (ResolveResult AppConfig)
+resolveCli fileSources environmentSource overrides =
+  resolve
+    defaultResolveOptions
+    ( [builtInSource]
+        <> fileSources
+        <> [environmentSource]
+        <> cliSources "arguments" overrides
+    )
+    appConfig
 ```
 
-YAML and KDL use the strict mappings documented in their adapter guides. Dhall is loaded
-with `NoImports`, so the CLI cannot read another file, the process environment, or the
-network through a Dhall expression. An application that needs a local import graph should
-offer a separate explicit root and use `LocalImportsWithin`; it should not silently widen
-the default policy.
+Later sources win one leaf at a time. Repeated config files and repeated `--set` options
+retain their occurrence order, and shadowed origins remain available in the report.
 
+### Built-in source or declared default?
 
-## Environment and command-line input
+Use a low-precedence built-in `Source` when the value should behave like explicit input
+and appear as a shadowable origin:
 
-Environment variables are opt-in bindings, not a prefix scan:
+```haskell
+builtInSource :: Source
+builtInSource =
+  source
+    "application built-ins"
+    BuiltInSource
+    ( RawObject
+        ( Map.fromList
+            [ ("runtime", RawObject (Map.singleton "environment" (RawText "development"))),
+              ("output", RawObject (Map.singleton "format" (RawText "text")))
+            ]
+        )
+    )
+```
 
-| Variable | Key |
+Use `constantDefault`, `derivedDefault`, or `caseDefault` when the fallback belongs to the
+declaration, should run only when every source is absent, or should appear as a named
+derivation.
+
+## Parse configuration options
+
+For a single file format, `setteiOptions` supplies repeated `--config PATH`, repeated
+`--set KEY=VALUE`, and mutually exclusive explanation flags:
+
+```haskell
+optionsInfo :: Options.ParserInfo SetteiOptions
+optionsInfo =
+  Options.info
+    (setteiOptions Options.<**> Options.helper)
+    (Options.fullDesc <> Options.progDesc "Run the application")
+```
+
+If several formats are accepted, require an explicit tag instead of guessing from file
+contents. The reference application parses:
+
+```text
+--config yaml:path/to/application.yaml
+--config kdl:path/to/local.kdl
+--config dhall:path/to/application.dhall
+```
+
+Represent a parsed input as a format plus path:
+
+```haskell
+data ConfigFormat = YamlFormat | KdlFormat | DhallFormat
+  deriving stock (Eq, Show)
+
+data ConfigInput = ConfigInput
+  { format :: !ConfigFormat,
+    path :: !FilePath
+  }
+  deriving stock (Eq, Show)
+```
+
+Use an `Options.eitherReader` to require `FORMAT:PATH`, reject an empty path, and accept
+only documented format names. Parsing a path must not open it; IO belongs after command-line
+validation succeeds.
+
+For a stable user-facing option such as `--port`, use `namedOption`. Use generic `--set`
+for advanced overrides and automation. Both produce command-line `Source` values whose
+labels omit the raw value.
+
+## Load each file explicitly
+
+Dispatch on the parsed format:
+
+```haskell
+loadConfigInput :: ConfigInput -> IO (Either Text Source)
+loadConfigInput input =
+  let label = Text.pack (input ^. #path)
+   in case input ^. #format of
+        YamlFormat ->
+          fmap (either (Left . renderYamlErrors) Right)
+            (Yaml.readYamlSource (Yaml.yamlSourceOptions label) (input ^. #path))
+        KdlFormat ->
+          fmap (either (Left . renderKdlErrors) Right)
+            (Kdl.readKdlSource (Kdl.kdlSourceOptions label) (input ^. #path))
+        DhallFormat ->
+          fmap (either (Left . renderDhallErrors) Right)
+            ( Dhall.loadDhallSource
+                (Dhall.dhallSourceOptions label Dhall.NoImports)
+                (Dhall.DhallFile (input ^. #path))
+            )
+```
+
+The `render*Errors` helpers should use the structured fields shown in each adapter guide.
+Do not include raw file content in the message.
+
+The example uses `NoImports` for command-line Dhall files. If the application needs local
+imports, add a separate trusted root option and use `LocalImportsWithin root`. Do not take
+an unrestricted import policy from the Dhall file itself.
+
+Traverse inputs in command-line occurrence order:
+
+```haskell
+loadedFiles <- traverse loadConfigInput configInputs
+```
+
+If any file fails, report a source-loading failure and do not resolve a partial list.
+
+## Load environment variables
+
+Map every supported variable explicitly:
+
+```haskell
+environmentBindings :: [EnvBinding]
+environmentBindings =
+  [ binding (EnvName "HASKELL_ENV") (validKey "runtime.environment"),
+    binding (EnvName "SERVICE_ENDPOINT") (validKey "service.endpoint"),
+    binding (EnvName "SERVICE_TIMEOUT") (validKey "service.timeout"),
+    binding (EnvName "OUTPUT_FORMAT") (validKey "output.format"),
+    fromKubernetesObject
+      (kubernetesRef SecretObject Nothing "my-application" (Just "token"))
+      (binding (EnvName "SERVICE_TOKEN") (validKey "credentials.token"))
+  ]
+
+validKey :: Text -> Key
+validKey value = either (error . show) id (parseKey value)
+```
+
+Call `readEnvSource` once after argument parsing. For a runner that accepts an injected
+snapshot, call the pure `envSource` instead and let `Main` create the snapshot. This keeps
+end-to-end tests independent of the developer's environment.
+
+## Add diagnostics that match user intent
+
+Useful diagnostic modes are:
+
+| Option | Work performed |
 | --- | --- |
-| `HASKELL_ENV` | `runtime.environment` |
-| `SERVICE_ENDPOINT` | `service.endpoint` |
-| `SERVICE_TIMEOUT` | `service.timeout` |
-| `OUTPUT_FORMAT` | `output.format` |
-| `SERVICE_TOKEN` | `credentials.token` |
+| `--describe-config` | Render `describe appConfig` without reading files or environment values. |
+| `--check-config` | Load and resolve configuration, print a short success message, then exit. |
+| `--explain-config` | Load and resolve, then render the redacted text report. |
+| `--explain-config-json` | Load and resolve, then render the versioned JSON report. |
 
-`SERVICE_TOKEN` is annotated as Secret `settei-example-cli`, key `token`, for
-Kubernetes-shaped deployments. The annotation is trusted metadata; it does not fetch or
-authenticate a Kubernetes object.
+Make diagnostic modes mutually exclusive in the parser. A schema-only mode should branch
+before file and environment loading:
 
-Generic `--set KEY=VALUE` options preserve command-line occurrence order. Applications
-can also construct named overrides with `namedOption` when a stable user-facing flag is
-better than a generic key.
+```haskell
+case diagnosticMode of
+  DescribeConfiguration ->
+    TextIO.putStr (renderSchemaText (describe appConfig))
+  _ ->
+    loadResolveAndRun
+```
 
+After a successful resolution:
 
-## Diagnostics and exit codes
+```haskell
+renderSuccess mode result =
+  case mode of
+    CheckConfiguration -> "configuration valid\n"
+    ExplainConfigurationText -> renderResolutionText (result ^. #report)
+    ExplainConfigurationJson -> renderResolutionJson (result ^. #report) <> "\n"
+    RunApplication -> runApplication (result ^. #value)
+```
 
-| Option | Behavior |
-| --- | --- |
-| `--describe-config` | Render the static schema without loading files or environment values. |
-| `--check-config` | Load and validate configuration without running the example action. |
-| `--explain-config` | Render the selected, shadowed, derived, and skipped nodes as text. |
-| `--explain-config-json` | Render the versioned JSON report. |
+Do not print the typed result after an explanation. The typed record contains real secret
+values, while report renderers receive only redacted representations. Normal application
+output should use an allowlist of known-public fields.
 
-Usage errors exit with `2`, file IO or parse errors with `3`, and resolution/decode errors
-with `4`. Successful diagnostics and the example action exit with `0`. Explanation modes
-do not print the typed result afterward, which avoids bypassing report redaction.
+Also render `result ^. #warnings` or reject unknown keys with `RejectUnknownKeys`. A
+successful `--check-config` that silently drops warnings is usually less useful to users.
 
-The options are grouped by user intent under “Configuration” and “Diagnostics” while
-optparse-applicative retains its ordinary help section.
+## Distinguish exit behavior
 
+Choose stable exit codes and document them. The reference application uses:
 
-## Adoption checklist
+| Exit code | Meaning |
+| ---: | --- |
+| `0` | Normal run or successful diagnostic. |
+| `2` | Command-line usage error. |
+| `3` | File IO, format, or adapter error. |
+| `4` | Missing, malformed, structurally conflicting, or strictly unknown configuration. |
 
-- Keep the `Config` declaration in a library module.
-- Make all source ordering visible in one application assembly function.
-- Inject `EnvSnapshot` in tests instead of consulting the developer's environment.
-- Require explicit file formats and an explicit Dhall import policy.
-- Assign sensitivity in each `Setting`; do not try to redact after rendering a record.
-- Test usage, source, and resolution failures separately.
-- Capture stdout and stderr with secret sentinels and assert that neither contains them.
+Set the usage code with `Options.failureCode`. Send usage and human-readable failures to
+stderr. Requested JSON reports belong on stdout so scripts can consume them without
+log-prefix contamination.
 
-See [`Settei.Example.Cli`](../../examples/settei-cli/src/Settei/Example/Cli.hs) and its
-[end-to-end tests](../../examples/settei-cli/test/Settei/Example/CliTest.hs) for the full
-public-API composition.
+## Test the executable workflow
+
+Parse arguments without spawning a process:
+
+```haskell
+parseOptions :: [String] -> Maybe CliOptions
+parseOptions arguments =
+  Options.getParseResult
+    ( Options.execParserPure
+        Options.defaultPrefs
+        cliParserInfo
+        arguments
+    )
+```
+
+Pass `envSnapshot` to the runner and capture its exit code, stdout, and stderr. Cover:
+
+- `--describe-config` with a nonexistent file path, proving it performs no source IO;
+- files in occurrence order and environment over file;
+- repeated `--set` values, proving the final occurrence wins;
+- an invalid winning override, proving it does not fall back;
+- separate usage, source-loading, and resolution exit codes;
+- text and JSON explanations;
+- unknown-key warnings or strict failures; and
+- a secret sentinel absent from stdout, stderr, errors, warnings, and reports.
+
+The full composition is in
+[`Settei.Example.Cli`](../../examples/settei-cli/src/Settei/Example/Cli.hs), with
+[end-to-end tests](../../examples/settei-cli/test/Settei/Example/CliTest.hs).

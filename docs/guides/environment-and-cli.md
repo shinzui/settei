@@ -1,110 +1,49 @@
 # Environment and command-line configuration
 
-`settei-env` and `settei-optparse-applicative` turn environment variables and command-line
-options into the same ordered `Source` values used by Settei core. The adapters do not
-decode application types or choose precedence. A `Setting` owns decoding and sensitivity,
-and the application supplies sources from lowest to highest precedence.
+Use `settei-env` to map selected environment variables to Settei keys and
+`settei-optparse-applicative` to add ordered command-line overrides and explanation flags.
+Both adapters produce ordinary `Source` values, so application types and decoders remain
+in the core declaration.
 
-This guide translates a small `envparse` configuration into Settei, adds a named derived
-default, and then layers file-shaped sources below environment variables and command-line
-overrides. All examples use an injected environment snapshot. The only function that reads
-the real process environment is `readEnvSource`, which belongs at the executable boundary.
+## Add the packages
 
-
-## What changes from envparse
-
-Registered source inspection found no standalone Mori project for `envparse`, so the
-comparison below uses its checked-in consumers. The registered `tan/tan-commons` source
-defines `HASKELL_ENV` with `Env.var`, a custom reader, and `Env.parse`. Its PostgreSQL
-module uses `Env.str`, `Env.auto`, and `Env.def`. The registered
-`tan/mls-service-v2` source composes those parsers applicatively with service-specific
-variables.
-
-With `envparse`, the parser both names a variable and decodes it. With Settei, the work is
-split deliberately: `EnvBinding` maps a variable to a structural `Key`, `envSource` stores
-present values as `RawText`, and the core `Setting` decoder interprets the winning value.
-This separation is what allows a YAML value, an environment variable, and `--set` to obey
-one precedence and provenance model.
-
-A typical envparse declaration looks like this:
-
-```haskell
-environmentParser :: Env.Parser Env.Error Environment
-environmentParser =
-  Env.var environmentReader "HASKELL_ENV" (Env.help "Runtime environment")
-
-databasePortParser :: Env.Parser Env.Error Int
-databasePortParser =
-  Env.var Env.auto "DATABASE_PORT" (Env.help "Database port" <> Env.def 5432)
+```cabal
+build-depends:
+  , optparse-applicative
+  , settei
+  , settei-env
+  , settei-optparse-applicative
+  , text
 ```
 
-The Settei declaration names the same inputs once, independently of their sources:
+The main modules are:
 
 ```haskell
-import Data.Bifunctor (first)
-import Data.Generics.Labels ()
+import Data.List.NonEmpty (NonEmpty)
+import Data.Text (Text)
 import Data.Text qualified as Text
+import Options.Applicative qualified as Options
 import Settei
 import Settei.Env
 import Settei.Optparse
-import Settei.Prelude
+```
 
-data Environment = Development | Production | Test
-  deriving stock (Generic, Eq, Ord, Show)
+## Declare settings independently of input names
+
+Settei keys are application-facing names. Environment variables and flags are bindings to
+those keys, not separate declarations:
+
+```haskell
+data Environment = Development | Production
+  deriving stock (Eq, Ord, Show)
 
 data AppConfig = AppConfig
   { environment :: !Environment,
     databaseHost :: !Text,
     databasePort :: !Int,
-    databasePassword :: !Text,
-    servicePort :: !Int
+    databasePassword :: !Text
   }
-  deriving stock (Generic, Eq)
-
-environmentSetting :: Setting Environment
-environmentSetting =
-  publicSettingWithRenderer
-    environmentKey
-    "Runtime environment"
-    ( enumDecoder
-        [ ("development", Development),
-          ("production", Production),
-          ("test", Test)
-        ]
-    )
-    renderEnvironment
-
-databaseHostSetting :: Setting Text
-databaseHostSetting =
-  publicSetting databaseHostKey "Database host" textDecoder
-
-databasePortSetting :: Setting Int
-databasePortSetting =
-  publicSetting databasePortKey "Database port" boundedIntegralDecoder
-
-databasePasswordSetting :: Setting Text
-databasePasswordSetting =
-  secretSetting databasePasswordKey "Database password" textDecoder
-
-servicePortSetting :: Setting Int
-servicePortSetting =
-  publicSettingWithRenderer servicePortKey "Service port" boundedIntegralDecoder (Text.pack . show)
-
-servicePortConfig :: Config Int
-servicePortConfig =
-  withDefault
-    servicePortSetting
-    ( caseDefault
-        (RuleName "service-port-by-environment")
-        "Choose the conventional port for the runtime environment"
-        (required environmentSetting)
-        ( (Development, 8080)
-            :| [ (Test, 18080),
-                  (Production, 443)
-                ]
-        )
-        Nothing
-    )
+  deriving stock (Eq)
 
 appConfig :: Config AppConfig
 appConfig =
@@ -113,89 +52,194 @@ appConfig =
     <*> required databaseHostSetting
     <*> withDefault
       databasePortSetting
-      (constantDefault (RuleName "default-database-port") "Use PostgreSQL's conventional port" 5432)
+      (constantDefault (RuleName "postgres-port") "Use PostgreSQL's standard port" 5432)
     <*> required databasePasswordSetting
-    <*> servicePortConfig
+
+environmentSetting :: Setting Environment
+environmentSetting =
+  publicSettingWithRenderer
+    (validKey "runtime.environment")
+    "Runtime environment"
+    (enumDecoder [("development", Development), ("production", Production)])
+    renderEnvironment
+
+databaseHostSetting :: Setting Text
+databaseHostSetting =
+  publicSetting (validKey "database.host") "Database host" textDecoder
+
+databasePortSetting :: Setting Int
+databasePortSetting =
+  publicSettingWithRenderer
+    (validKey "database.port")
+    "Database port"
+    boundedIntegralDecoder
+    (Text.pack . show)
+
+databasePasswordSetting :: Setting Text
+databasePasswordSetting =
+  secretSetting (validKey "database.password") "Database password" textDecoder
+
+validKey :: Text -> Key
+validKey value = either (error . show) id (parseKey value)
 
 renderEnvironment :: Environment -> Text
 renderEnvironment Development = "development"
 renderEnvironment Production = "production"
-renderEnvironment Test = "test"
-
-environmentKey, databaseHostKey, databasePortKey, databasePasswordKey, servicePortKey :: Key
-environmentKey = validKey "runtime.environment"
-databaseHostKey = validKey "database.host"
-databasePortKey = validKey "database.port"
-databasePasswordKey = validKey "database.password"
-servicePortKey = validKey "service.port"
-
-validKey :: Text -> Key
-validKey value = either (error . show) id (parseKey value)
 ```
 
-The port rules are named configuration syntax, not hidden post-processing. If no source
-supplies `database.port`, the report names `default-database-port`. If no source supplies
-`service.port`, the report retains the resolved `runtime.environment` dependency and names
-`service-port-by-environment`. An explicit port skips its default dependency.
-
+Environment and command-line values arrive as `RawText`. The built-in
+`boundedIntegralDecoder` and `boolDecoder` accept their textual spellings, as do
+`textDecoder` and `enumDecoder`. A custom decoder for a key used by these adapters should
+also define how `RawText` is handled.
 
 ## Bind environment variables explicitly
 
-Bindings are ordinary data and can be tested without changing the process environment:
+An `EnvBinding` maps one portable environment name to one structural key:
 
 ```haskell
 environmentBindings :: [EnvBinding]
 environmentBindings =
-  [ binding (EnvName "HASKELL_ENV") environmentKey,
-    binding (EnvName "DATABASE_HOST") databaseHostKey,
-    binding (EnvName "DATABASE_PORT") databasePortKey,
+  [ binding (EnvName "HASKELL_ENV") (validKey "runtime.environment"),
+    binding (EnvName "DATABASE_HOST") (validKey "database.host"),
+    binding (EnvName "DATABASE_PORT") (validKey "database.port"),
     fromKubernetesObject
       (kubernetesRef SecretObject (Just "production") "service-database" (Just "password"))
-      (binding (EnvName "DATABASE_PASSWORD") databasePasswordKey),
-    binding (EnvName "SERVICE_PORT") servicePortKey
+      (binding (EnvName "DATABASE_PASSWORD") (validKey "database.password"))
   ]
-
-testSnapshot :: EnvSnapshot
-testSnapshot =
-  envSnapshot
-    [ ("HASKELL_ENV", "production"),
-      ("DATABASE_HOST", "postgres.internal"),
-      ("DATABASE_PASSWORD", "test-only-sentinel")
-    ]
 ```
 
-`envSource` rejects invalid or duplicate variable names, duplicate or structurally
-overlapping target keys, and collisions introduced by `prefixedBindings`. An absent
-variable is simply absent from the source. The core declaration then decides whether the
-setting is required, optional, or defaulted.
+Only listed variables are read. An absent variable creates no candidate, so `required`,
+`optional`, or `withDefault` controls what absence means. Empty strings are present values
+and are passed to the setting decoder.
 
-The Kubernetes reference above is trusted metadata asserted by the application or its
-deployment generator. Settei does not query a cluster. Reports may show the namespace,
-Secret name, and Secret key, but `database.password` remains `<redacted>` because its
-`Setting` is secret.
+`fromKubernetesObject` adds origin metadata for explanations. It does not contact a
+cluster and does not make a value secret. The `secretSetting` declaration above is what
+guarantees redaction.
 
-
-## Assemble precedence deliberately
-
-`Settei.Optparse.setteiOptions` parses repeated `--config PATH`, repeated
-`--set KEY=VALUE`, and the mutually exclusive `--explain-config` and
-`--explain-config-json` flags. It only parses paths; a file adapter is responsible for
-opening them. The following function receives already parsed file sources and places them
-below environment and command-line inputs:
+At application startup, snapshot the environment once:
 
 ```haskell
+loadEnvironment :: IO (Either (NonEmpty EnvError) Source)
+loadEnvironment =
+  readEnvSource "environment" environmentBindings
+```
+
+The source label should be stable and safe to display. `readEnvSource` reads the process
+environment once, then uses the same pure translation as `envSource`.
+
+### Test without modifying the process environment
+
+Use an `EnvSnapshot` in unit tests:
+
+```haskell
+testEnvironment :: Either (NonEmpty EnvError) Source
+testEnvironment =
+  envSource
+    "test environment"
+    environmentBindings
+    ( envSnapshot
+        [ ("HASKELL_ENV", "development"),
+          ("DATABASE_HOST", "127.0.0.1"),
+          ("DATABASE_PASSWORD", "test-only-secret")
+        ]
+    )
+```
+
+`envSource` validates the entire binding list. It rejects invalid or repeated variable
+names, repeated target keys, and overlapping targets such as `database` together with
+`database.host`. The resulting `EnvError` values contain names and keys, never environment
+values.
+
+### Generate conventional bindings
+
+For a large flat set of keys, `prefixedBindings` derives names by uppercasing segments and
+joining them with underscores:
+
+```haskell
+generatedBindings :: Either (NonEmpty EnvError) [EnvBinding]
+generatedBindings =
+  prefixedBindings
+    "MYAPP"
+    [validKey "service.host", validKey "service.port"]
+```
+
+This produces `MYAPP_SERVICE_HOST` and `MYAPP_SERVICE_PORT`. Generation remains explicit:
+pass the returned bindings to `envSource` or `readEnvSource`. Normalization collisions are
+reported instead of silently selecting one binding.
+
+## Parse reusable command-line options
+
+`setteiOptions` provides:
+
+| Option | Parsed value |
+| --- | --- |
+| repeated `--config PATH` | `[FilePath]`; the application opens each path |
+| repeated `--set KEY=VALUE` | ordered `[CliOverride]` values |
+| `--explain-config` | `ExplainText` |
+| `--explain-config-json` | `ExplainJson` |
+
+Add it to an ordinary optparse-applicative parser:
+
+```haskell
+parserInfo :: Options.ParserInfo SetteiOptions
+parserInfo =
+  Options.info
+    (setteiOptions Options.<**> Options.helper)
+    ( Options.fullDesc
+        <> Options.progDesc "Run the service with layered configuration"
+    )
+```
+
+The parser validates the key portion of `--set KEY=VALUE`, but it intentionally leaves the
+value as text. The winning setting decoder performs type validation during `resolve`.
+This means `--set service.port=not-a-number` is a resolution error tied to that option.
+
+`--config` returns paths only. Choose one documented file policy in the application—for
+example, a fixed YAML format, an explicit `FORMAT:PATH` reader, or separate
+`--yaml-config` and `--kdl-config` options—and load paths with the corresponding adapter.
+
+### Use named flags when they improve the interface
+
+`namedOption` turns a normal text option into an optional one-key `Source`:
+
+```haskell
+portOption :: Options.Parser (Maybe Source)
+portOption =
+  namedOption
+    "--port"
+    (validKey "service.port")
+    ( Options.long "port"
+        <> Options.metavar "PORT"
+        <> Options.help "Override the service port"
+    )
+```
+
+The display spelling must name the option without including its value. Place the returned
+source in the precedence list at the exact level you want. If a parser has both named
+options and generic `--set`, the parser's assembly function—not raw argument position—must
+define which group wins.
+
+For custom help text or flag names, use `configPathOptionsWith`, `overrideOptionsWith`, and
+`explainModeOptionsWith`.
+
+## Resolve files, environment, and CLI overrides
+
+After the parser has run and file sources have been loaded, assemble one visibly ordered
+list. This example uses generic-lens field access; record pattern matching works as well.
+
+```haskell
+import Data.Bifunctor (first)
+import Data.Generics.Labels ()
+import Data.Text qualified as Text
+import Settei.Prelude ((^.))
+
 resolveApplication
   :: [Source]
-  -> EnvSnapshot
+  -> Source
   -> SetteiOptions
   -> Either Text (ResolveResult AppConfig)
-resolveApplication fileSources snapshot options = do
-  environmentSource <-
-    first
-      (Text.pack . show)
-      (envSource "environment" environmentBindings snapshot)
-  first
-    renderErrorsText
+resolveApplication fileSources environmentSource options =
+  first renderErrorsText
     ( resolve
         defaultResolveOptions
         ( fileSources
@@ -206,70 +250,48 @@ resolveApplication fileSources snapshot options = do
     )
 ```
 
-The order is low to high: a named default applies only when every explicit source is
-absent, file sources lose to environment variables, and environment variables lose to
-command-line fragments. Repeated `--set` options remain separate fragments, so the last
-occurrence wins and earlier occurrences appear in the shadow trace from nearest to oldest.
-A malformed final value is an error at that occurrence and never falls back.
+Sources are low to high:
 
-This explicit stack matches the useful parts of two registered application patterns.
-Rei resolves environment fields over YAML fields, while Seihou resolves CLI values over
-environment, scoped configuration, global configuration, and defaults. Settei keeps the
-ordering at the application boundary and centralizes the actual winner and explanation
-semantics in core.
-
-
-## Parse and explain without process mutation
-
-Tests use optparse-applicative 0.19's `execParserPure` and an `EnvSnapshot`:
-
-```haskell
-import Options.Applicative qualified as Options
-
-parseOptions :: [String] -> Maybe SetteiOptions
-parseOptions arguments =
-  Options.getParseResult
-    ( Options.execParserPure
-        Options.defaultPrefs
-        (Options.info (setteiOptions Options.<**> Options.helper) Options.fullDesc)
-        arguments
-    )
-
-exampleArguments :: [String]
-exampleArguments =
-  [ "--config",
-    "service.yaml",
-    "--set",
-    "service.port=9000",
-    "--set",
-    "service.port=9001",
-    "--explain-config"
-  ]
+```text
+first file < later file < environment < first --set < later --set
 ```
 
-After successful resolution, the executable selects the requested renderer:
+Repeated overrides remain separate sources. If the same key occurs twice, the final
+occurrence wins and the earlier occurrence remains visible in the shadow trace. A
+malformed final occurrence is an error and never falls back to an earlier valid value.
+
+## Render diagnostics
+
+Select a report renderer only after successful resolution:
 
 ```haskell
-renderExplanation :: SetteiOptions -> ResolveResult a -> Text
-renderExplanation options result =
+renderRequestedExplanation :: SetteiOptions -> ResolveResult a -> Maybe Text
+renderRequestedExplanation options result =
   case options ^. #explainMode of
-    NoExplain -> ""
-    ExplainText -> renderResolutionText (result ^. #report)
-    ExplainJson -> renderResolutionJson (result ^. #report)
+    NoExplain -> Nothing
+    ExplainText -> Just (renderResolutionText (result ^. #report))
+    ExplainJson -> Just (renderResolutionJson (result ^. #report))
 ```
 
-For the example stack, the text report identifies command-line occurrence 2 as the
-winner, then occurrence 1, environment, and file as shadowed candidates. The database
-password explanation can name `HASKELL_ENV`, `DATABASE_PASSWORD`, and Kubernetes Secret
-`production/service-database` key `password`, but it never contains the password value.
+Render failures with `renderErrorsText` or `renderErrorsJson`, and successful warnings with
+`renderWarningsText` or `renderWarningsJson`. Send human-readable diagnostics to stderr;
+reserve stdout for requested machine-readable JSON or the application's normal output.
 
-At the real executable boundary, replace the injected snapshot with one effectful call:
+The reports may include variable names, option names, keys, and trusted Kubernetes
+metadata. Secret setting values remain `<redacted>`. Do not append raw environment values
+or full command-line arguments to adapter or resolution errors.
 
-```haskell
-readEnvironmentSource :: IO (Either (NonEmpty EnvError) Source)
-readEnvironmentSource =
-  readEnvSource "environment" environmentBindings
-```
+## Production checklist
 
-Taking one snapshot before resolution makes the result deterministic even if another
-thread changes the process environment while configuration is being assembled.
+- Read the environment once during startup and inject snapshots in tests.
+- Bind only supported variables; do not scan arbitrary prefixes at runtime.
+- Document the source order and test an override at every layer.
+- Treat an empty environment value as explicit input, not as absence.
+- Make custom decoders accept the textual forms used by environment and CLI sources.
+- Mark sensitive settings with `secretSetting` before resolving any input.
+- Use stable, value-free labels for sources and option spellings.
+- Keep file loading and its IO errors separate from typed resolution failures.
+
+See [Building a CLI application](cli-application.md) for a complete executable structure
+and [Building a Kubernetes service](kubernetes-service.md) for Secret-backed environment
+bindings.

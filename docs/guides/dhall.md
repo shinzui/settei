@@ -1,96 +1,171 @@
 # Dhall configuration
 
-`settei-dhall` evaluates a typed Dhall expression into a provenance-aware Settei
-`Source`. It uses the source-inspected `dhall` 1.42.3 and `dhall-json` 1.7.12 libraries.
-The adapter owns parsing, import control, type checking, normalization, and value
-conversion; the core still owns ordered source precedence, setting decoders, defaults,
-redaction, and reports.
+Use `settei-dhall` to evaluate a typed Dhall expression into a provenance-aware `Source`.
+The adapter parses, checks, normalizes, and converts the expression; the core declaration
+still owns application decoding, defaults, sensitivity, and source precedence.
 
-Version one intentionally supports only import-free expressions and local import graphs
-contained by one canonical directory. It does not expose Dhall's unrestricted standard
-resolver because the maintained upstream API cannot intercept local and environment reads
-while also producing a complete cache-independent import closure.
+## Add the package
 
-
-## Load an import-free expression
-
-Use a stable, secret-safe label for expression text. Neither `DhallRoot` nor source values
-have a `Show` instance because they can contain secrets.
+```cabal
+build-depends:
+  , settei
+  , settei-dhall
+  , text
+```
 
 ```haskell
+import Data.Bifunctor (first)
+import Data.List.NonEmpty (NonEmpty)
 import Data.List.NonEmpty qualified as NonEmpty
+import Data.Text (Text)
 import Data.Text qualified as Text
 import Settei
 import Settei.Dhall
-import Settei.Prelude
-
-loadGenerated :: Text -> IO (Either Text Source)
-loadGenerated input = do
-  loaded <-
-    loadDhallSource
-      (dhallSourceOptions "generated Dhall" NoImports)
-      (dhallExpression "generated application configuration" input)
-  pure (either (Left . renderProblems) Right loaded)
-
-renderProblems :: NonEmpty DhallSourceError -> Text
-renderProblems =
-  Text.intercalate "\n"
-    . fmap
-      ( \problem ->
-          Text.pack (show (dhallErrorCategory problem))
-            <> ": "
-            <> dhallErrorMessage problem
-      )
-    . NonEmpty.toList
 ```
 
-`NoImports` rejects every embedded local, environment, remote, missing, raw-text, bytes,
-or location import before it can be resolved. A missing local path therefore produces
-`DhallImportPolicyError`, not an IO attempt.
+Every load requires an import policy:
 
+| Policy | Allowed input |
+| --- | --- |
+| `NoImports` | The root expression or root file only; every embedded import is rejected. |
+| `LocalImportsWithin root` | Local imports whose canonical paths remain inside `root`. |
 
-## Load a contained local graph
+Neither policy permits environment, remote, missing, or alternative imports. Choose the
+policy in application code rather than from untrusted configuration input.
 
-`LocalImportsWithin root` canonicalizes `root`, the root file, and every transitive local
-import. A root file or import outside that directory fails. `..` escapes and symlink
-escapes are checked after canonicalization. Environment, remote, missing, and alternative
-imports fail during preflight and are never passed to the upstream evaluator.
+## Load an import-free expression
+
+For generated or embedded Dhall text, give the expression a stable, secret-safe label:
 
 ```haskell
-loadApplicationFile :: FilePath -> FilePath -> IO (Either (NonEmpty DhallSourceError) Source)
-loadApplicationFile allowedRoot path =
+loadGeneratedDhall
+  :: Text
+  -> IO (Either (NonEmpty DhallSourceError) Source)
+loadGeneratedDhall input =
   loadDhallSource
-    (dhallSourceOptions "application Dhall" (LocalImportsWithin allowedRoot))
+    (dhallSourceOptions "generated configuration" NoImports)
+    (dhallExpression "generated application.dhall" input)
+```
+
+`NoImports` rejects an import before resolving it. Use it for self-contained input and as
+the safest default for applications that do not need shared Dhall modules.
+
+`DhallRoot` and `Source` intentionally have no `Show` instance because they may contain
+unredacted configuration values. Keep expression labels and source names free of secrets.
+
+## Load a file with local imports
+
+Use `LocalImportsWithin` when a configuration is split into trusted local files:
+
+```haskell
+loadApplicationDhall
+  :: FilePath
+  -> FilePath
+  -> IO (Either (NonEmpty DhallSourceError) Source)
+loadApplicationDhall allowedRoot path =
+  loadDhallSource
+    (dhallSourceOptions "application configuration" (LocalImportsWithin allowedRoot))
     (DhallFile path)
 ```
 
-The policy supports code, raw-text, raw-bytes, and location modes when the referenced local
-file exists inside the allowed root. The resulting normalized value must still be
-JSON-compatible, so a raw bytes value normally ends in `DhallConversionError`. Semantic
-integrity hashes are enforced by Dhall and retained in structured provenance.
+The root file and every transitive import must remain inside `allowedRoot` after absolute
+path and symlink resolution. A `..` or symlink escape returns `DhallImportPolicyError`.
+Use a read-only directory controlled by the application or deployment; the policy is not
+an operating-system sandbox.
 
-Containment is a configuration capability boundary, not an operating-system sandbox.
-Preflight validates canonical paths before upstream evaluation, but an attacker able to
-replace files or symlinks concurrently could race those two phases. Do not use a writable,
-hostile directory as an allowed root.
+Local code, raw-text, raw-bytes, and location import modes can pass policy checks. The
+final normalized expression must still be convertible to Settei values, so bytes and
+other non-JSON values normally fail later with `DhallConversionError`. Dhall semantic
+integrity hashes are checked during evaluation.
 
+To load a self-contained file with no embedded imports, pass `NoImports` with
+`DhallFile path`.
 
-## Supported values
+## Return a top-level record
 
-The top-level result must be a Dhall record because Settei sources are hierarchical key
-trees. Record fields become structural key segments, and empty or dotted fields fail
-instead of becoming implicit nested paths.
+Settei sources are hierarchical objects, so the evaluated top-level value must be a Dhall
+record:
 
-The adapter follows the official `dhall-json` conversion for records, lists, `Bool`,
-`Natural`, `Integer`, finite `Double`, `Text`, `Optional`, and unions. `Some x` becomes
-`x`, `None T` becomes explicit `RawNull`, and a selected union alternative becomes its
-payload or its alternative name when it has no payload. Natural and integer values remain
-exact; finite doubles use Aeson's finite JSON number representation. Non-finite doubles,
-bytes, functions, types, and other values without a JSON representation fail with
-`DhallConversionError`.
+```dhall
+{ runtime = { environment = "production" }
+, service =
+    { host = "api.internal"
+    , port = 8080
+    , names = [ "public", "health" ]
+    }
+}
+```
 
-The adapter selects `Dhall.JSON.NoConversion`. An association list such as this remains an
-array of records:
+This supplies `runtime.environment`, `service.host`, `service.port`, and `service.names`.
+Record field names become Settei key segments. Empty or dotted fields are rejected; use
+nested records for dotted Settei keys.
+
+## Declare decoders and resolve the source
+
+The application declaration is not specific to Dhall:
+
+```haskell
+data ServiceConfig = ServiceConfig
+  { host :: !Text,
+    port :: !Int,
+    names :: ![Text]
+  }
+  deriving stock (Eq)
+
+serviceConfig :: Config ServiceConfig
+serviceConfig =
+  ServiceConfig
+    <$> required (publicSetting (validKey "service.host") "Service host" textDecoder)
+    <*> required (publicSetting (validKey "service.port") "Service port" boundedIntegralDecoder)
+    <*> required (publicSetting (validKey "service.names") "Service names" textListDecoder)
+
+textListDecoder :: Decoder [Text]
+textListDecoder = decoder $ \targetKey -> \case
+  RawArray values -> traverse (textElement targetKey) values
+  _ -> Left (decodeFailure targetKey "an array of text")
+
+textElement :: Key -> RawValue -> Either DecodeFailure Text
+textElement targetKey = \case
+  RawText value -> Right value
+  _ -> Left (decodeFailure targetKey "an array of text")
+
+validKey :: Text -> Key
+validKey value = either (error . show) id (parseKey value)
+```
+
+Keep evaluation failures separate from typed resolution failures:
+
+```haskell
+resolveDhallFile
+  :: FilePath
+  -> FilePath
+  -> IO (Either Text (ResolveResult ServiceConfig))
+resolveDhallFile allowedRoot path = do
+  loaded <- loadApplicationDhall allowedRoot path
+  pure $ do
+    dhallSource <- first renderDhallErrors loaded
+    first renderErrorsText
+      (resolve defaultResolveOptions [dhallSource] serviceConfig)
+```
+
+## Understand Dhall-to-Settei values
+
+| Dhall result | `RawValue` |
+| --- | --- |
+| `Text` | `RawText` |
+| `Bool` | `RawBool` |
+| `Natural`, `Integer`, finite `Double` | `RawNumber` |
+| `List a` | `RawArray` |
+| record | `RawObject` |
+| `Some x` | the converted value of `x` |
+| `None T` | `RawNull` |
+| union alternative with a payload | the converted payload |
+| union alternative without a payload | the alternative name as `RawText` |
+
+Natural and integer values remain exact. Non-finite doubles, bytes, functions, types, and
+other results without a supported value representation return `DhallConversionError`.
+
+Association lists remain arrays of records:
 
 ```dhall
 { entries =
@@ -100,25 +175,28 @@ array of records:
 }
 ```
 
-It is not silently collapsed into an object, because duplicate `mapKey` values are valid
-list data and object conversion would discard that distinction.
+They are not converted into objects. Declare the corresponding setting decoder as an
+array decoder.
 
+## Evolve a Dhall schema
 
-## Schema evolution with defaults
-
-Dhall record fields are always required. `Optional Text` means that the field's value may
-be absent; it does not let a caller omit the record field. Preserve old inputs by keeping a
-small input type, defining the complete output type separately, and applying new fields in
-a constructor. This pattern is adapted from the registered
-`dhall-schema-evolution-pattern` guide and is exercised by the adapter test suite:
+Dhall record fields are required by their record type. `Optional Text` allows a field's
+value to be `None`; it does not allow the field itself to be omitted. To accept an older,
+smaller input while producing a complete record, define a constructor with defaults:
 
 ```dhall
 let Input = { name : Text }
 
-let Output = { name : Text, description : Optional Text, tags : List Text }
+let Output =
+      { name : Text
+      , description : Optional Text
+      , tags : List Text
+      }
 
-let default : { description : Optional Text, tags : List Text } =
-      { description = None Text, tags = [] : List Text }
+let default =
+      { description = None Text
+      , tags = [] : List Text
+      }
 
 let make = \(input : Input) -> default // input
 
@@ -127,59 +205,109 @@ let value : Output = make { name = "my-service" }
 in  { service = value }
 ```
 
-An exported schema module can expose these local declarations as fields named `Input`,
-`Type`, `default`, and `make`; inside the module, use a non-reserved local name such as
-`Output` for the final type.
+An imported schema module can expose `Input`, `Type`, `default`, and `make`. Keep the
+top-level application expression a record after applying the constructor.
 
+This Dhall-level defaulting happens before Settei receives a source. Use Settei defaults
+instead when the fallback should be shared across YAML, KDL, environment, CLI, and Dhall
+inputs or should appear as a named rule in the resolution report.
 
-## Provenance and precision
+## Inspect the local import closure
 
-`loadDhallSourceDetailed` returns both the `Source` and a sorted, de-duplicated list of
-`DhallImport` records. Each import retains its canonical path, interpretation mode, and
-optional semantic hash. The simpler `loadDhallSource` discards that side channel while
-retaining equivalent annotations on every source origin.
-
-Reserved annotations include `dhall.root`, `dhall.import-policy`, `dhall.import-count`,
-`dhall.provenance-precision`, and indexed `dhall.import.N.*` fields. Caller annotations are
-trusted, secret-safe metadata; reserved Dhall keys win collisions. A report says, for
-example:
-
-```text
-service.port = 8080
-  from file source application Dhall (Dhall) rooted at /etc/service/application.dhall evaluated with 2 local imports; leaf-level import attribution unavailable after normalization
-```
-
-That limitation is deliberate. Normalization can combine, discard, or transform imported
-expressions, so the adapter reports the substantiated root and complete local import
-closure without fabricating one contributing file for each leaf.
-
-
-## Ordering, Kubernetes, caches, and secrets
-
-Pass sources to `resolve` from lowest to highest precedence. Dhall does not merge Settei
-layers: the core chooses the rightmost present leaf, replaces arrays wholesale, and never
-falls back from a malformed winner.
-
-Kubernetes metadata remains an application assertion. Attach the core annotations without
-performing cluster discovery:
+Use `loadDhallSourceDetailed` when the application needs the transitive imports for
+auditing, file watching, or deployment validation:
 
 ```haskell
-mountedOptions :: FilePath -> DhallSourceOptions
-mountedOptions root =
-  annotateDhallSourceOptions
-    (kubernetesAnnotations (kubernetesRef SecretObject (Just "production") "service-config" (Just "application.dhall")))
-    (dhallSourceOptions "mounted Dhall" (LocalImportsWithin root))
+loadWithImports
+  :: DhallSourceOptions
+  -> DhallRoot
+  -> IO (Either (NonEmpty DhallSourceError) (Source, [DhallImport]))
+loadWithImports options root = do
+  loaded <- loadDhallSourceDetailed options root
+  pure
+    ( fmap
+        (\result -> (dhallLoadedSource result, dhallLoadedImports result))
+        loaded
+    )
 ```
 
-Local evaluation disables Dhall's semantic integrity cache for the run, but upstream
-1.42.3 has a separate semi-semantic cache with no public off switch. Settei's closure is
-collected by preflight and is therefore independent of cache hits. Applications that need
-cache isolation should set `XDG_CACHE_HOME` for the process before loading configuration;
-the test executable points it at a temporary directory before any test begins.
+Each `DhallImport` provides its canonical path, interpretation mode, and optional semantic
+hash through `dhallImportPath`, `dhallImportMode`, and `dhallImportSemanticHash`. The list
+is sorted and de-duplicated.
 
-Parsing and type checking happen before Settei knows which settings are secret. Structured
-adapter errors therefore contain only a stable phase, source name, optional safe path, and
-fixed message. They never retain source snippets or upstream exceptions. Root labels,
-paths, and caller annotations can appear in reports, so callers must keep those metadata
-fields secret-safe. Actual secret values remain available to the typed application result
-and are redacted by the core from text, JSON, errors, warnings, and shadow traces.
+Resolution origins report the root and import count. They do not assign one imported file
+to each final leaf, because normalization can combine values from multiple expressions.
+If the application watches files, watch the returned closure rather than trying to infer
+leaf ownership from the resolution report.
+
+## Layer Dhall with other sources
+
+Pass sources from lowest to highest precedence:
+
+```haskell
+orderedSources = dhallSources <> [environmentSource] <> commandLineSources
+```
+
+Resolution is leaf-wise across sources. A later source can override `service.port` while
+retaining a Dhall `service.host`. Arrays are replaced as complete values. A malformed
+winning candidate is an error and does not fall back to the Dhall value.
+
+## Render Dhall errors
+
+```haskell
+renderDhallErrors :: NonEmpty DhallSourceError -> Text
+renderDhallErrors =
+  Text.intercalate "\n"
+    . fmap renderDhallError
+    . NonEmpty.toList
+
+renderDhallError :: DhallSourceError -> Text
+renderDhallError problem =
+  Text.pack (show (dhallErrorCategory problem))
+    <> ": "
+    <> dhallErrorMessage problem
+```
+
+`DhallErrorCategory` distinguishes IO, parse, policy, import, type, conversion, invalid
+key, and top-level type failures. Use `dhallErrorName` and `dhallErrorPath` to add safe
+context. Errors do not retain expression snippets, imported values, or upstream exception
+text.
+
+## Attach Kubernetes metadata
+
+Dhall uses the core Kubernetes annotation helper:
+
+```haskell
+mountedDhallOptions :: FilePath -> DhallSourceOptions
+mountedDhallOptions allowedRoot =
+  annotateDhallSourceOptions
+    ( kubernetesAnnotations
+        ( kubernetesRef
+            ConfigMapObject
+            (Just "production")
+            "service-config"
+            (Just "application.dhall")
+        )
+    )
+    (dhallSourceOptions "mounted application configuration" (LocalImportsWithin allowedRoot))
+```
+
+The metadata makes no Kubernetes API request and may appear in reports. Keep it safe to
+display. Mark sensitive application keys with `secretSetting`; the mounted object kind
+does not determine redaction.
+
+## Production checklist
+
+- Prefer `NoImports` unless the application needs a local module graph.
+- Use a narrow, read-only `LocalImportsWithin` directory for local graphs.
+- Keep source names, expression labels, paths, and annotations free of secrets.
+- Use the detailed loader when file watching or import auditing is required.
+- Decide whether defaults belong in the shared Settei declaration or only in Dhall.
+- Document Dhall's position relative to environment and CLI sources.
+- Render structured errors instead of echoing source text.
+- Isolate the process's `XDG_CACHE_HOME` when deployment policy requires a private Dhall
+  cache.
+
+See the [security model](../security.md) for the import-policy threat model and
+[Building a Kubernetes service](kubernetes-service.md) for a mounted configuration
+workflow.
