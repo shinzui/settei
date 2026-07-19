@@ -117,9 +117,11 @@ resolveKdlFile path = do
   loaded <- loadKdl path
   pure $ do
     kdlSource <- first renderKdlErrors loaded
-    first renderErrorsText
-      (resolve defaultResolveOptions [kdlSource] serviceConfig)
+    pure (resolve defaultResolveOptions [kdlSource] serviceConfig)
 ```
+
+The outer `Either Text` represents adapter loading. Typed resolution errors live in
+`ResolveResult.answer`, alongside the report and warnings for that failed attempt.
 
 ## Understand the node mapping
 
@@ -210,7 +212,7 @@ Pass sources from lowest to highest precedence:
 resolveFiles
   :: Source
   -> Source
-  -> Either (NonEmpty ConfigError) (ResolveResult ServiceConfig)
+  -> ResolveResult ServiceConfig
 resolveFiles shared local =
   resolve defaultResolveOptions [shared, local] serviceConfig
 ```

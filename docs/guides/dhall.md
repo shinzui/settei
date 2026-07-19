@@ -144,9 +144,12 @@ resolveDhallFile allowedRoot path = do
   loaded <- loadApplicationDhall allowedRoot path
   pure $ do
     dhallSource <- first renderDhallErrors loaded
-    first renderErrorsText
-      (resolve defaultResolveOptions [dhallSource] serviceConfig)
+    pure (resolve defaultResolveOptions [dhallSource] serviceConfig)
 ```
+
+The outer `Either Text` represents Dhall evaluation and conversion. Typed resolution
+errors live in `ResolveResult.answer`, while the report and warnings remain available for
+the failed attempt.
 
 ## Understand Dhall-to-Settei values
 

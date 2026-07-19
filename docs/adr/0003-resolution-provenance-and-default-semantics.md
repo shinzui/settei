@@ -178,3 +178,33 @@ This is defense in depth rather than error-only enforcement. The conflict error 
 application owner that independently composed modules disagree, while most-restrictive
 schema and report semantics keep the redaction guarantee intact even if a future internal
 path constructs or combines nodes before handling that error.
+
+
+## Amendment 2026-07-19: reports for every resolution attempt
+
+`resolve` returns a total `ResolveResult`. Its `answer` field contains either the typed
+application value or a non-empty collection of configuration errors, while `report` and
+`warnings` remain available on both success and failure. A separate
+`resolveWithReport` entry point was rejected because two resolver boundaries could drift
+and adopting applications could standardize on the older lossy one.
+
+For a failure reached during evaluation, the report retains every node and branch trace
+that evaluation produced, including the winning origin and shadowed origins for a value
+that failed to decode. The rejected candidate enters the report only through its
+sensitivity-aware `ReportedValue`, so existing redaction rules are unchanged. The report
+is completed with the same not-selected placeholders as a successful attempt, giving
+operators one stable schema-shaped view.
+
+Sensitivity and structural validation failures happen before evaluation and return the
+complete static schema as `NotSelected` nodes with no origins, shadowed origins,
+derivations, or branch traces. Unknown-key warnings are still available on these paths.
+The default-cycle exit is stricter: it returns no warnings and never inspects a source,
+preserving the observable cycle-preflight law. Because ordinary schema inspection follows
+default dependencies and cannot terminate for a cyclic declaration, this exit builds its
+not-selected skeleton with a `RuleName`-guarded declaration traversal and merges duplicate
+sensitivities most-restrictively.
+
+Under `RejectUnknownKeys`, unknown leaves remain errors in `answer` and `warnings` is
+empty. JSON reports retain `schemaVersion: 1`: the report document representation is
+unchanged, and failure merely makes an existing secret-safe document available on more
+resolution paths.

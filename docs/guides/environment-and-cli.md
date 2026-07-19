@@ -228,7 +228,6 @@ After the parser has run and file sources have been loaded, assemble one visibly
 list. This example uses generic-lens field access; record pattern matching works as well.
 
 ```haskell
-import Data.Bifunctor (first)
 import Data.Generics.Labels ()
 import Data.Text qualified as Text
 import Settei.Prelude ((^.))
@@ -237,17 +236,15 @@ resolveApplication
   :: [Source]
   -> Source
   -> SetteiOptions
-  -> Either Text (ResolveResult AppConfig)
+  -> ResolveResult AppConfig
 resolveApplication fileSources environmentSource options =
-  first renderErrorsText
-    ( resolve
-        defaultResolveOptions
-        ( fileSources
-            <> [environmentSource]
-            <> cliSources "arguments" (options ^. #overrides)
-        )
-        appConfig
+  resolve
+    defaultResolveOptions
+    ( fileSources
+        <> [environmentSource]
+        <> cliSources "arguments" (options ^. #overrides)
     )
+    appConfig
 ```
 
 Sources are low to high:
@@ -262,7 +259,7 @@ malformed final occurrence is an error and never falls back to an earlier valid 
 
 ## Render diagnostics
 
-Select a report renderer only after successful resolution:
+Select a report renderer from the total result:
 
 ```haskell
 renderRequestedExplanation :: SetteiOptions -> ResolveResult a -> Maybe Text
@@ -273,9 +270,10 @@ renderRequestedExplanation options result =
     ExplainJson -> Just (renderResolutionJson (result ^. #report))
 ```
 
-Render failures with `renderErrorsText` or `renderErrorsJson`, and successful warnings with
-`renderWarningsText` or `renderWarningsJson`. Send human-readable diagnostics to stderr;
-reserve stdout for requested machine-readable JSON or the application's normal output.
+Render errors from `result ^. #answer` with `renderErrorsText` or `renderErrorsJson`, and
+warnings with `renderWarningsText` or `renderWarningsJson`. The report and warnings remain
+available when the answer is an error. Send human-readable diagnostics to stderr; reserve
+stdout for requested machine-readable JSON on success or the application's normal output.
 
 The reports may include variable names, option names, keys, and trusted Kubernetes
 metadata. Secret setting values remain `<redacted>`. Do not append raw environment values

@@ -127,12 +127,13 @@ resolveYamlFile path = do
   loaded <- loadYaml path
   pure $ do
     yamlSource <- first renderYamlErrors loaded
-    first renderErrorsText
-      (resolve defaultResolveOptions [yamlSource] serviceConfig)
+    pure (resolve defaultResolveOptions [yamlSource] serviceConfig)
 ```
 
 Keeping the phases separate lets a CLI assign distinct exit codes to unreadable or
-malformed files and to typed configuration failures.
+malformed files and to typed configuration failures. The outer `Either Text` represents
+loading; inspect `ResolveResult.answer` for typed configuration errors while retaining
+the report and warnings.
 
 ## Layer multiple files
 
@@ -142,7 +143,7 @@ Pass sources from lowest to highest precedence:
 resolveFiles
   :: Source
   -> Source
-  -> Either (NonEmpty ConfigError) (ResolveResult ServiceConfig)
+  -> ResolveResult ServiceConfig
 resolveFiles shared local =
   resolve defaultResolveOptions [shared, local] serviceConfig
 ```

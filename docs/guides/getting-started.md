@@ -170,7 +170,7 @@ precedence:
 ```haskell
 resolveApp
   :: [Source]
-  -> Either (NonEmpty ConfigError) (ResolveResult AppConfig)
+  -> ResolveResult AppConfig
 resolveApp sources =
   resolve defaultResolveOptions sources appConfig
 ```
@@ -199,16 +199,19 @@ strictOptions = ResolveOptions {unknownKeyPolicy = RejectUnknownKeys}
 
 ## Use the typed result and diagnostics
 
-On success, `ResolveResult` contains the application value, a redacted report, and
-non-fatal warnings. With `OverloadedLabels` and `Data.Generics.Labels`, the fields can be
-read as follows:
+Every `ResolveResult` contains an `answer` (the application value or non-empty errors), a
+redacted report, and non-fatal warnings. With `OverloadedLabels` and
+`Data.Generics.Labels`, the fields can be read as follows:
 
 ```haskell
 handleResult :: ResolveResult AppConfig -> IO AppConfig
 handleResult result = do
   let warningText = renderWarningsText (result ^. #warnings)
   -- Send warningText to stderr or the application's logger when non-empty.
-  pure (result ^. #value)
+  either
+    (fail . Text.unpack . renderErrorsText)
+    pure
+    (result ^. #answer)
 
 explanationText :: ResolveResult a -> Text
 explanationText result = renderResolutionText (result ^. #report)
@@ -217,9 +220,10 @@ explanationJson :: ResolveResult a -> Text
 explanationJson result = renderResolutionJson (result ^. #report)
 ```
 
-Render resolution failures with `renderErrorsText` or `renderErrorsJson`. These renderers
-can safely report secret settings because rejected secret values have already been
-replaced with `<redacted>`.
+Render the error side of `answer` with `renderErrorsText` or `renderErrorsJson`. These
+renderers can safely report secret settings because rejected secret values have already
+been replaced with `<redacted>`. The report and warnings are still available on that
+failure path, which is usually when operators need provenance most.
 
 Do not log the complete typed configuration record: it contains the real values needed by
 the application, including secrets. Prefer an allowlisted startup summary plus Settei's

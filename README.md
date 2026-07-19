@@ -83,9 +83,10 @@ let orderedSources =
         <> [environmentSource]
         <> cliSources "arguments" overrides
 
-resolved <-
-  either (fail . Text.unpack . renderErrorsText) pure
-    (resolve defaultResolveOptions orderedSources serviceConfig)
+let result = resolve defaultResolveOptions orderedSources serviceConfig
+-- result ^. #report and result ^. #warnings exist even when resolution fails.
+config <-
+  either (fail . Text.unpack . renderErrorsText) pure (result ^. #answer)
 ```
 
 The reference CLI demonstrates the complete order:

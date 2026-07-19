@@ -75,7 +75,7 @@ resolveCli
   :: [Source]
   -> Source
   -> [CliOverride]
-  -> Either (NonEmpty ConfigError) (ResolveResult AppConfig)
+  -> ResolveResult AppConfig
 resolveCli fileSources environmentSource overrides =
   resolve
     defaultResolveOptions
@@ -241,15 +241,15 @@ case diagnosticMode of
     loadResolveAndRun
 ```
 
-After a successful resolution:
+After `result ^. #answer` yields a configuration:
 
 ```haskell
-renderSuccess mode result =
+renderSuccess mode config result =
   case mode of
     CheckConfiguration -> "configuration valid\n"
     ExplainConfigurationText -> renderResolutionText (result ^. #report)
     ExplainConfigurationJson -> renderResolutionJson (result ^. #report) <> "\n"
-    RunApplication -> runApplication (result ^. #value)
+    RunApplication -> runApplication config
 ```
 
 Do not print the typed result after an explanation. The typed record contains real secret
@@ -274,6 +274,12 @@ Set the usage code with `Options.failureCode`. Send usage and human-readable fai
 stderr. Requested JSON reports belong on stdout so scripts can consume them without
 log-prefix contamination.
 
+The report and warnings remain available when `result ^. #answer` contains errors. In an
+explain mode, render the errors first and append the requested redacted text or JSON report
+to stderr; keep the resolution exit code at `4` and stdout empty. Non-explain failures
+should continue to print only their errors. This makes an in-pod
+`--explain-config` run useful even when the pod cannot finish startup.
+
 ## Test the executable workflow
 
 Parse arguments without spawning a process:
@@ -297,6 +303,7 @@ Pass `envSnapshot` to the runner and capture its exit code, stdout, and stderr. 
 - an invalid winning override, proving it does not fall back;
 - separate usage, source-loading, and resolution exit codes;
 - text and JSON explanations;
+- a failing explain run that prints the provenance report to stderr;
 - unknown-key warnings or strict failures; and
 - a secret sentinel absent from stdout, stderr, errors, warnings, and reports.
 

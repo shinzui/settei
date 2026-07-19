@@ -203,7 +203,7 @@ Load each effectful source before starting listeners or worker threads:
 resolveService
   :: Source
   -> Source
-  -> Either (NonEmpty ConfigError) (ResolveResult ServiceConfig)
+  -> ResolveResult ServiceConfig
 resolveService mountedFile environmentSource =
   resolve
     defaultResolveOptions
@@ -216,13 +216,18 @@ Recommended startup sequence:
 1. Parse command-line usage.
 2. Read and translate mounted files.
 3. Snapshot explicitly bound environment variables.
-4. Resolve the typed declaration.
-5. Emit warnings and an allowlisted, non-secret startup summary.
+4. Resolve the typed declaration and inspect `result ^. #answer`.
+5. Emit warnings and, on success, an allowlisted non-secret startup summary.
 6. Construct resources and start serving.
 
 Fail startup when a source cannot be read or translated, a required setting is absent, or
 the winning value cannot be decoded. Do not start with a partial configuration or fall
 back to a lower candidate after malformed explicit input.
+
+The resolver's report and warnings remain available when `answer` contains errors. A
+failed startup can therefore log or return the same redacted provenance view as a
+successful validation, showing which sources won, what they shadowed, and what remained
+missing without exposing the typed record.
 
 By default, Settei does not watch mounted volumes. Kubernetes may update a projected
 ConfigMap or Secret after startup, but the typed value already held by the process does not
@@ -303,6 +308,12 @@ Provide `--check-config`, `--explain-config`, and `--explain-config-json` as des
 the [CLI application guide](cli-application.md). Use `--check-config` in image smoke tests
 or deployment validation where all required mounted files and environment values are
 available.
+
+When a pod is crash-looping because resolution fails, run the same container with
+`--explain-config` (or its JSON variant). The reference service prints the errors followed
+by the redacted failure report to stderr and keeps exit code `4`, so the diagnostic shows
+winning origins, shadowed inputs, missing values, and unselected branches even though the
+service cannot start.
 
 Do not run the long-lived container permanently in an explanation mode; those modes should
 render and exit. For a running service, log only:

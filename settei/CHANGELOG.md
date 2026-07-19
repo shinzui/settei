@@ -12,3 +12,6 @@
   representation to the redaction marker.
 - Add the structured `SensitivityConflict` resolution error for mixed-sensitivity keys,
   rendered in JSON with the additive `sensitivity-conflict` kind.
+- Breaking: `resolve` now returns `ResolveResult` unconditionally. The typed outcome
+  moved to its `answer` field, while the provenance report and warnings are available
+  for every resolution attempt, including failures.

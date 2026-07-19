@@ -86,7 +86,7 @@ the change is recorded in `settei/CHANGELOG.md` and in an amendment to
 - [x] (2026-07-19T17:45:34Z) Milestone 2: migrated the `settei-yaml`, `settei-kdl`, `settei-dhall`, `settei-env`, and `settei-optparse-applicative` test suites to the total result; the five package targets and Dhall prototype suite all passed.
 - [x] (2026-07-19T17:50:53Z) Milestone 3: migrated `examples/settei-cli/src/Settei/Example/Cli.hs` and `examples/settei-service/src/Settei/Example/Service.hs`; explain modes now append failure reports to stderr while other modes remain unchanged.
 - [x] (2026-07-19T17:50:53Z) Milestone 3: migrated the CLI, service, and conformance test suites; added text/JSON CLI failure-report cases and secret-safe service failure coverage; `nix develop -c cabal test all --test-show-details=direct` passed, and the manual CLI run exited 4 after printing the decode error and complete report.
-- [ ] Milestone 4: amend `docs/adr/0003-resolution-provenance-and-default-semantics.md` with a dated note; update `docs/guides/cli-application.md`, `docs/guides/kubernetes-service.md`, `README.md` (resolve snippet around lines 76–98), and `settei/CHANGELOG.md`; commit.
+- [x] (2026-07-19T17:53:59Z) Milestone 4: amended ADR 0003, updated both application guides, README, the core changelog, and every additional guide found by the repository-wide stale-signature scan; the scan and full workspace suite passed.
 - [ ] Final: `nix develop -c cabal test all --test-show-details=direct` passes; update this plan's living sections; write Outcomes & Retrospective; confirm the ADR amendment covers the durable decisions.
 
 
@@ -108,6 +108,13 @@ the change is recorded in `settei/CHANGELOG.md` and in an amendment to
   `Options.Applicative` was a member of hidden package
   `optparse-applicative-0.19.0.0` while compiling
   `examples/settei-service/test/Settei/Example/ServiceTest.hs`.
+- The Milestone 4 repository-wide signature scan found stale `resolve` examples beyond
+  the four documents named in the original inventory: `docs/guides/getting-started.md`,
+  `docs/guides/yaml.md`, `docs/guides/kdl.md`, `docs/guides/dhall.md`, and
+  `docs/guides/environment-and-cli.md`. All were migrated in this plan because leaving
+  any public guide on the removed outer `Either` or `#value` field would make the
+  breaking API documentation internally inconsistent. EP-14 should retain the
+  repository-wide scan rather than relying only on its initial document list.
 
 
 ## Decision Log
