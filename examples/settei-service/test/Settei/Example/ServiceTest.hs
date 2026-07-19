@@ -5,6 +5,7 @@ import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Maybe (isNothing)
 import Data.Text qualified as Text
+import Options.Applicative qualified as Options
 import Paths_settei_example_service qualified as Paths
 import Settei
 import Settei.Env
@@ -19,23 +20,26 @@ tests =
   testGroup
     "Settei.Example.Service"
     [ testCase "development derives defaults without a password" $ do
-        result <- expectResolution (resolveServiceSources [publicSource] (envSnapshot [("HASKELL_ENV", "development")]))
-        result ^. #value . #http . #port @?= 8080
-        result ^. #value . #database . #poolSize @?= 2
-        assertBool "development must not select a password" (isNothing (result ^. #value . #database . #password))
+        let result = resolveServiceSources [publicSource] (envSnapshot [("HASKELL_ENV", "development")])
+        config <- expectResolution result
+        config ^. #http . #port @?= 8080
+        config ^. #database . #poolSize @?= 2
+        assertBool "development must not select a password" (isNothing (config ^. #database . #password))
         assertRule "http.port" "http-port-by-environment" result
         assertRule "database.poolSize" "database-pool-size-by-environment" result
         case result ^. #report . #nodes . at (validKey "database.password") of
           Just node -> node ^. #outcome @?= NotSelected
           Nothing -> fail "expected not-selected password node",
       testCase "production requires an annotated password" $ do
-        case resolveServiceSources [publicSource] (envSnapshot [("HASKELL_ENV", "production")]) of
+        let missing = resolveServiceSources [publicSource] (envSnapshot [("HASKELL_ENV", "production")])
+        case missing ^. #answer of
           Left problems -> fmap problemKey (NonEmpty.toList problems) @?= [validKey "database.password"]
           Right _ -> fail "production unexpectedly resolved without a password"
-        result <- expectResolution (resolveServiceSources [publicSource] productionSnapshot)
+        let result = resolveServiceSources [publicSource] productionSnapshot
+        config <- expectResolution result
         let reportText = renderResolutionText (result ^. #report)
             reportJson = renderResolutionJson (result ^. #report)
-            startup = safeStartupSummary (result ^. #value)
+            startup = safeStartupSummary config
         assertBool "Secret origin missing" ("settei-example-service-database" `Text.isInfixOf` reportText)
         assertBool "text report leaked password" (not (secretSentinel `Text.isInfixOf` reportText))
         assertBool "JSON report leaked password" (not (secretSentinel `Text.isInfixOf` reportJson))
@@ -50,14 +54,44 @@ tests =
             )
             fixture
         input <- either (const (fail "expected fixture to load")) pure loaded
-        result <- expectResolution (resolveServiceSources [input] (envSnapshot [("HASKELL_ENV", "development")]))
+        let result = resolveServiceSources [input] (envSnapshot [("HASKELL_ENV", "development")])
+        _ <- expectResolution result
         let rendered = renderResolutionText (result ^. #report)
         assertBool "ConfigMap origin missing" ("settei-example-service" `Text.isInfixOf` rendered),
       testCase "normal mode prints only a safe startup summary" $ do
-        result <- expectResolution (resolveServiceSources [publicSource] productionSnapshot)
-        let summary = safeStartupSummary (result ^. #value)
+        let result = resolveServiceSources [publicSource] productionSnapshot
+        config <- expectResolution result
+        let summary = safeStartupSummary config
         assertBool "summary omitted HTTP address" ("0.0.0.0:8080" `Text.isInfixOf` summary)
-        assertBool "summary leaked secret" (not (secretSentinel `Text.isInfixOf` summary))
+        assertBool "summary leaked secret" (not (secretSentinel `Text.isInfixOf` summary)),
+      testCase "production failure explains missing password without leaking" $ do
+        fixture <- Paths.getDataFileName "test/fixtures/application.yaml"
+        options <- expectOptions ["--config", "yaml:" <> fixture, "--explain-config"]
+        result <- runServiceWithSnapshot (envSnapshot [("HASKELL_ENV", "production")]) options
+        serviceExitCode result @?= resolutionExitCode
+        serviceStandardOutput result @?= ""
+        assertBool
+          "failure omitted the missing-password error"
+          ("database.password: required value is missing" `Text.isInfixOf` serviceStandardError result)
+        assertBool
+          "failure omitted the missing-password provenance node"
+          ("database.password = <missing>" `Text.isInfixOf` serviceStandardError result)
+
+        secretFailure <-
+          runServiceWithSnapshot
+            ( envSnapshot
+                [ ("HASKELL_ENV", "production"),
+                  ("DATABASE_PASSWORD", secretSentinel),
+                  ("HTTP_PORT", "broken")
+                ]
+            )
+            options
+        serviceExitCode secretFailure @?= resolutionExitCode
+        assertBool
+          "secret-bearing failure leaked its sentinel"
+          ( not (secretSentinel `Text.isInfixOf` serviceStandardOutput secretFailure)
+              && not (secretSentinel `Text.isInfixOf` serviceStandardError secretFailure)
+          )
     ]
 
 publicSource :: Source
@@ -99,10 +133,16 @@ problemKey = \case
   DefaultCycle _ -> error "cycle has no key"
   SensitivityConflict problem -> problem ^. #key
 
-expectResolution :: Either a b -> IO b
-expectResolution = \case
+expectResolution :: ResolveResult a -> IO a
+expectResolution result = case result ^. #answer of
   Left _ -> fail "expected service resolution to succeed"
   Right value -> pure value
+
+expectOptions :: [String] -> IO ServiceOptions
+expectOptions arguments =
+  case Options.execParserPure Options.defaultPrefs serviceParserInfo arguments of
+    Options.Success value -> pure value
+    _ -> fail "expected service options to parse"
 
 validKey :: Text -> Key
 validKey value = either (error . show) id (parseKey value)

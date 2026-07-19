@@ -84,8 +84,8 @@ the change is recorded in `settei/CHANGELOG.md` and in an amendment to
 - [x] (2026-07-19T17:42:07Z) Milestone 1: added failure-path golden files `settei/test/golden/failure-resolution.txt` and `settei/test/golden/failure-resolution.json` plus their golden test cases.
 - [x] (2026-07-19T17:42:07Z) Milestone 1: `nix develop -c cabal test settei-tests --test-show-details=direct` passed with all 64 tests; ready to commit.
 - [x] (2026-07-19T17:45:34Z) Milestone 2: migrated the `settei-yaml`, `settei-kdl`, `settei-dhall`, `settei-env`, and `settei-optparse-applicative` test suites to the total result; the five package targets and Dhall prototype suite all passed.
-- [ ] Milestone 3: migrate `examples/settei-cli/src/Settei/Example/Cli.hs` and `examples/settei-service/src/Settei/Example/Service.hs`; add failure-report-on-stderr behavior for explain modes.
-- [ ] Milestone 3: migrate `examples/settei-cli/test/Settei/Example/CliTest.hs`, `examples/settei-service/test/Settei/Example/ServiceTest.hs`, and `examples/settei-conformance/test/Settei/Example/ConformanceTest.hs`; add new failure-report test cases; commit.
+- [x] (2026-07-19T17:50:53Z) Milestone 3: migrated `examples/settei-cli/src/Settei/Example/Cli.hs` and `examples/settei-service/src/Settei/Example/Service.hs`; explain modes now append failure reports to stderr while other modes remain unchanged.
+- [x] (2026-07-19T17:50:53Z) Milestone 3: migrated the CLI, service, and conformance test suites; added text/JSON CLI failure-report cases and secret-safe service failure coverage; `nix develop -c cabal test all --test-show-details=direct` passed, and the manual CLI run exited 4 after printing the decode error and complete report.
 - [ ] Milestone 4: amend `docs/adr/0003-resolution-provenance-and-default-semantics.md` with a dated note; update `docs/guides/cli-application.md`, `docs/guides/kubernetes-service.md`, `README.md` (resolve snippet around lines 76–98), and `settei/CHANGELOG.md`; commit.
 - [ ] Final: `nix develop -c cabal test all --test-show-details=direct` passes; update this plan's living sections; write Outcomes & Retrospective; confirm the ADR amendment covers the durable decisions.
 
@@ -100,6 +100,14 @@ the change is recorded in `settei/CHANGELOG.md` and in an amendment to
   when its `RuleName` is already active. The existing poisoned-source test now forces
   both cycle report nodes and still passes, proving termination and zero source
   inspection. Evidence: the 2026-07-19 core run completed with all 64 tests passing.
+- The first Milestone 3 full build compiled both example libraries and passed the CLI
+  and conformance suites, but the service test component could not import
+  `Options.Applicative` for its new end-to-end parser setup. The service library and
+  executable already depend on `optparse-applicative >=0.19 && <0.20`; only the test
+  component lacked the same direct dependency. Evidence: GHC reported that
+  `Options.Applicative` was a member of hidden package
+  `optparse-applicative-0.19.0.0` while compiling
+  `examples/settei-service/test/Settei/Example/ServiceTest.hs`.
 
 
 ## Decision Log
@@ -205,6 +213,15 @@ the change is recorded in `settei/CHANGELOG.md` and in an amendment to
   promised schema-shaped operator view, merges duplicate sensitivities with Secret
   dominance, and retains the stronger existing law that cycle detection touches no
   source. Non-cycle validation exits continue to use the complete static schema.
+  Date: 2026-07-19
+
+- Decision: Add the service package's existing `optparse-applicative >=0.19 && <0.20`
+  bound to the service test-suite dependencies.
+  Rationale: The new failure-path test must construct `ServiceOptions` through the
+  exported public parser so it exercises the real explain-mode boundary; the
+  `ServiceOptions` constructor is intentionally private. This is test-component
+  bookkeeping for an existing package dependency, not a new library dependency or API
+  change.
   Date: 2026-07-19
 
 

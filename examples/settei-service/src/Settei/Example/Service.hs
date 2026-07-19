@@ -257,8 +257,12 @@ runServiceWithSnapshot snapshot options = do
   resolved <- resolveServiceOptions snapshot options
   pure $ case resolved of
     Left (InputFailure message) -> failedRun sourceExitCode message
-    Left (ResolveFailure problems) -> failedRun resolutionExitCode (renderErrorsText problems)
-    Right result -> successfulRun (renderServiceSuccess options result)
+    Right result -> case result ^. #answer of
+      Left problems ->
+        failedRun
+          resolutionExitCode
+          (renderErrorsText problems <> failureReport options result)
+      Right config -> successfulRun (renderServiceSuccess options config result)
 
 -- | Resolve the parsed mounted-file option followed by the environment source.
 resolveServiceOptions :: EnvSnapshot -> ServiceOptions -> IO (Either ServiceFailure (ResolveResult ServiceConfig))
@@ -269,22 +273,18 @@ resolveServiceOptions snapshot options = do
       Nothing -> Right []
       Just (Left message) -> Left (InputFailure message)
       Just (Right value) -> Right [value]
-    case resolveServiceSources fileSources snapshot of
-      Left problems -> Left (ResolveFailure problems)
-      Right value -> Right value
+    Right (resolveServiceSources fileSources snapshot)
 
 -- | Resolve already loaded file sources followed by an injected environment snapshot.
-resolveServiceSources :: [Source] -> EnvSnapshot -> Either (NonEmpty ConfigError) (ResolveResult ServiceConfig)
-resolveServiceSources fileSources snapshot = do
-  environmentSource <-
-    case envSource "environment" environmentBindings snapshot of
-      Left problems -> error (show problems)
-      Right value -> Right value
-  resolve defaultResolveOptions (fileSources <> [environmentSource]) serviceConfig
+resolveServiceSources :: [Source] -> EnvSnapshot -> ResolveResult ServiceConfig
+resolveServiceSources fileSources snapshot =
+  case envSource "environment" environmentBindings snapshot of
+    Left problems -> error (show problems)
+    Right environmentSource ->
+      resolve defaultResolveOptions (fileSources <> [environmentSource]) serviceConfig
 
 data ServiceFailure
   = InputFailure !Text
-  | ResolveFailure !(NonEmpty ConfigError)
 
 loadServiceInput :: ServiceInput -> IO (Either Text Source)
 loadServiceInput input =
@@ -327,13 +327,21 @@ safeStartupSummary config =
       "database pool size: " <> Text.pack (show (config ^. #database . #poolSize))
     ]
 
-renderServiceSuccess :: ServiceOptions -> ResolveResult ServiceConfig -> Text
-renderServiceSuccess options result =
+-- | Append provenance to a resolution failure only in an explicit explain mode.
+failureReport :: ServiceOptions -> ResolveResult ServiceConfig -> Text
+failureReport options result =
+  case options ^. #diagnosticMode of
+    ExplainServiceConfigurationText -> renderResolutionText (result ^. #report)
+    ExplainServiceConfigurationJson -> renderResolutionJson (result ^. #report) <> "\n"
+    _ -> ""
+
+renderServiceSuccess :: ServiceOptions -> ServiceConfig -> ResolveResult ServiceConfig -> Text
+renderServiceSuccess options config result =
   case options ^. #diagnosticMode of
     CheckServiceConfiguration -> "configuration valid\n"
     ExplainServiceConfigurationText -> renderResolutionText (result ^. #report)
     ExplainServiceConfigurationJson -> renderResolutionJson (result ^. #report) <> "\n"
-    StartService -> safeStartupSummary (result ^. #value)
+    StartService -> safeStartupSummary config
 
 successfulRun :: Text -> ServiceRun
 successfulRun output = ServiceRun {exitCode = 0, standardOutput = output, standardError = ""}

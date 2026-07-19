@@ -28,9 +28,9 @@ tests =
         [ testCase "YAML KDL and Dhall produce equal typed values" $ do
             sources <- loadFixtureSources
             results <- resolveFixtureSources sources
-            let yamlValue = results ^. #yaml . #value
-            assertBool "KDL typed value differed from YAML" (results ^. #kdl . #value == yamlValue)
-            assertBool "Dhall typed value differed from YAML" (results ^. #dhall . #value == yamlValue),
+            let yamlValue = resolvedAnswer (results ^. #yaml)
+            assertBool "KDL typed value differed from YAML" (resolvedAnswer (results ^. #kdl) == yamlValue)
+            assertBool "Dhall typed value differed from YAML" (resolvedAnswer (results ^. #dhall) == yamlValue),
           testCase "normalized explanation structure is format-independent" $ do
             sources <- loadFixtureSources
             results <- resolveFixtureSources sources
@@ -64,20 +64,20 @@ tests =
                 high = source "higher file" (FileSource "memory") (nestedNumber "http" "port" 7100)
                 environment = expectEnvSource (Env.envSnapshot [("HTTP_PORT", "8000")])
             defaultsResult <- expectResolution (resolve defaultResolveOptions [minimalServiceSourceWithoutDefaults] Service.serviceConfig)
-            defaultsResult ^. #value . #http . #port @?= 8080
-            defaultsResult ^. #value . #database . #poolSize @?= 2
+            resolvedAnswer defaultsResult ^. #http . #port @?= 8080
+            resolvedAnswer defaultsResult ^. #database . #poolSize @?= 2
             assertDerivation "http.port" "http-port-by-environment" defaultsResult
 
             fileResult <- expectResolution (resolve defaultResolveOptions [low, high] Service.serviceConfig)
-            fileResult ^. #value . #http . #port @?= 7100
+            resolvedAnswer fileResult ^. #http . #port @?= 7100
             assertShadowCount "http.port" 1 fileResult
 
             environmentResult <- expectResolution (resolve defaultResolveOptions [low, environment] Service.serviceConfig)
-            environmentResult ^. #value . #http . #port @?= 8000
+            resolvedAnswer environmentResult ^. #http . #port @?= 8000
             assertShadowCount "http.port" 1 environmentResult
 
             let malformed = source "malformed higher file" (FileSource "memory") (nestedText "http" "port" "broken")
-            case resolve defaultResolveOptions [low, malformed] Service.serviceConfig of
+            case (resolve defaultResolveOptions [low, malformed] Service.serviceConfig) ^. #answer of
               Left problems -> fmap problemKey (NonEmpty.toList problems) @?= [httpPortKey]
               Right _ -> fail "malformed higher value unexpectedly fell back",
           testCase "CLI overrides environment after the shared file" $ do
@@ -98,7 +98,8 @@ tests =
                 (Env.envSnapshot [("SERVICE_TIMEOUT", "8000")])
                 options
                 >>= either (const (fail "CLI conformance resolution failed")) pure
-            result ^. #value . #timeout @?= 9001
+            _ <- expectResolution result
+            resolvedAnswer result ^. #timeout @?= 9001
             assertShadowCount "service.timeout" 4 result,
           testCase "Development and Production select the password branch correctly" $ do
             sources <- loadFixtureSources
@@ -106,7 +107,7 @@ tests =
             assertOutcome "database.password" NotSelected development
 
             let production = expectEnvSource (Env.envSnapshot [("HASKELL_ENV", "production")])
-            case resolve defaultResolveOptions [sources ^. #yaml, production] Service.serviceConfig of
+            case (resolve defaultResolveOptions [sources ^. #yaml, production] Service.serviceConfig) ^. #answer of
               Left problems -> fmap problemKey (NonEmpty.toList problems) @?= [databasePasswordKey]
               Right _ -> fail "Production unexpectedly resolved without a password"
 
@@ -118,7 +119,7 @@ tests =
                         ]
                     )
             secured <- expectResolution (resolve defaultResolveOptions [sources ^. #yaml, withSecret] Service.serviceConfig)
-            assertBool "Production did not retain the selected password" (isJust (secured ^. #value . #database . #password))
+            assertBool "Production did not retain the selected password" (isJust (resolvedAnswer secured ^. #database . #password))
             let rendered = renderResolutionText (secured ^. #report) <> renderResolutionJson (secured ^. #report)
             assertBool "Secret sentinel reached a report" (not (secretSentinel `Text.isInfixOf` rendered))
         ],
@@ -320,8 +321,15 @@ expectCandidate key input =
 expectLoaded :: (Show error) => Either (NonEmpty error) Source -> IO Source
 expectLoaded = either (fail . show) pure
 
-expectResolution :: Either (NonEmpty ConfigError) value -> IO value
-expectResolution = either (fail . Text.unpack . renderErrorsText) pure
+expectResolution :: ResolveResult value -> IO (ResolveResult value)
+expectResolution result = case result ^. #answer of
+  Left errors -> fail (Text.unpack (renderErrorsText errors))
+  Right _ -> pure result
+
+resolvedAnswer :: ResolveResult value -> value
+resolvedAnswer result = case result ^. #answer of
+  Left errors -> error (Text.unpack (renderErrorsText errors))
+  Right value -> value
 
 expectOptions :: ParserInfo options -> [String] -> IO options
 expectOptions parserInfo arguments =

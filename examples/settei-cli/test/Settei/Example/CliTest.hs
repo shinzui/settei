@@ -21,7 +21,8 @@ tests =
         fixture <- Paths.getDataFileName "test/fixtures/application.yaml"
         options <- expectOptions ["--config", "yaml:" <> fixture, "--set", "service.timeout=9000", "--set", "service.timeout=9001", "--check-config"]
         resolved <- resolveCliOptions environmentSnapshot options >>= expectResolution
-        resolved ^. #value . #timeout @?= 9001
+        config <- expectAnswer resolved
+        config ^. #timeout @?= 9001
         case resolved ^. #report . #nodes . at (validKey "service.timeout") of
           Just node -> fmap (^. #name) (node ^. #shadowed) @?= ["arguments --set #1", "environment", Text.pack fixture, "CLI built-in defaults"]
           Nothing -> fail "expected service.timeout report node",
@@ -43,7 +44,37 @@ tests =
         cliExitCode missingResult @?= sourceExitCode
         malformed <- expectOptions ["--set", "service.timeout=broken", "--check-config"]
         malformedResult <- runCliWithSnapshot (envSnapshot []) malformed
-        cliExitCode malformedResult @?= resolutionExitCode,
+        cliExitCode malformedResult @?= resolutionExitCode
+        cliStandardOutput malformedResult @?= ""
+        assertBool
+          "check mode unexpectedly printed a failure report"
+          ( not ("settei.resolution" `Text.isInfixOf` cliStandardError malformedResult)
+              && not ("<missing>" `Text.isInfixOf` cliStandardError malformedResult)
+              && not ("<not selected>" `Text.isInfixOf` cliStandardError malformedResult)
+          ),
+      testCase "resolution failure in explain modes prints provenance to stderr" $ do
+        textOptions <- expectOptions ["--set", "service.timeout=broken", "--explain-config"]
+        textResult <- runCliWithSnapshot (envSnapshot []) textOptions
+        cliExitCode textResult @?= resolutionExitCode
+        cliStandardOutput textResult @?= ""
+        let textError = cliStandardError textResult
+        assertBool
+          "text explain failure omitted the decode error"
+          ("service.timeout: expected" `Text.isInfixOf` textError)
+        let (_, reportSuffix) = Text.breakOn "service.timeout = " textError
+        assertBool
+          "text explain failure omitted the report after the error"
+          ( not (Text.null reportSuffix)
+              && "from command-line option" `Text.isInfixOf` reportSuffix
+          )
+
+        jsonOptions <- expectOptions ["--set", "service.timeout=broken", "--explain-config-json"]
+        jsonResult <- runCliWithSnapshot (envSnapshot []) jsonOptions
+        cliExitCode jsonResult @?= resolutionExitCode
+        cliStandardOutput jsonResult @?= ""
+        let jsonError = cliStandardError jsonResult
+        assertBool "JSON failure omitted schema version" ("\"schemaVersion\":1" `Text.isInfixOf` jsonError)
+        assertBool "JSON failure omitted document type" ("\"type\":\"settei.resolution\"" `Text.isInfixOf` jsonError),
       testCase "JSON explanations redact environment secrets" $ do
         options <- expectOptions ["--explain-config-json"]
         result <- runCliWithSnapshot secretSnapshot options
@@ -82,9 +113,14 @@ expectOptions arguments =
     Options.Success value -> pure value
     _ -> fail "expected command-line arguments to parse"
 
-expectResolution :: Either a b -> IO b
+expectResolution :: Either a (ResolveResult b) -> IO (ResolveResult b)
 expectResolution = \case
   Left _ -> fail "expected CLI resolution to succeed"
+  Right value -> pure value
+
+expectAnswer :: ResolveResult a -> IO a
+expectAnswer result = case result ^. #answer of
+  Left _ -> fail "expected CLI resolution answer to succeed"
   Right value -> pure value
 
 validKey :: Text -> Key

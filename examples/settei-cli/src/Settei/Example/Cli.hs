@@ -208,8 +208,12 @@ runCliWithSnapshot snapshot options =
       resolved <- resolveCliOptions snapshot options
       pure $ case resolved of
         Left (InputFailure message) -> failedRun sourceExitCode message
-        Left (ResolveFailure problems) -> failedRun resolutionExitCode (renderErrorsText problems)
-        Right result -> successfulRun (renderSuccess options result)
+        Right result -> case result ^. #answer of
+          Left problems ->
+            failedRun
+              resolutionExitCode
+              (renderErrorsText problems <> failureReport options result)
+          Right config -> successfulRun (renderSuccess options config result)
 
 -- | Resolve ordered built-ins, files, environment, and command-line sources.
 resolveCliOptions :: EnvSnapshot -> CliOptions -> IO (Either CliFailure (ResolveResult CliConfig))
@@ -221,20 +225,19 @@ resolveCliOptions snapshot options = do
       case envSource "environment" environmentBindings snapshot of
         Left problems -> Left (InputFailure (Text.pack (show problems)))
         Right value -> Right value
-    case resolve
-      defaultResolveOptions
-      ( [builtInSource]
-          <> fileSources
-          <> [environmentSource]
-          <> cliSources "arguments" (options ^. #overrides)
+    Right
+      ( resolve
+          defaultResolveOptions
+          ( [builtInSource]
+              <> fileSources
+              <> [environmentSource]
+              <> cliSources "arguments" (options ^. #overrides)
+          )
+          cliConfig
       )
-      cliConfig of
-      Left problems -> Left (ResolveFailure problems)
-      Right value -> Right value
 
 data CliFailure
   = InputFailure !Text
-  | ResolveFailure !(NonEmpty ConfigError)
 
 firstInputFailure :: [Either Text Source] -> Either CliFailure [Source]
 firstInputFailure = traverse (either (Left . InputFailure) Right)
@@ -256,20 +259,27 @@ loadConfigInput input =
             (either (Left . Text.pack . show) Right)
             (Dhall.loadDhallSource (Dhall.dhallSourceOptions sourceLabel Dhall.NoImports) (Dhall.DhallFile (input ^. #path)))
 
-renderSuccess :: CliOptions -> ResolveResult CliConfig -> Text
-renderSuccess options result =
+-- | Append provenance to a resolution failure only in an explicit explain mode.
+failureReport :: CliOptions -> ResolveResult CliConfig -> Text
+failureReport options result =
+  case options ^. #diagnosticMode of
+    ExplainConfigurationText -> renderResolutionText (result ^. #report)
+    ExplainConfigurationJson -> renderResolutionJson (result ^. #report) <> "\n"
+    _ -> ""
+
+renderSuccess :: CliOptions -> CliConfig -> ResolveResult CliConfig -> Text
+renderSuccess options config result =
   case options ^. #diagnosticMode of
     ExplainConfigurationText -> renderResolutionText (result ^. #report)
     ExplainConfigurationJson -> renderResolutionJson (result ^. #report) <> "\n"
     CheckConfiguration -> "configuration valid\n"
     RunExample ->
-      let config = result ^. #value
-       in Text.unlines
-            [ "settei example action",
-              "endpoint: " <> config ^. #endpoint,
-              "timeout: " <> Text.pack (show (config ^. #timeout)),
-              "output: " <> renderOutputFormat (config ^. #outputFormat)
-            ]
+      Text.unlines
+        [ "settei example action",
+          "endpoint: " <> config ^. #endpoint,
+          "timeout: " <> Text.pack (show (config ^. #timeout)),
+          "output: " <> renderOutputFormat (config ^. #outputFormat)
+        ]
     DescribeConfiguration -> renderSchemaText (describe cliConfig)
 
 successfulRun :: Text -> CliRun
