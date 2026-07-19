@@ -110,6 +110,41 @@ use the most restrictive declaration (`Secret` wins).
 structural segments. Source formats therefore use nested objects or nodes rather than a
 literal dotted field name.
 
+## Compose decoders
+
+Decoders compose, so most applications never write a raw case expression.
+`Decoder` is a `Functor`: wrap a decoded value in a newtype or transform it
+with `<$>`:
+
+```haskell
+newtype SecretText = SecretText Text
+
+apiTokenDecoder :: Decoder SecretText
+apiTokenDecoder = SecretText <$> textDecoder
+```
+
+Decode arrays with `listDecoder` and `nonEmptyDecoder`:
+
+```haskell
+tagsDecoder :: Decoder [Text]
+tagsDecoder = listDecoder textDecoder
+```
+
+Decode any type with a textual parser using `parsedDecoder`. Its first
+argument is the expectation shown on failure; the parser's own error message
+is discarded so a failure can never echo a (possibly secret) input value:
+
+```haskell
+listenUriDecoder :: Decoder Uri
+listenUriDecoder = parsedDecoder "an absolute URI" parseAbsoluteUri
+```
+
+Numbers decode with `boundedIntegralDecoder` (whole numbers with an explicit
+range in failures), `rationalDecoder` (exact), and `doubleDecoder` (rounded
+to the nearest `Double`). All numeric decoders also accept textual numbers,
+so the same declaration works for environment variables and file formats.
+`enumDecoder` matches spellings case-sensitively.
+
 ## Compose the declaration
 
 A `Config a` describes how settings form an application value:

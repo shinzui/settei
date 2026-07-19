@@ -1,5 +1,16 @@
 # Changelog for settei
 
+## Unreleased
+
+- Add a `Functor` instance for `Decoder`; a newtype-wrapping decoder is now
+  `SecretText <$> textDecoder`.
+- Add decoder combinators `listDecoder`, `nonEmptyDecoder`, `parsedDecoder`,
+  `rationalDecoder`, and `doubleDecoder`, all preserving the secret-safe
+  failure contract (failures carry only the setting key and an expectation).
+- `boundedIntegralDecoder` failures now state the accepted range, for example
+  `integer between -32768 and 32767`.
+- Document `enumDecoder`'s case-sensitive matching.
+
 ## 0.1.0.0 — 2026-07-19
 
 - Initial experimental release.

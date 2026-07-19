@@ -76,12 +76,12 @@ minimal and additive.
       textDecoder` and `listDecoder textDecoder`.
 - [x] (2026-07-19T19:08:53Z) Milestone 3: `nix develop -c cabal test all --test-show-details=direct` passes;
       commit the example refactor with trailers.
-- [ ] Milestone 4: Add a "Compose decoders" section to
+- [x] (2026-07-19T19:10:27Z) Milestone 4: Add a "Compose decoders" section to
       `docs/guides/getting-started.md` teaching the combinator kit.
-- [ ] Milestone 4: Add an Unreleased section to `settei/CHANGELOG.md`.
-- [ ] Milestone 4: Amend `docs/adr/0003-resolution-provenance-and-default-semantics.md`
+- [x] (2026-07-19T19:10:27Z) Milestone 4: Add an Unreleased section to `settei/CHANGELOG.md`.
+- [x] (2026-07-19T19:10:27Z) Milestone 4: Amend `docs/adr/0003-resolution-provenance-and-default-semantics.md`
       with the dated parser-message-discarding redaction rule.
-- [ ] Milestone 4: Final `nix develop -c cabal test all --test-show-details=direct` run;
+- [x] (2026-07-19T19:10:27Z) Milestone 4: Final `nix develop -c cabal test all --test-show-details=direct` run;
       commit docs with trailers.
 - [ ] Wrap-up: update the EP-15 rows in the MasterPlan Progress section, write the
       Outcomes & Retrospective entry here, and confirm the ADR distillation pass is done.

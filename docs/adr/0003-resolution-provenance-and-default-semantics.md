@@ -4,6 +4,8 @@ Status: Accepted
 
 Date: 2026-07-17
 
+Amended: 2026-07-19
+
 
 ## Context
 
@@ -86,6 +88,11 @@ decode errors retain only an expected description and a sensitivity-aware reject
 representation. A public `Setting` may opt into a renderer for typed default values,
 because an arbitrary `a` has no format-independent display. Secret settings ignore such
 rendering and always store a redaction marker.
+
+Amendment 2026-07-19: parser-backed decoding treats a parser's own error message as
+potentially value-bearing, because parsers routinely echo their input. `parsedDecoder`
+therefore discards the parser's message entirely; a decode failure carries only the
+owning key and the caller-supplied expectation description.
 
 Text renderers use stable key order for human explanations. JSON renderers are compact,
 deterministic documents with top-level `schemaVersion: 1` and a document type. Core emits
