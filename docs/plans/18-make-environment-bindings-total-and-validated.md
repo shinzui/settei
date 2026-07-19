@@ -89,7 +89,7 @@ nix develop -c cabal test all --test-show-details=direct
 - [x] (2026-07-19 20:55Z) Milestone 3 validation: `nix develop -c cabal test all
       --test-show-details=direct` passed; maintained guides, README, examples, and current
       tests contain no old-signature `envSource` pattern.
-- [ ] Milestone 3 commit made with required trailers.
+- [x] (2026-07-19 20:56Z) Milestone 3 committed as `829c77b` with required trailers.
 - [x] (2026-07-19 20:55Z) Living sections updated; ADR distillation completed in
       `docs/adr/0010-validate-environment-bindings-at-construction.md`; plan complete.
 
