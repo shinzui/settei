@@ -62,11 +62,13 @@ only the core `settei` package plus documentation; no adapter package changes.
       repository updated (core test helper plus two example test helpers).
 - [x] (2026-07-19 09:35 -0700) M2: resolve-level conflict tests pass (error returned,
       correct key, both orders).
-- [ ] M3: per-key effective-sensitivity map computed in `resolve` and threaded through
+- [x] (2026-07-19 09:41 -0700) M3: per-key effective-sensitivity map computed in
+      `resolve` and threaded through
       `evaluate`, `evaluateSetting`, `missingNode`, `derivedNode`, and
       `defaultReportedValue`.
-- [ ] M3: `redactReportedValue` added to settei/src/Settei/Provenance.hs and report-node
-      map unions changed to a redact-preferring `Map.unionWith` combiner.
+- [x] (2026-07-19 09:41 -0700) M3: `redactReportedValue` added to
+      settei/src/Settei/Provenance.hs and report-node map unions changed to a
+      redact-preferring `Map.unionWith` combiner.
 - [ ] M4: adversarial secret-sentinel test added covering all renderers and `Show`.
 - [ ] M4: golden files under settei/test/golden/ verified unchanged; full workspace test
       suite green.

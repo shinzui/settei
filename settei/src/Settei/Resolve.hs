@@ -15,6 +15,7 @@ where
 import Data.Generics.Labels ()
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
+import Data.Maybe (fromMaybe)
 import Data.Set qualified as Set
 import Settei.Error
 import Settei.Internal.Config
@@ -25,7 +26,7 @@ import Settei.Internal.Config
     describeConfig,
     renderRuleName,
   )
-import Settei.Internal.Schema (Schema)
+import Settei.Internal.Schema (Schema, mergeSensitivity)
 import Settei.Key (Key, keySegments)
 import Settei.Origin (Origin (..), SourceKind (DerivedSource))
 import Settei.Prelude
@@ -35,6 +36,7 @@ import Settei.Provenance
     candidateOrigin,
     candidateValue,
     derivedReportedValue,
+    redactReportedValue,
     reportedValue,
     visibleReportedValue,
   )
@@ -105,8 +107,13 @@ resolve options sources config =
                     warnings = unknownWarnings
                   }
     schemaSettings = schemaPossible (describeEvaluation config)
+    sensitivities =
+      Map.fromList
+        [ (schemaSettingKey schemaSetting, schemaSettingSensitivity schemaSetting)
+        | schemaSetting <- schemaSettings
+        ]
     structuralErrors = validateStructure schemaSettings sources
-    evaluation = evaluate sources config
+    evaluation = evaluate sensitivities sources config
     unknownProblems = findUnknownKeys schemaSettings sources
     unknownWarnings = case options ^. #unknownKeyPolicy of
       WarnUnknownKeys -> fmap UnknownKeyWarning unknownProblems
@@ -179,17 +186,19 @@ data Evaluation a = Evaluation
   }
   deriving stock (Generic)
 
-evaluate :: [Source] -> Config a -> Evaluation a
-evaluate sources = \case
+evaluate :: Map Key Sensitivity -> [Source] -> Config a -> Evaluation a
+evaluate sensitivities sources = \case
   PureConfig value -> successful value
-  MapConfig mapValue config -> mapEvaluation mapValue (evaluate sources config)
+  MapConfig mapValue config -> mapEvaluation mapValue (evaluate sensitivities sources config)
   ApplyConfig function inputConfig ->
-    applyEvaluation (evaluate sources function) (evaluate sources inputConfig)
-  RequestConfig request -> evaluateRequest sources request
+    applyEvaluation
+      (evaluate sensitivities sources function)
+      (evaluate sensitivities sources inputConfig)
+  RequestConfig request -> evaluateRequest sensitivities sources request
   DefaultConfig settingSpec defaultSpec ->
-    evaluateDefaultRequest sources settingSpec defaultSpec
+    evaluateDefaultRequest sensitivities sources settingSpec defaultSpec
   SelectConfig selector branch ->
-    let selectorEvaluation = evaluate sources selector
+    let selectorEvaluation = evaluate sensitivities sources selector
         selectorKeys = Map.keys (selectorEvaluation ^. #nodes)
         branchKeys = fmap schemaSettingKey (schemaPossible (describeEvaluation branch))
      in case selectorEvaluation ^. #answer of
@@ -201,11 +210,15 @@ evaluate sources = \case
               & #branches
               %~ (<> [BranchTrace {dependencies = selectorKeys, settings = branchKeys, selected = False}])
           Right (Left input) ->
-            let branchEvaluation = evaluate sources branch
+            let branchEvaluation = evaluate sensitivities sources branch
                 combined = mapEvaluation ($ input) branchEvaluation
              in Evaluation
                   { answer = combined ^. #answer,
-                    nodes = Map.union (selectorEvaluation ^. #nodes) (branchEvaluation ^. #nodes),
+                    nodes =
+                      Map.unionWith
+                        mergeNodes
+                        (selectorEvaluation ^. #nodes)
+                        (branchEvaluation ^. #nodes),
                     branches =
                       selectorEvaluation ^. #branches
                         <> branchEvaluation ^. #branches
@@ -217,10 +230,10 @@ evaluate sources = \case
 describeEvaluation :: Config a -> Schema
 describeEvaluation = describeConfig
 
-evaluateRequest :: [Source] -> Request a -> Evaluation a
-evaluateRequest sources = \case
+evaluateRequest :: Map Key Sensitivity -> [Source] -> Request a -> Evaluation a
+evaluateRequest sensitivities sources = \case
   RequiredRequest settingSpec ->
-    case evaluateSetting sources settingSpec of
+    case evaluateSetting sensitivities sources settingSpec of
       SettingAbsent node ->
         failed
           [MissingRequired (MissingProblem {key = settingKey settingSpec})]
@@ -228,44 +241,57 @@ evaluateRequest sources = \case
       SettingFailed errors node -> failed errors (Map.singleton (settingKey settingSpec) node)
       SettingPresent value node -> withNode value node
   OptionalRequest settingSpec ->
-    case evaluateSetting sources settingSpec of
+    case evaluateSetting sensitivities sources settingSpec of
       SettingAbsent node -> withNode Nothing node
       SettingFailed errors node -> failed errors (Map.singleton (settingKey settingSpec) node)
       SettingPresent value node -> withNode (Just value) node
 
-evaluateDefaultRequest :: [Source] -> Setting a -> Default a -> Evaluation a
-evaluateDefaultRequest sources settingSpec defaultSpec =
-  case evaluateSetting sources settingSpec of
+evaluateDefaultRequest :: Map Key Sensitivity -> [Source] -> Setting a -> Default a -> Evaluation a
+evaluateDefaultRequest sensitivities sources settingSpec defaultSpec =
+  case evaluateSetting sensitivities sources settingSpec of
     SettingFailed errors node -> failed errors (Map.singleton (settingKey settingSpec) node)
     SettingPresent value node -> withNode value node
-    SettingAbsent _ -> evaluateFallback sources settingSpec defaultSpec
+    SettingAbsent _ -> evaluateFallback sensitivities sources settingSpec defaultSpec
 
-evaluateFallback :: [Source] -> Setting a -> Default a -> Evaluation a
-evaluateFallback sources settingSpec = \case
+evaluateFallback :: Map Key Sensitivity -> [Source] -> Setting a -> Default a -> Evaluation a
+evaluateFallback sensitivities sources settingSpec = \case
   ConstantDefault rule explanation value ->
-    derivedEvaluation settingSpec rule explanation [] value
+    derivedEvaluation sensitivities settingSpec rule explanation [] value
   DerivedDefault rule explanation dependency derive ->
-    let dependencyEvaluation = evaluate sources dependency
+    let dependencyEvaluation = evaluate sensitivities sources dependency
      in case dependencyEvaluation ^. #answer of
           Left errors -> evaluationFailure dependencyEvaluation errors
           Right dependencyValue ->
             derivedFromDependencies
+              sensitivities
               settingSpec
               rule
               explanation
               dependencyEvaluation
               (derive dependencyValue)
   CaseDefault rule explanation dependency choices fallback ->
-    let dependencyEvaluation = evaluate sources dependency
+    let dependencyEvaluation = evaluate sensitivities sources dependency
      in case dependencyEvaluation ^. #answer of
           Left errors -> evaluationFailure dependencyEvaluation errors
           Right dependencyValue ->
             case lookup dependencyValue (NonEmpty.toList choices) of
               Just value ->
-                derivedFromDependencies settingSpec rule explanation dependencyEvaluation value
+                derivedFromDependencies
+                  sensitivities
+                  settingSpec
+                  rule
+                  explanation
+                  dependencyEvaluation
+                  value
               Nothing -> case fallback of
                 Just value ->
-                  derivedFromDependencies settingSpec rule explanation dependencyEvaluation value
+                  derivedFromDependencies
+                    sensitivities
+                    settingSpec
+                    rule
+                    explanation
+                    dependencyEvaluation
+                    value
                 Nothing ->
                   evaluationFailure
                     dependencyEvaluation
@@ -278,35 +304,36 @@ evaluateFallback sources settingSpec = \case
                     ]
 
 derivedFromDependencies ::
+  Map Key Sensitivity ->
   Setting a ->
   RuleName ->
   Text ->
   Evaluation d ->
   a ->
   Evaluation a
-derivedFromDependencies settingSpec rule explanation dependencyEvaluation value =
+derivedFromDependencies sensitivities settingSpec rule explanation dependencyEvaluation value =
   Evaluation
     { answer = Right value,
       nodes =
         dependencyEvaluation
           ^. #nodes
           & at (settingKey settingSpec)
-          ?~ derivedNode settingSpec rule explanation dependencyKeys value,
+          ?~ derivedNode sensitivities settingSpec rule explanation dependencyKeys value,
       branches = dependencyEvaluation ^. #branches
     }
   where
     dependencyKeys = Map.keys (dependencyEvaluation ^. #nodes)
 
-derivedEvaluation :: Setting a -> RuleName -> Text -> [Key] -> a -> Evaluation a
-derivedEvaluation settingSpec rule explanation dependencies value =
-  withNode value (derivedNode settingSpec rule explanation dependencies value)
+derivedEvaluation :: Map Key Sensitivity -> Setting a -> RuleName -> Text -> [Key] -> a -> Evaluation a
+derivedEvaluation sensitivities settingSpec rule explanation dependencies value =
+  withNode value (derivedNode sensitivities settingSpec rule explanation dependencies value)
 
-derivedNode :: Setting a -> RuleName -> Text -> [Key] -> a -> ResolutionNode
-derivedNode settingSpec rule explanation dependencies value =
+derivedNode :: Map Key Sensitivity -> Setting a -> RuleName -> Text -> [Key] -> a -> ResolutionNode
+derivedNode sensitivities settingSpec rule explanation dependencies value =
   ResolutionNode
     { key = settingKey settingSpec,
-      sensitivity = settingSensitivity settingSpec,
-      outcome = Resolved (defaultReportedValue settingSpec value),
+      sensitivity = effectiveSensitivity sensitivities settingSpec,
+      outcome = Resolved (defaultReportedValue sensitivities settingSpec value),
       origin =
         Just
           Origin
@@ -320,9 +347,9 @@ derivedNode settingSpec rule explanation dependencies value =
       derivation = Just Derivation {rule = renderRuleName rule, explanation, dependencies}
     }
 
-defaultReportedValue :: Setting a -> a -> ReportedValue
-defaultReportedValue settingSpec value =
-  case settingSensitivity settingSpec of
+defaultReportedValue :: Map Key Sensitivity -> Setting a -> a -> ReportedValue
+defaultReportedValue sensitivities settingSpec value =
+  case effectiveSensitivity sensitivities settingSpec of
     Secret -> derivedReportedValue Secret
     Public -> case settingValueRenderer settingSpec of
       Just renderValue -> visibleReportedValue (renderValue value)
@@ -341,14 +368,14 @@ data SettingEvaluation a
   | SettingFailed ![ConfigError] !ResolutionNode
   | SettingPresent a !ResolutionNode
 
-evaluateSetting :: [Source] -> Setting a -> SettingEvaluation a
-evaluateSetting sources settingSpec =
+evaluateSetting :: Map Key Sensitivity -> [Source] -> Setting a -> SettingEvaluation a
+evaluateSetting sensitivities sources settingSpec =
   case collectCandidates (settingKey settingSpec) sources of
     Left structuralErrors ->
       SettingFailed
         (fmap StructuralConflict structuralErrors)
-        (missingNode settingSpec)
-    Right [] -> SettingAbsent (missingNode settingSpec)
+        (missingNode sensitivities settingSpec)
+    Right [] -> SettingAbsent (missingNode sensitivities settingSpec)
     Right candidates ->
       let winner = last candidates
           lower = init candidates
@@ -356,8 +383,8 @@ evaluateSetting sources settingSpec =
           node =
             ResolutionNode
               { key = settingKey settingSpec,
-                sensitivity = settingSensitivity settingSpec,
-                outcome = Resolved (reportedValue (settingSensitivity settingSpec) rawValue),
+                sensitivity,
+                outcome = Resolved (reportedValue sensitivity rawValue),
                 origin = Just (candidateOrigin winner),
                 shadowed = fmap candidateOrigin (reverse lower),
                 derivation = Nothing
@@ -370,11 +397,22 @@ evaluateSetting sources settingSpec =
                       { key = settingKey settingSpec,
                         expected = decodeFailureExpected decodeFailure,
                         origin = candidateOrigin winner,
-                        rejected = reportedValue (settingSensitivity settingSpec) rawValue
+                        rejected = reportedValue sensitivity rawValue
                       }
                 ]
                 node
             Right value -> SettingPresent value node
+  where
+    sensitivity = effectiveSensitivity sensitivities settingSpec
+
+effectiveSensitivity :: Map Key Sensitivity -> Setting a -> Sensitivity
+effectiveSensitivity sensitivities settingSpec =
+  mergeSensitivity
+    (settingSensitivity settingSpec)
+    ( fromMaybe
+        (settingSensitivity settingSpec)
+        (Map.lookup (settingKey settingSpec) sensitivities)
+    )
 
 collectCandidates :: Key -> [Source] -> Either [StructuralError] [Candidate]
 collectCandidates key sources =
@@ -387,11 +425,11 @@ collectCandidates key sources =
     collect (Right (Just foundCandidate)) (errors, candidates) =
       (errors, foundCandidate : candidates)
 
-missingNode :: Setting a -> ResolutionNode
-missingNode settingSpec =
+missingNode :: Map Key Sensitivity -> Setting a -> ResolutionNode
+missingNode sensitivities settingSpec =
   ResolutionNode
     { key = settingKey settingSpec,
-      sensitivity = settingSensitivity settingSpec,
+      sensitivity = effectiveSensitivity sensitivities settingSpec,
       outcome = MissingValue,
       origin = Nothing,
       shadowed = [],
@@ -419,9 +457,24 @@ applyEvaluation :: Evaluation (a -> b) -> Evaluation a -> Evaluation b
 applyEvaluation function inputConfig =
   Evaluation
     { answer = applyAnswer (function ^. #answer) (inputConfig ^. #answer),
-      nodes = Map.union (function ^. #nodes) (inputConfig ^. #nodes),
+      nodes = Map.unionWith mergeNodes (function ^. #nodes) (inputConfig ^. #nodes),
       branches = function ^. #branches <> inputConfig ^. #branches
     }
+
+mergeNodes :: ResolutionNode -> ResolutionNode -> ResolutionNode
+mergeNodes left right
+  | left ^. #sensitivity == Secret || right ^. #sensitivity == Secret =
+      left
+        & #sensitivity
+        .~ Secret
+        & #outcome
+        %~ redactOutcome
+  | otherwise = left
+
+redactOutcome :: ResolutionOutcome -> ResolutionOutcome
+redactOutcome = \case
+  Resolved value -> Resolved (redactReportedValue value)
+  outcome -> outcome
 
 applyAnswer :: Either [ConfigError] (a -> b) -> Either [ConfigError] a -> Either [ConfigError] b
 applyAnswer (Right function) (Right value) = Right (function value)

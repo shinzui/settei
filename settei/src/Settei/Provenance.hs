@@ -8,6 +8,7 @@ module Settei.Provenance
     candidateOrigin,
     candidateValue,
     derivedReportedValue,
+    redactReportedValue,
     renderReportedValue,
     reportedValue,
     visibleReportedValue,
@@ -58,6 +59,10 @@ data ReportedValue
 reportedValue :: Sensitivity -> RawValue -> ReportedValue
 reportedValue Public = VisibleValue . renderRawValue
 reportedValue Secret = const RedactedValue
+
+-- | Collapse any retained display representation to the redaction marker.
+redactReportedValue :: ReportedValue -> ReportedValue
+redactReportedValue _ = RedactedValue
 
 -- | Render a retained value. A redacted value has no recovery path.
 renderReportedValue :: ReportedValue -> Text

@@ -8,6 +8,7 @@ import Data.List (permutations)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Settei
+import Settei.Internal.Schema (mergeSensitivity)
 import Settei.Prelude
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (testCase, (@?=))
@@ -115,7 +116,23 @@ tests =
       testCase "sensitivity conflicts include unselected selective branches" $
         assertSensitivityConflict selectiveSensitivityConflict,
       testCase "sensitivity conflicts include default dependencies" $
-        assertSensitivityConflict defaultSensitivityConflict
+        assertSensitivityConflict defaultSensitivityConflict,
+      testCase "effective sensitivity is secret-dominant at the schema seam" $ do
+        mergeSensitivity Public Public @?= Public
+        mergeSensitivity Public Secret @?= Secret
+        mergeSensitivity Secret Public @?= Secret
+        mergeSensitivity Secret Secret @?= Secret
+        schemaSettingSensitivity (schemaEntry databasePassword (describe secretThenPublic))
+          @?= Secret
+        schemaSettingSensitivity (schemaEntry databasePassword (describe publicThenSecret))
+          @?= Secret,
+      testCase "redactReportedValue collapses every retained representation" $
+        mapM_
+          (\value -> renderReportedValue (redactReportedValue value) @?= "<redacted>")
+          [ visibleReportedValue "x",
+            derivedReportedValue Public,
+            reportedValue Secret (RawText "x")
+          ]
     ]
 
 assertSensitivityConflict :: Config a -> IO ()
@@ -125,6 +142,12 @@ assertSensitivityConflict declaration =
       [SensitivityConflict problem] -> problem ^. #key @?= databasePassword
       _ -> fail "expected one sensitivity conflict"
     Right _ -> fail "mixed-sensitivity declaration should fail"
+
+schemaEntry :: Key -> Schema -> SchemaSetting
+schemaEntry key schema =
+  case filter ((== key) . schemaSettingKey) (schemaPossible schema) of
+    [entry] -> entry
+    entries -> error ("expected one schema entry, found " <> show (length entries))
 
 checkOrdering :: [(Int, Source)] -> IO ()
 checkOrdering orderedSources = do
