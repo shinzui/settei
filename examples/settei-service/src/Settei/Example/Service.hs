@@ -238,18 +238,26 @@ databasePortDefault =
     5432
 
 -- | Explicit environment bindings, including the annotated Kubernetes Secret value.
-environmentBindings :: [EnvBinding]
+--
+-- Validated once at module level; the test suite forces this CAF so an invalid edit
+-- fails in tests before it can fail at startup.
+environmentBindings :: Bindings
 environmentBindings =
-  [ binding (EnvName "HASKELL_ENV") runtimeEnvironmentKey,
-    binding (EnvName "HTTP_HOST") httpHostKey,
-    binding (EnvName "HTTP_PORT") httpPortKey,
-    binding (EnvName "DATABASE_HOST") databaseHostKey,
-    binding (EnvName "DATABASE_PORT") databasePortKey,
-    binding (EnvName "DATABASE_POOL_SIZE") databasePoolSizeKey,
-    fromKubernetesObject
-      (kubernetesRef SecretObject Nothing "settei-example-service-database" (Just "password"))
-      (binding (EnvName "DATABASE_PASSWORD") databasePasswordKey)
-  ]
+  either
+    (error . Text.unpack . renderEnvErrorsText)
+    id
+    ( bindings
+        [ binding (EnvName "HASKELL_ENV") runtimeEnvironmentKey,
+          binding (EnvName "HTTP_HOST") httpHostKey,
+          binding (EnvName "HTTP_PORT") httpPortKey,
+          binding (EnvName "DATABASE_HOST") databaseHostKey,
+          binding (EnvName "DATABASE_PORT") databasePortKey,
+          binding (EnvName "DATABASE_POOL_SIZE") databasePoolSizeKey,
+          fromKubernetesObject
+            (kubernetesRef SecretObject Nothing "settei-example-service-database" (Just "password"))
+            (binding (EnvName "DATABASE_PASSWORD") databasePasswordKey)
+        ]
+    )
 
 -- | Load, resolve, and render one capturable run against an injected snapshot.
 runServiceWithSnapshot :: EnvSnapshot -> ServiceOptions -> IO ServiceRun
@@ -278,10 +286,10 @@ resolveServiceOptions snapshot options = do
 -- | Resolve already loaded file sources followed by an injected environment snapshot.
 resolveServiceSources :: [Source] -> EnvSnapshot -> ResolveResult ServiceConfig
 resolveServiceSources fileSources snapshot =
-  case envSource "environment" environmentBindings snapshot of
-    Left problems -> error (Text.unpack (renderEnvErrorsText problems))
-    Right environmentSource ->
-      resolve defaultResolveOptions (fileSources <> [environmentSource]) serviceConfig
+  resolve
+    defaultResolveOptions
+    (fileSources <> [environmentSource environmentBindings snapshot])
+    serviceConfig
 
 data ServiceFailure
   = InputFailure !Text

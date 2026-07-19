@@ -188,16 +188,24 @@ cliConfig =
     <*> optional tokenSetting
 
 -- | Explicit environment-variable bindings used by the example.
-environmentBindings :: [EnvBinding]
+--
+-- Validated once at module level; the test suite forces this CAF so an invalid edit
+-- fails in tests before it can fail at startup.
+environmentBindings :: Bindings
 environmentBindings =
-  [ binding (EnvName "HASKELL_ENV") runtimeEnvironmentKey,
-    binding (EnvName "SERVICE_ENDPOINT") serviceEndpointKey,
-    binding (EnvName "SERVICE_TIMEOUT") serviceTimeoutKey,
-    binding (EnvName "OUTPUT_FORMAT") outputFormatKey,
-    fromKubernetesObject
-      (kubernetesRef SecretObject Nothing "settei-example-cli" (Just "token"))
-      (binding (EnvName "SERVICE_TOKEN") serviceTokenKey)
-  ]
+  either
+    (error . Text.unpack . renderEnvErrorsText)
+    id
+    ( bindings
+        [ binding (EnvName "HASKELL_ENV") runtimeEnvironmentKey,
+          binding (EnvName "SERVICE_ENDPOINT") serviceEndpointKey,
+          binding (EnvName "SERVICE_TIMEOUT") serviceTimeoutKey,
+          binding (EnvName "OUTPUT_FORMAT") outputFormatKey,
+          fromKubernetesObject
+            (kubernetesRef SecretObject Nothing "settei-example-cli" (Just "token"))
+            (binding (EnvName "SERVICE_TOKEN") serviceTokenKey)
+        ]
+    )
 
 -- | Load, resolve, and render one capturable run against an injected snapshot.
 runCliWithSnapshot :: EnvSnapshot -> CliOptions -> IO CliRun
@@ -221,16 +229,12 @@ resolveCliOptions snapshot options = do
   loaded <- traverse loadConfigInput (options ^. #configInputs)
   pure $ do
     fileSources <- firstInputFailure loaded
-    environmentSource <-
-      case envSource "environment" environmentBindings snapshot of
-        Left problems -> Left (InputFailure (renderEnvErrorsText problems))
-        Right value -> Right value
     Right
       ( resolve
           defaultResolveOptions
           ( [builtInSource]
               <> fileSources
-              <> [environmentSource]
+              <> [environmentSource environmentBindings snapshot]
               <> cliSources "arguments" (options ^. #overrides)
           )
           cliConfig

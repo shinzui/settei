@@ -17,7 +17,9 @@ tests :: TestTree
 tests =
   testGroup
     "Settei.Example.Cli"
-    [ testCase "cli overrides environment overrides ordered files" $ do
+    [ testCase "environment bindings validate at construction" $
+        length (bindingsList environmentBindings) @?= 5,
+      testCase "cli overrides environment overrides ordered files" $ do
         fixture <- Paths.getDataFileName "test/fixtures/application.yaml"
         options <- expectOptions ["--config", "yaml:" <> fixture, "--set", "service.timeout=9000", "--set", "service.timeout=9001", "--check-config"]
         resolved <- resolveCliOptions environmentSnapshot options >>= expectResolution

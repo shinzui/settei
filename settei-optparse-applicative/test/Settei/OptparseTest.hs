@@ -111,13 +111,17 @@ expectResolution result = case result ^. #answer of
   Right value -> pure value
 
 environmentPort :: Int -> IO Source
-environmentPort value =
-  case envSource
-    "environment"
-    [binding (EnvName "SERVICE_PORT") servicePort]
-    (envSnapshot [("SERVICE_PORT", Text.pack (show value))]) of
-    Left _ -> fail "expected a valid environment source"
-    Right sourceValue -> pure sourceValue
+environmentPort value = do
+  validated <-
+    either
+      (fail . Text.unpack . renderEnvErrorsText)
+      pure
+      (bindings [binding (EnvName "SERVICE_PORT") servicePort])
+  pure
+    ( environmentSource
+        validated
+        (envSnapshot [("SERVICE_PORT", Text.pack (show value))])
+    )
 
 portSource :: Text -> SourceKind -> Int -> Source
 portSource name kind value =

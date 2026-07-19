@@ -19,7 +19,9 @@ tests :: TestTree
 tests =
   testGroup
     "Settei.Example.Service"
-    [ testCase "development derives defaults without a password" $ do
+    [ testCase "environment bindings validate at construction" $
+        length (bindingsList environmentBindings) @?= 7,
+      testCase "development derives defaults without a password" $ do
         let result = resolveServiceSources [publicSource] (envSnapshot [("HASKELL_ENV", "development")])
         config <- expectResolution result
         config ^. #http . #port @?= 8080

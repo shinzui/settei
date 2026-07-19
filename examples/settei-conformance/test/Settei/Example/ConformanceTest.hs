@@ -371,10 +371,7 @@ nestedText parent child value =
   RawObject (Map.singleton parent (RawObject (Map.singleton child (RawText value))))
 
 expectEnvSource :: Env.EnvSnapshot -> Source
-expectEnvSource snapshot =
-  case Env.envSource "environment" Service.environmentBindings snapshot of
-    Left problems -> error (show problems)
-    Right value -> value
+expectEnvSource = Env.environmentSource Service.environmentBindings
 
 expectCandidate :: Key -> Source -> IO Candidate
 expectCandidate key input =
