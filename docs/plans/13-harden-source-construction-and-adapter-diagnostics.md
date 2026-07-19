@@ -75,12 +75,15 @@ below also names a small observable behavior you can check directly.
 - [x] (2026-07-19T18:10:59Z) M2 validation: `nix develop -c cabal test settei-tests
       --test-show-details=direct` passed all 71 tests, and `nix develop -c cabal build all`
       compiled every workspace package and component.
-- [ ] M3: tighten the exception catch in `decodeMarkedEvents` in
+- [x] (2026-07-19T18:13:04Z) M3: tightened the exception catch in `decodeMarkedEvents` in
       settei-yaml/src/Settei/Yaml.hs to synchronous `SomeException` with async rethrow and
       a fixed secret-free fallback message.
-- [ ] M3: add a regression test (malformed input still yields `YamlSyntaxError`) to
+- [x] (2026-07-19T18:13:04Z) M3: added a regression test (malformed input still yields `YamlSyntaxError`) to
       settei-yaml/test/Settei/YamlTest.hs and record the code-review acceptance criterion.
-- [ ] M3: append a dated amendment note to docs/adr/0004-yaml-input-semantics.md.
+- [x] (2026-07-19T18:13:04Z) M3: appended a dated amendment note to docs/adr/0004-yaml-input-semantics.md.
+- [x] (2026-07-19T18:13:04Z) M3 validation: `nix develop -c cabal test settei-yaml-tests
+      --test-show-details=direct` passed all 33 tests, and `nix develop -c cabal build all`
+      compiled the workspace.
 - [ ] M4: extend `DhallSourceError` with optional line/column fields and the
       `dhallErrorLine`/`dhallErrorColumn` accessors in settei-dhall/src/Settei/Dhall.hs.
 - [ ] M4: populate positions from the Megaparsec bundle at both `DhallParseError`
@@ -110,6 +113,12 @@ below also names a small observable behavior you can check directly.
   Evidence: `rg -n "annotateSource" settei settei-env settei-yaml settei-kdl settei-dhall
   settei-optparse-applicative --glob '*.hs'` found the four documented adapter call sites
   and no additional production use.
+- The unexpected synchronous YAML exception branch cannot be induced without corrupting
+  parser internals, so Milestone 3 used its planned review gate. The diff catches
+  `SomeException`; rethrows both `SomeAsyncException` and `AsyncException` before mapping;
+  uses a fixed fallback literal without exception content; and leaves `unsafePerformIO`
+  and `NOINLINE` intact. Ordinary malformed input remains covered by a positioned
+  `YamlSyntaxError` regression test.
 
 
 ## Decision Log

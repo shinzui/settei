@@ -116,3 +116,13 @@ adapter with core `boolDecoder`, which accepts only textual `true`/`false`.
 Rejected alternative: keeping the YAML 1.1 boolean set for compatibility. Settei is
 pre-release with no adopter files to protect, and strictness is this adapter's contract.
 (`docs/plans/11-adopt-yaml-1-2-core-schema-boolean-scalars.md`)
+
+
+## Amendment 2026-07-19: contain unexpected synchronous decode failures
+
+The pure decode boundary originally caught only `YamlException`, so another synchronous
+exception could escape `decodeYamlSource`. The boundary now catches `SomeException`, still
+rethrows asynchronous exceptions (`SomeAsyncException` and `AsyncException`), and maps
+unexpected synchronous exceptions to `YamlSyntaxError` with a fixed message that
+deliberately includes no exception text, because rendered exception text could echo raw
+input. The `unsafePerformIO` boundary decision is unchanged.

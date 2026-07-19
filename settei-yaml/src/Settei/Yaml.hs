@@ -27,7 +27,16 @@ module Settei.Yaml
 where
 
 import Control.Applicative ((<|>))
-import Control.Exception (IOException, displayException, try)
+import Control.Exception
+  ( AsyncException,
+    IOException,
+    SomeAsyncException,
+    SomeException,
+    displayException,
+    fromException,
+    throwIO,
+    try,
+  )
 import Control.Monad (when)
 import Data.Attoparsec.Text qualified as Attoparsec
 import Data.Bifunctor (first)
@@ -187,9 +196,26 @@ readYamlSource options filePath = do
 decodeMarkedEvents :: YamlSourceOptions -> ByteString -> Either YamlSourceError [Libyaml.MarkedEvent]
 decodeMarkedEvents options bytes = unsafePerformIO $ do
   decoded <-
-    try @Libyaml.YamlException
+    try @SomeException
       (runConduitRes (Libyaml.decodeMarked bytes .| ConduitList.consume))
-  pure $ first (syntaxError options) decoded
+  case decoded of
+    Right events -> pure (Right events)
+    Left exception
+      | Just (_ :: SomeAsyncException) <- fromException exception -> throwIO exception
+      | Just asynchronous <- fromException @AsyncException exception -> throwIO asynchronous
+      | Just yamlException <- fromException @Libyaml.YamlException exception ->
+          pure (Left (syntaxError options yamlException))
+      | otherwise ->
+          pure
+            ( Left
+                ( yamlError
+                    options
+                    YamlSyntaxError
+                    Nothing
+                    []
+                    "YAML decoding failed with an unexpected error"
+                )
+            )
 {-# NOINLINE decodeMarkedEvents #-}
 
 syntaxError :: YamlSourceOptions -> Libyaml.YamlException -> YamlSourceError

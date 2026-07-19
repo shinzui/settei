@@ -104,6 +104,11 @@ tests =
               "unexpected invalid UTF-8 category"
               (yamlErrorCategory problem `elem` [YamlSyntaxError, YamlInvalidScalar])
           Right _ -> fail "expected invalid UTF-8 to fail",
+      testCase "malformed input remains a positioned syntax error" $ do
+        problem <- expectError "key: [unclosed"
+        yamlErrorCategory problem @?= YamlSyntaxError
+        assertBool "expected a syntax-error line" (yamlErrorLine problem /= Nothing)
+        assertBool "expected a syntax-error column" (yamlErrorColumn problem /= Nothing),
       testCase "mounted Secret metadata remains visible while its setting is redacted" $ do
         let reference = kubernetesRef SecretObject (Just "production") "database-config" (Just "config.yaml")
             options = fromKubernetesMountedFile reference sourceOptions
