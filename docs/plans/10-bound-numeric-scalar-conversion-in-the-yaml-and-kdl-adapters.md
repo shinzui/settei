@@ -50,10 +50,10 @@ Use a checklist to summarize granular steps. Every stopping point must be docume
 even if it requires splitting a partially completed task into two ("done" vs. "remaining").
 This section must always reflect the actual current state of the work.
 
-- [ ] Milestone 1: add `maximumScalarExponent` and the `scalarRational` guard helper to `settei-yaml/src/Settei/Yaml.hs`
-- [ ] Milestone 1: route the `FloatTag`, `IntTag` (`parseTaggedInteger`), and untagged (`NoTag`) numeric paths through the guard
-- [ ] Milestone 1: add YAML characterization tests (fast rejection of huge positive/negative exponents, tagged-path rejection, boundary acceptance at 4096, boundary rejection at 4097, exactness of decimals/hex/octal/negative exponents, stable category/message/location)
-- [ ] Milestone 1: `nix develop -c cabal test settei-yaml-tests --test-show-details=direct` green; commit
+- [x] (2026-07-19 10:02 PDT) Milestone 1: add `maximumScalarExponent` and the `scalarRational` guard helper to `settei-yaml/src/Settei/Yaml.hs`
+- [x] (2026-07-19 10:02 PDT) Milestone 1: route the `FloatTag`, `IntTag` (`parseTaggedInteger`), and untagged (`NoTag`) numeric paths through the guard
+- [x] (2026-07-19 10:02 PDT) Milestone 1: add YAML characterization tests (fast rejection of huge positive/negative exponents, tagged-path rejection, boundary acceptance at 4096, boundary rejection at 4097, exactness of decimals/hex/octal/negative exponents, stable category/message/location)
+- [x] (2026-07-19 10:02 PDT) Milestone 1: `nix develop -c cabal test settei-yaml-tests --test-show-details=direct` green (28 tests passed in 0.00s); commit
 - [ ] Milestone 2: add `scientific >=0.3.7 && <0.4` to the `settei-kdl` library `build-depends`
 - [ ] Milestone 2: add `maximumScalarExponent` and the guarded `KDL.Number` branch in `translateValue` in `settei-kdl/src/Settei/Kdl.hs`
 - [ ] Milestone 2: add KDL characterization tests (same matrix as YAML, minus YAML-specific tags; KDL hex literal exactness)
@@ -146,6 +146,14 @@ Record every decision made while working on the plan.
   Rationale: Per the MasterPlan, 0.1.0.0 is implementation-complete but has never shipped,
   so there is no published behavior to differentiate from; the 0.1.0.0 entries describe
   what the first release will contain.
+  Date: 2026-07-19
+
+- Decision: Implement the absolute exponent bound as the direct range comparison
+  `exponent < -4096 || exponent > 4096`, rather than `abs exponent > 4096`.
+  Rationale: `base10Exponent` returns a fixed-width `Int`, and `abs minBound` overflows
+  back to `minBound`. The direct comparison states the same acceptance rule while staying
+  total for every `Scientific` representation, including values constructed outside the
+  current parsers.
   Date: 2026-07-19
 
 

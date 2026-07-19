@@ -40,7 +40,7 @@ import Data.Generics.Labels ()
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Ratio qualified as Ratio
-import Data.Scientific (Scientific)
+import Data.Scientific (Scientific, base10Exponent)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as TextEncoding
 import Settei
@@ -345,13 +345,14 @@ scalarValue options context marked bytes tag style = do
     Libyaml.NullTag -> Right RawNull
     Libyaml.BoolTag -> parseBoolean options context marked value
     Libyaml.IntTag -> parseTaggedInteger options context marked value
-    Libyaml.FloatTag -> RawNumber . toRational <$> parseNumber options context marked value
+    Libyaml.FloatTag ->
+      RawNumber <$> (parseNumber options context marked value >>= scalarRational options context marked)
     Libyaml.NoTag
       | style `elem` [Libyaml.SingleQuoted, Libyaml.DoubleQuoted, Libyaml.Literal, Libyaml.Folded] ->
           Right (RawText value)
       | isNull value -> Right RawNull
       | Just boolean <- yamlBoolean value -> Right (RawBool boolean)
-      | Right number <- parseYamlNumber value -> Right (RawNumber (toRational number))
+      | Right number <- parseYamlNumber value -> RawNumber <$> scalarRational options context marked number
       | otherwise -> Right (RawText value)
     _ -> Left (yamlError options YamlUnsupportedFeature (Just (startMark marked)) context "this YAML scalar tag is not supported")
 
@@ -365,7 +366,7 @@ parseBoolean options context marked value =
 parseTaggedInteger :: YamlSourceOptions -> [PathPiece] -> Libyaml.MarkedEvent -> Text -> Either YamlSourceError RawValue
 parseTaggedInteger options context marked value = do
   number <- parseNumber options context marked value
-  let rational = toRational number
+  rational <- scalarRational options context marked number
   if Ratio.denominator rational == 1
     then Right (RawNumber rational)
     else Left (yamlError options YamlInvalidScalar (Just (startMark marked)) context "integer tag requires a whole number")
@@ -375,6 +376,34 @@ parseNumber options context marked value =
   first
     (const (yamlError options YamlInvalidScalar (Just (startMark marked)) context "invalid or non-finite numeric scalar"))
     (parseYamlNumber value)
+
+-- | Largest absolute base-10 exponent accepted for a numeric scalar.
+--
+-- 'toRational' materializes @10 ^ exponent@ as an exact 'Integer', so cost
+-- grows with the exponent's magnitude rather than the input's length. This
+-- adapter-local bound leaves core 'RawNumber' values unbounded.
+maximumScalarExponent :: Int
+maximumScalarExponent = 4096
+
+scalarRational ::
+  YamlSourceOptions ->
+  [PathPiece] ->
+  Libyaml.MarkedEvent ->
+  Scientific ->
+  Either YamlSourceError Rational
+scalarRational options context marked number
+  | scalarExponent < negate maximumScalarExponent || scalarExponent > maximumScalarExponent =
+      Left
+        ( yamlError
+            options
+            YamlInvalidScalar
+            (Just (startMark marked))
+            context
+            "numeric scalar exponent is out of the supported range"
+        )
+  | otherwise = Right (toRational number)
+  where
+    scalarExponent = base10Exponent number
 
 parseYamlNumber :: Text -> Either String Scientific
 parseYamlNumber = Attoparsec.parseOnly (yamlNumberParser <* Attoparsec.endOfInput)
