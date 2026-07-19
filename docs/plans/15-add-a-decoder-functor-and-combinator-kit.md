@@ -19,11 +19,12 @@ If durable project context changes, update or create ADRs in docs/adr/ in the sa
 
 Settei is a Haskell configuration library about to be adopted by roughly seventy
 codebases. Every adopter writes decoders — small functions that turn a raw configuration
-value (text, number, array) into a typed application value. Today Settei's `Decoder` type
-has no `Functor` instance and no combinators, so even the two reference applications in
-this repository hand-roll identical decoders: both write a six-line `secretTextDecoder`
-case expression just to wrap decoded text in a newtype, and one writes ten more lines to
-decode a list of text. A fleet of seventy codebases would copy-paste the same code.
+value (text, number, array) into a typed application value. Before this change, Settei's
+`Decoder` type had no `Functor` instance and no combinators, so even the two reference
+applications in this repository hand-rolled identical decoders: both wrote a six-line
+`secretTextDecoder` case expression just to wrap decoded text in a newtype, and one wrote
+ten more lines to decode a list of text. A fleet of seventy codebases would have
+copy-pasted the same code.
 
 After this change, a newtype-wrapping decoder is one expression, `SecretText <$>
 textDecoder`, and a list decoder is `listDecoder textDecoder`. The plan adds a lawful
@@ -67,7 +68,7 @@ minimal and additive.
 - [x] (2026-07-19T19:06:58Z) Milestone 2: `nix develop -c cabal test settei-tests --test-show-details=direct`
       passes with the new cases listed.
 - [x] (2026-07-19T19:06:58Z) Milestone 2: Commit milestones 1 and 2 as
-      `0c0e589` (feature) and this test checkpoint, both with the required trailers.
+      `0c0e589` (feature) and `db41d39` (tests), both with the required trailers.
 - [x] (2026-07-19T19:08:53Z) Milestone 3: Replace `secretTextDecoder` in
       `examples/settei-cli/src/Settei/Example/Cli.hs` with `SecretText <$> textDecoder`
       and delete the hand-rolled definition.
@@ -75,15 +76,15 @@ minimal and additive.
       `examples/settei-service/src/Settei/Example/Service.hs` with `SecretText <$>
       textDecoder` and `listDecoder textDecoder`.
 - [x] (2026-07-19T19:08:53Z) Milestone 3: `nix develop -c cabal test all --test-show-details=direct` passes;
-      commit the example refactor with trailers.
+      commit the example refactor as `bd9c697` with trailers.
 - [x] (2026-07-19T19:10:27Z) Milestone 4: Add a "Compose decoders" section to
       `docs/guides/getting-started.md` teaching the combinator kit.
 - [x] (2026-07-19T19:10:27Z) Milestone 4: Add an Unreleased section to `settei/CHANGELOG.md`.
 - [x] (2026-07-19T19:10:27Z) Milestone 4: Amend `docs/adr/0003-resolution-provenance-and-default-semantics.md`
       with the dated parser-message-discarding redaction rule.
 - [x] (2026-07-19T19:10:27Z) Milestone 4: Final `nix develop -c cabal test all --test-show-details=direct` run;
-      commit docs with trailers.
-- [ ] Wrap-up: update the EP-15 rows in the MasterPlan Progress section, write the
+      commit docs as `cbb500d` with trailers.
+- [x] (2026-07-19T19:12:10Z) Wrap-up: update the EP-15 rows in the MasterPlan Progress section, write the
       Outcomes & Retrospective entry here, and confirm the ADR distillation pass is done.
 
 
@@ -196,7 +197,24 @@ minimal and additive.
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+EP-15 is complete. `Settei.Value` now exposes a lawful `Functor Decoder` instance plus
+`listDecoder`, `nonEmptyDecoder`, `parsedDecoder`, `rationalDecoder`, and
+`doubleDecoder`; bounded-integral failures state the accepted range and enumeration
+matching is explicitly case-sensitive. Both reference applications use the public kit,
+and the three duplicated decoder helpers have been deleted.
+
+The focused core run passed all 89 tests, including adversarial parser-message and array
+element sentinels. Two full workspace runs passed all 207 tests across core, adapters,
+examples, and conformance. The interactive acceptance returned
+`Right (Wrapped "hello")` for `runDecoder (Wrapped <$> textDecoder)`, demonstrating the
+one-line newtype decoder directly.
+
+The ADR distillation pass promoted the only cross-cutting decision — parser messages are
+potentially value-bearing and must be discarded — into
+`docs/adr/0003-resolution-provenance-and-default-semantics.md`. The remaining choices are
+decoder-local and live in public haddock. No EP-15 work remains; EP-21 can consume the
+settled API, while EP-20 should consider the discovered collision between ordinary local
+names such as `element` and the broad lens surface re-exported by `Settei.Prelude`.
 
 
 ## Context and Orientation
@@ -221,16 +239,15 @@ such as `service.port`, defined in `settei/src/Settei/Key.hs`) and an `expected 
 Text` description; the rejected raw input is intentionally absent — this is the
 secret-safety contract every combinator in this plan must preserve. `Decoder a` is a
 newtype around `Key -> RawValue -> Either DecodeFailure a`; the key is threaded in so
-failures can name the setting without the decoder author doing anything. The module
-currently exports four concrete decoders (`textDecoder`, `boolDecoder`,
+failures can name the setting without the decoder author doing anything. Before EP-15,
+the module exported four concrete decoders (`textDecoder`, `boolDecoder`,
 `boundedIntegralDecoder`, `enumDecoder`), the constructors-by-function `decoder` and
 `decodeFailure`, the accessors `runDecoder` and `decodeFailureExpected`, and
-`renderDecodeFailure`. Two private helpers exist at the bottom of the file: `failure`
-(shorthand for `Left DecodeFailure {..}`) and `integralValue`, which is the pattern the
-new `numberValue` helper mirrors — it accepts a `RawNumber` whose denominator is 1, and
-also a `RawText` parsed with `Data.Text.Read.signed Data.Text.Read.decimal` requiring the
-entire input to be consumed, so environment variables like `PORT=8080` decode as
-integers.
+`renderDecodeFailure`. The completed module additionally exports the five combinators
+and the `Functor` instance named in Outcomes. Its private helpers are `failure`,
+`integralValue`, and the new `numberValue`; the latter accepts `RawNumber` directly or
+fully consumed numeric `RawText`, so the exact and double decoders work uniformly across
+file formats, environment variables, and command-line values.
 
 The umbrella module `settei/src/Settei.hs` re-exports `module Settei.Value` (line 15 of
 that file), so any name added to `Settei.Value`'s export list is automatically visible to
@@ -241,15 +258,13 @@ lens's `Setting` alias), so `Value.hs` already has `NonEmpty`, `&`, `%~`, and `_
 scope; it also already imports `Data.Generics.Labels ()`, which enables the `#expected`
 label lens used below.
 
-The duplication evidence: `examples/settei-cli/src/Settei/Example/Cli.hs` defines
-`secretTextDecoder` (around line 328) as a case expression wrapping decoded text in the
-example's local `newtype SecretText = SecretText Text` (line 52).
-`examples/settei-service/src/Settei/Example/Service.hs` defines an identical
-`secretTextDecoder` (around line 377) plus `textListDecoder` and its `textElement`
-helper (lines 382–390) for decoding `["a", "b"]`-style tag arrays. Both example modules
-`import Settei` wholesale, so the new combinators are in scope with no import edits.
-The service module exports its `SecretText` type (module header line 8); that export
-stays.
+Before implementation, `examples/settei-cli/src/Settei/Example/Cli.hs` defined a
+`secretTextDecoder` case expression around its local `SecretText` newtype, and
+`examples/settei-service/src/Settei/Example/Service.hs` defined the same helper plus
+`textListDecoder` and `textElement` for tag arrays. EP-15 removed all three helpers. Both
+example modules already imported `Settei` wholesale, so they adopted `SecretText <$>
+textDecoder` and `listDecoder textDecoder` without import changes. The service module's
+`SecretText` export remains unchanged.
 
 Test layout: the core suite is `settei-tests` (declared in `settei/settei.cabal`,
 depends on `tasty` and `tasty-hunit` only). `settei/test/Main.hs` aggregates per-module

@@ -86,7 +86,7 @@ authority).
 
 | # | Title | Path | Hard Deps | Soft Deps | Status |
 |---|-------|------|-----------|-----------|--------|
-| 15 | Add a Decoder functor and combinator kit | docs/plans/15-add-a-decoder-functor-and-combinator-kit.md | None | None | In Progress |
+| 15 | Add a Decoder functor and combinator kit | docs/plans/15-add-a-decoder-functor-and-combinator-kit.md | None | None | Complete |
 | 16 | Provide shared tagged-format configuration loading | docs/plans/16-provide-shared-tagged-format-configuration-loading.md | None | EP-17 | Not Started |
 | 17 | Add error renderers to every source adapter | docs/plans/17-add-error-renderers-to-every-source-adapter.md | None | None | Not Started |
 | 18 | Make environment bindings total and validated | docs/plans/18-make-environment-bindings-total-and-validated.md | None | EP-17 | Not Started |
@@ -100,10 +100,10 @@ Hard Deps and Soft Deps reference other rows by their # prefix (e.g., EP-15).
 
 ## Dependency Graph
 
-EP-15, EP-17, EP-18, and EP-19 are implementable immediately and in parallel; they touch
-disjoint modules (settei/src/Settei/Value.hs; the four adapter error modules;
-settei-env/src/Settei/Env.hs; settei/src/Settei/Config.hs and settei/src/Settei/Setting.hs
-respectively).
+EP-15 is complete. EP-17, EP-18, and EP-19 remain implementable immediately and in
+parallel; they touch disjoint modules (the four adapter error modules;
+settei-env/src/Settei/Env.hs; settei/src/Settei/Config.hs and
+settei/src/Settei/Setting.hs respectively).
 
 EP-16 (the new tagged-format loading package) has a soft dependency on EP-17 because its
 loader should surface adapter failures through the new renderers rather than `Show`; it can
@@ -164,8 +164,8 @@ a new ADR), EP-20's public-surface and dependency decision (amendment to docs/ad
 
 ## Progress
 
-- [ ] EP-15: Decoder Functor instance and combinator kit with tests
-- [ ] EP-15: examples drop hand-rolled decoders; guides updated
+- [x] EP-15: Decoder Functor instance and combinator kit with tests
+- [x] EP-15: examples drop hand-rolled decoders; guides updated
 - [ ] EP-16: settei-formats package with tagged inputs and loader, registered everywhere
 - [ ] EP-16: loader tests and guide coverage
 - [ ] EP-17: text renderers for YAML, KDL, Dhall, and Env errors with tests
@@ -191,6 +191,10 @@ a new ADR), EP-20's public-surface and dependency decision (amendment to docs/ad
 - New-ADR numbering was coordinated at authoring time: EP-16 expects docs/adr/0008,
   EP-17 expects docs/adr/0009, EP-18 picks the next free number at implementation
   time; each plan verifies the number is free before writing.
+- EP-15 found that the broad lens surface re-exported by `Settei.Prelude` includes
+  `element`, which made the natural local binder name in the list combinators trigger
+  `-Wname-shadowing`. EP-15 used `elementDecoder` and stayed warning-free. EP-20 should
+  include this concrete collision in its public-surface and lens-footprint audit.
 
 
 ## Decision Log
