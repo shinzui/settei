@@ -244,6 +244,25 @@ Resolution is leaf-wise. A higher source can override `service.port` without rep
 lower source's `service.host`. Arrays are leaves and are replaced as a whole. A scalar at
 `service` conflicts structurally with a requested key such as `service.port`.
 
+### Null is not unset
+
+An explicit null is present input, not an absent key. A higher-precedence null therefore
+wins the precedence decision and is passed to the setting decoder; it does not reveal a
+lower-precedence value. Omit the higher key to leave the lower value in effect.
+
+```yaml
+# base.yaml (lower precedence)
+service:
+  timeout: 30
+
+# override.yaml (higher precedence)
+service:
+  timeout: null
+```
+
+For an integer timeout this resolves as a decode error at `service.timeout` from
+`override.yaml`, rather than falling back to `30` from `base.yaml`.
+
 Unknown input keys produce warnings under `defaultResolveOptions`. Applications that must
 reject stale or misspelled keys can opt into strict handling:
 

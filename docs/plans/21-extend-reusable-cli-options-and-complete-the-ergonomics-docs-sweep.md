@@ -65,10 +65,10 @@ resolver warnings rendered on stderr, and by running the full test suite green.
 - [x] 2026-07-19 M2: Update examples/settei-cli/test/Settei/Example/CliTest.hs and examples/settei-service/test/Settei/Example/ServiceTest.hs; add warning-rendering and describe-json test cases; verify examples/settei-conformance still passes unchanged.
 - [x] 2026-07-19 M2: Assert no `Text.pack . show`, `error (show`, or raw `show` on adapter errors remains under examples/ (grep returned no matches).
 - [x] 2026-07-19 M2: `nix develop -c cabal test all --test-show-details=direct` green; commit pending.
-- [ ] M3: docs/guides/getting-started.md — decoder kit, sugar, a warnings subsection, and the new "null is not unset" subsection with the YAML example.
-- [ ] M3: docs/guides/environment-and-cli.md — validated Bindings construction, new DiagnosticMode flags and helpers.
+- [x] 2026-07-19 M3: docs/guides/getting-started.md — decoder kit, sugar, a warnings subsection, and the new "null is not unset" subsection with the YAML example.
+- [x] 2026-07-19 M3: docs/guides/environment-and-cli.md — validated Bindings construction, new DiagnosticMode flags and helpers.
 - [ ] M3: docs/guides/yaml.md, kdl.md, dhall.md — error-handling snippets use the EP-17 renderers.
-- [ ] M3: docs/guides/cli-application.md — rewritten around the new example code.
+- [x] 2026-07-19 M3: docs/guides/cli-application.md — rewritten around the new example code.
 - [ ] M3: docs/guides/kubernetes-service.md — rewritten around the new example code, plus the readiness/initContainer `--check-config` recipe and the `RejectUnknownKeys` recommendation.
 - [ ] M3: docs/guides/README.md index updated (formats guide from EP-16 linked; descriptions match new capabilities).
 - [ ] M3: README.md feature snippets updated where the API changed.
@@ -925,3 +925,9 @@ render non-fatal resolver warnings on stderr. Tests cover source-free JSON schem
 and warning rendering; the full test suite is green. The service's one-file parser uses
 the shipped shared reader because the shipped `configInputOption` is intentionally
 repeatable.
+
+2026-07-19: Began Milestone 3 by replacing the CLI guide's local format type, parser,
+and adapter dispatcher with `settei-formats`; documenting `DiagnosticMode`'s source-free
+schema helpers and JSON schema mode; and recording the explicit-null precedence rule in
+the getting-started guide. The environment guide now uses `publicShowSetting` and names
+the final diagnostic API.

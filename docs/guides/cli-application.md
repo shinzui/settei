@@ -17,11 +17,9 @@ build-depends:
   , generic-lens
   , optparse-applicative
   , settei
-  , settei-dhall
   , settei-env
-  , settei-kdl
+  , settei-formats
   , settei-optparse-applicative
-  , settei-yaml
   , text
 ```
 
@@ -35,18 +33,16 @@ The code excerpts below use these imports in addition to application modules:
 
 ```haskell
 import Data.Generics.Labels ()
-import Data.List.NonEmpty (NonEmpty)
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Options.Applicative qualified as Options
 import Settei
-import Settei.Dhall qualified as Dhall
 import Settei.Env
-import Settei.Kdl qualified as Kdl
+import Settei.Formats
+import Settei.Formats.Optparse
 import Settei.Optparse
 import Settei.Prelude ((^.))
-import Settei.Yaml qualified as Yaml
 ```
 
 Keep these responsibilities separate:
@@ -140,22 +136,8 @@ contents. The reference application parses:
 --config dhall:path/to/application.dhall
 ```
 
-Represent a parsed input as a format plus path:
-
-```haskell
-data ConfigFormat = YamlFormat | KdlFormat | DhallFormat
-  deriving stock (Eq, Show)
-
-data ConfigInput = ConfigInput
-  { format :: !ConfigFormat,
-    path :: !FilePath
-  }
-  deriving stock (Eq, Show)
-```
-
-Use an `Options.eitherReader` to require `FORMAT:PATH`, reject an empty path, and accept
-only documented format names. Parsing a path must not open it; IO belongs after command-line
-validation succeeds.
+Use `Settei.Formats.ConfigInput` and `configInputOptions`; they require `FORMAT:PATH`,
+reject empty paths and unsupported tags, and never open a file while parsing.
 
 For a stable user-facing option such as `--port`, use `namedOption`. Use generic `--set`
 for advanced overrides and automation. Both produce command-line `Source` values whose
@@ -163,39 +145,18 @@ labels omit the raw value.
 
 ## Load each file explicitly
 
-Dispatch on the parsed format:
+The shared loader dispatches on the tag and retains structured adapter errors:
 
 ```haskell
-loadConfigInput :: ConfigInput -> IO (Either Text Source)
-loadConfigInput input =
-  let label = Text.pack (input ^. #path)
-   in case input ^. #format of
-        YamlFormat ->
-          fmap (either (Left . renderYamlErrors) Right)
-            (Yaml.readYamlSource (Yaml.yamlSourceOptions label) (input ^. #path))
-        KdlFormat ->
-          fmap (either (Left . renderKdlErrors) Right)
-            (Kdl.readKdlSource (Kdl.kdlSourceOptions label) (input ^. #path))
-        DhallFormat ->
-          fmap (either (Left . renderDhallErrors) Right)
-            ( Dhall.loadDhallSource
-                (Dhall.dhallSourceOptions label Dhall.NoImports)
-                (Dhall.DhallFile (input ^. #path))
-            )
+loadedFiles <- traverse (loadConfigInput defaultLoadOptions) configInputs
 ```
 
-The `render*Errors` helpers should use the structured fields shown in each adapter guide.
-Do not include raw file content in the message.
+Render failures with `renderFormatLoadErrorText` for each `FormatLoadError`; it delegates
+to the relevant adapter renderer and never requires `Show` output.
 
 The example uses `NoImports` for command-line Dhall files. If the application needs local
 imports, add a separate trusted root option and use `LocalImportsWithin root`. Do not take
 an unrestricted import policy from the Dhall file itself.
-
-Traverse inputs in command-line occurrence order:
-
-```haskell
-loadedFiles <- traverse loadConfigInput configInputs
-```
 
 If any file fails, report a source-loading failure and do not resolve a partial list.
 
@@ -235,6 +196,7 @@ Useful diagnostic modes are:
 | Option | Work performed |
 | --- | --- |
 | `--describe-config` | Render `describe appConfig` without reading files or environment values. |
+| `--describe-config-json` | Render the source-free schema as JSON. |
 | `--check-config` | Load and resolve configuration, print a short success message, then exit. |
 | `--explain-config` | Load and resolve, then render the redacted text report. |
 | `--explain-config-json` | Load and resolve, then render the versioned JSON report. |
@@ -243,22 +205,16 @@ Make diagnostic modes mutually exclusive in the parser. A schema-only mode shoul
 before file and environment loading:
 
 ```haskell
-case diagnosticMode of
-  DescribeConfiguration ->
-    TextIO.putStr (renderSchemaText (describe appConfig))
-  _ ->
-    loadResolveAndRun
+case schemaDiagnostic diagnosticMode (describe appConfig) of
+  Just output -> TextIO.putStr output
+  Nothing -> loadResolveAndRun
 ```
 
 After `result ^. #answer` yields a configuration:
 
 ```haskell
 renderSuccess mode config result =
-  case mode of
-    CheckConfiguration -> "configuration valid\n"
-    ExplainConfigurationText -> renderResolutionText (result ^. #report)
-    ExplainConfigurationJson -> renderResolutionJson (result ^. #report) <> "\n"
-    RunApplication -> runApplication config
+  maybe (runApplication config) id (resolutionDiagnostic mode result)
 ```
 
 Do not print the typed result after an explanation. The typed record contains real secret

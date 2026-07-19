@@ -69,11 +69,10 @@ databaseHostSetting =
 
 databasePortSetting :: Setting Int
 databasePortSetting =
-  publicSettingWithRenderer
+  publicShowSetting
     (validKey "database.port")
     "Database port"
     boundedIntegralDecoder
-    (Text.pack . show)
 
 databasePasswordSetting :: Setting Text
 databasePasswordSetting =
@@ -238,8 +237,9 @@ source in the precedence list at the exact level you want. If a parser has both 
 options and generic `--set`, the parser's assembly function—not raw argument position—must
 define which group wins.
 
-For custom help text or flag names, use `configPathOptionsWith`, `overrideOptionsWith`, and
-`explainModeOptionsWith`.
+For custom help text or flag names, use `configPathOptionsWith` and `overrideOptionsWith`.
+Compose custom diagnostic flags directly with `Options.flag'`; the reusable
+`diagnosticModeOptions` intentionally supplies one standard fleet-wide spelling.
 
 ## Resolve files, environment, and CLI overrides
 
@@ -283,10 +283,7 @@ Select a report renderer from the total result:
 ```haskell
 renderRequestedExplanation :: SetteiOptions -> ResolveResult a -> Maybe Text
 renderRequestedExplanation options result =
-  case options ^. #explainMode of
-    NoExplain -> Nothing
-    ExplainText -> Just (renderResolutionText (result ^. #report))
-    ExplainJson -> Just (renderResolutionJson (result ^. #report))
+  resolutionDiagnostic (options ^. #diagnosticMode) result
 ```
 
 Render errors from `result ^. #answer` with `renderErrorsText` or `renderErrorsJson`, and
