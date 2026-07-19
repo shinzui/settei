@@ -154,3 +154,27 @@ Renderer-only redaction was rejected because an unsafe intermediate report, deri
 reports was rejected for the same reason. Adding Aeson only to emit four small closed JSON
 documents was rejected in favor of the dependency-free deterministic encoder; adapter
 plans may independently use parser libraries at their input boundaries.
+
+
+## Amendment 2026-07-19: most-restrictive sensitivity and conflict errors
+
+When one `Config` declaration names the same key with more than one sensitivity, schema
+merging and every report representation use the most restrictive sensitivity: `Secret`
+wins over `Public`. The merged schema retains every declared sensitivity for validation,
+while its effective sensitivity remains a single Secret-biased value. Resolver evaluation
+uses that effective value for source candidates, decode errors, missing nodes, derived
+defaults, and skipped nodes. Duplicate report-node maps also combine with a
+redaction-preferring rule, so a Secret node can never be weakened by union order.
+
+For every acyclic declaration that contains both `Public` and `Secret` declarations of
+one key, `resolve` returns the structured `SensitivityConflict` error before source-shape
+validation or runtime evaluation. Default-cycle validation remains the first gate because
+building the static schema follows default dependencies and cannot terminate for an
+already-cyclic declaration. A declaration containing both defects therefore reports its
+`DefaultCycle` first; sensitivity conflicts are then detected in deterministic key order
+for every acyclic declaration.
+
+This is defense in depth rather than error-only enforcement. The conflict error tells an
+application owner that independently composed modules disagree, while most-restrictive
+schema and report semantics keep the redaction guarantee intact even if a future internal
+path constructs or combines nodes before handling that error.

@@ -18,6 +18,12 @@ For a setting declared `Secret`:
 - The public `ReportedValue` API can render its safe display form but cannot recover an
   underlying secret.
 
+If one declaration names the same key as both `Public` and `Secret`, Settei treats that
+key as secret everywhere: schema merging, report-node construction, and report-node
+merging all use the most restrictive declaration. The conflicting public declaration
+cannot weaken redaction, and resolution additionally fails with the structured
+`SensitivityConflict` error instead of silently accepting the mismatch.
+
 These guarantees apply to Settei's structured resolution path. They do not make an
 application safe if it logs a raw adapter input, an environment snapshot, the resolved
 typed secret, a third-party parser exception containing source excerpts, or a record with

@@ -69,13 +69,14 @@ only the core `settei` package plus documentation; no adapter package changes.
 - [x] (2026-07-19 09:41 -0700) M3: `redactReportedValue` added to
       settei/src/Settei/Provenance.hs and report-node map unions changed to a
       redact-preferring `Map.unionWith` combiner.
-- [ ] M4: adversarial secret-sentinel test added covering all renderers and `Show`.
-- [ ] M4: golden files under settei/test/golden/ verified unchanged; full workspace test
-      suite green.
-- [ ] M4: docs/adr/0003 amended with a dated note; docs/security.md, settei/CHANGELOG.md,
-      and docs/guides/getting-started.md updated.
-- [ ] Final: ADR distillation pass done, MasterPlan registry row and Progress updated,
-      Outcomes & Retrospective written.
+- [x] (2026-07-19 09:44 -0700) M4: adversarial secret-sentinel test added covering all
+      renderers and `Show`.
+- [x] (2026-07-19 09:44 -0700) M4: golden files under settei/test/golden/ verified
+      unchanged; full workspace test suite green.
+- [x] (2026-07-19 09:44 -0700) M4: docs/adr/0003 amended with a dated note;
+      docs/security.md, settei/CHANGELOG.md, and docs/guides/getting-started.md updated.
+- [x] (2026-07-19 09:44 -0700) Final: ADR distillation pass done, MasterPlan registry row
+      and Progress updated, Outcomes & Retrospective written.
 
 
 ## Surprises & Discoveries
@@ -183,7 +184,26 @@ only the core `settei` package plus documentation; no adapter package changes.
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+EP-9 is complete. Duplicate settings now retain every declared sensitivity while exposing
+one Secret-biased effective sensitivity; every acyclic mixed-sensitivity declaration
+fails with `SensitivityConflict`; and evaluation, defaults, decode errors, missing nodes,
+skipped nodes, and node-map unions all independently preserve the most restrictive
+sensitivity. The adversarial `CONFLICT-S3cr3t` test proves that the sentinel is absent
+from schema, error, resolution, JSON, text, and `Show` output.
+
+Validation passed with `nix fmt`, all 57 core tests, and the full `cabal test all` workspace
+run: 148 tests across ten suites passed. The eight files under settei/test/golden/ remained
+byte-identical. ADR distillation amended
+docs/adr/0003-resolution-provenance-and-default-semantics.md with the durable
+most-restrictive rule, structured conflict behavior, defense-in-depth layers, and the
+required validation ordering. The security model, getting-started guide, and unreleased
+0.1.0.0 changelog now state the same contract.
+
+The principal lesson is that schema-based validation cannot be blindly combined with
+cycle detection: a cyclic default graph has no finite static schema. Default cycles must
+remain the first resolver gate. EP-12 still owns one follow-on integration obligation:
+when reports become available on failure, its tests must scan the sensitivity-conflict
+failure report for the same sentinel without renaming `SensitivityConflict`.
 
 
 ## Context and Orientation
@@ -971,3 +991,7 @@ does not terminate. The implemented resolver now preserves default-cycle validat
 the first gate and runs sensitivity-conflict validation second for acyclic declarations;
 the Progress, Surprises & Discoveries, Decision Log, Plan of Work, and acceptance context
 record the ordering and its evidence.
+
+2026-07-19: Completed all four milestones, recorded the 148-test full-workspace evidence,
+distilled the durable sensitivity and validation-order decisions into ADR 0003, and
+synchronized the MasterPlan registry, progress, integration guidance, and discovery log.

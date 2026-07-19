@@ -85,7 +85,7 @@ authority). docs/adr/0001-haskell-project-conventions.md governs code style in e
 
 | # | Title | Path | Hard Deps | Soft Deps | Status |
 |---|-------|------|-----------|-----------|--------|
-| 9 | Close the shared-key sensitivity redaction hole | docs/plans/9-close-the-shared-key-sensitivity-redaction-hole.md | None | None | In Progress |
+| 9 | Close the shared-key sensitivity redaction hole | docs/plans/9-close-the-shared-key-sensitivity-redaction-hole.md | None | None | Complete |
 | 10 | Bound numeric scalar conversion in the YAML and KDL adapters | docs/plans/10-bound-numeric-scalar-conversion-in-the-yaml-and-kdl-adapters.md | None | None | Not Started |
 | 11 | Adopt YAML 1.2 core-schema boolean scalars | docs/plans/11-adopt-yaml-1-2-core-schema-boolean-scalars.md | None | EP-10 | Not Started |
 | 12 | Report resolution provenance and warnings on failure | docs/plans/12-report-resolution-provenance-and-warnings-on-failure.md | None | EP-9 | Not Started |
@@ -121,7 +121,9 @@ Shared error vocabulary (EP-9, EP-12): both plans extend or reshape types in
 settei/src/Settei/Error.hs and their rendering in settei/src/Settei/Render.hs. EP-9 owns
 the new sensitivity-conflict error constructor and its text/JSON rendering; EP-12 consumes
 whatever constructors exist when it changes the failure return shape. EP-12 must not
-rename or remove EP-9's constructor.
+rename or remove EP-9's constructor. EP-12 must also preserve the validation ordering
+discovered by EP-9: default cycles are rejected before static schema construction, then
+sensitivity conflicts are rejected before source-shape validation or evaluation.
 
 Resolver result shape (EP-12, EP-14, and the ergonomics MasterPlan): EP-12 owns the new
 shape returned by `resolve` in settei/src/Settei/Resolve.hs (report and warnings available
@@ -156,8 +158,9 @@ EP-12's always-available report semantics (amend docs/adr/0003).
 
 ## Progress
 
-- [ ] EP-9: sensitivity conflicts detected and redaction enforced most-restrictively in core
-- [ ] EP-9: adversarial secret-sentinel tests, docs, and security model updated
+- [x] EP-9: sensitivity conflicts detected and redaction enforced most-restrictively in
+      core
+- [x] EP-9: adversarial secret-sentinel tests, docs, and security model updated
 - [ ] EP-10: exponent-bounded numeric conversion in settei-yaml and settei-kdl with tests
 - [ ] EP-10: ADR 0004/0005 amendments, guides, and changelogs updated
 - [ ] EP-11: YAML untagged booleans restricted to true/false with characterization tests
@@ -179,6 +182,12 @@ EP-12's always-available report semantics (amend docs/adr/0003).
 - EP-14 research found the conformance package already contains a secret-sentinel scan
   (`never-render-this-conformance-secret` in its Security test group), so EP-9's
   adversarial coverage extends an existing mechanism rather than inventing one.
+- During EP-9 implementation (2026-07-19), attempting to accumulate default-cycle and
+  sensitivity-conflict errors in one expression made the cyclic-default test stop because
+  conflict detection builds the static schema and follows the deliberate cycle forever.
+  Core now keeps default-cycle validation as the first gate and runs schema-based
+  sensitivity validation second. EP-12 must preserve this order when reshaping failure
+  results.
 
 
 ## Decision Log
@@ -212,6 +221,15 @@ EP-12's always-available report semantics (amend docs/adr/0003).
   Rationale: Independent revertibility and distinct characterization-test surfaces; both
   amend ADR 0004 but answer different questions (which scalars are booleans versus which
   numbers are representable).
+  Date: 2026-07-19
+
+- Decision: Preserve resolver declaration-validation order as default cycles first,
+  sensitivity conflicts second, then source-shape validation and runtime evaluation.
+  Rationale: Sensitivity-conflict detection consumes the static schema, while describing a
+  cyclic default graph cannot terminate. Reporting the cycle first preserves termination;
+  acyclic declarations still receive all sensitivity conflicts in deterministic key order
+  before any source-dependent work. ADR 0003 records the durable rule, and EP-12 must
+  retain it while changing the failure result shape.
   Date: 2026-07-19
 
 

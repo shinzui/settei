@@ -3,6 +3,7 @@
 module Settei.RenderTest (tests) where
 
 import Data.Generics.Labels ()
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as Text
 import Data.Text.IO qualified as TextIO
@@ -46,7 +47,9 @@ tests =
         assertBool
           "JSON omitted the sensitivity-conflict kind"
           ("\"kind\":\"sensitivity-conflict\"" `Text.isInfixOf` renderErrorsJson errors),
-      testCase "every supported output redacts marked secrets" redactionTest
+      testCase "every supported output redacts marked secrets" redactionTest,
+      testCase "mixed-sensitivity declarations never expose their secret sentinel" $
+        sensitivityConflictRedactionTest
     ]
 
 assertGolden :: FilePath -> Text -> IO ()
@@ -79,6 +82,49 @@ redactionTest = do
     (all (not . Text.isInfixOf secretSentinel) outputs)
   assertBool "decode error did not show a redaction marker" $
     "<redacted>" `Text.isInfixOf` renderErrorsText errors
+
+sensitivityConflictRedactionTest :: IO ()
+sensitivityConflictRedactionTest =
+  case resolve defaultResolveOptions [conflictSource] conflictingConfig of
+    Right _ -> fail "mixed-sensitivity declaration should fail"
+    Left errors -> do
+      assertBool
+        "resolution omitted the sensitivity conflict"
+        ( any
+            ( \case
+                SensitivityConflict problem -> problem ^. #key == databasePassword
+                _ -> False
+            )
+            (NonEmpty.toList errors)
+        )
+      secretOnly <-
+        expectSuccess (resolve defaultResolveOptions [conflictSource] (required secretTextSetting))
+      let schema = describe conflictingConfig
+          report = secretOnly ^. #report
+          outputs =
+            [ renderSchemaText schema,
+              renderSchemaJson schema,
+              renderErrorsText errors,
+              renderErrorsJson errors,
+              renderResolutionText report,
+              renderResolutionJson report,
+              Text.pack (show schema),
+              Text.pack (show errors),
+              Text.pack (show report)
+            ]
+      assertBool
+        "the conflict sentinel reached a schema, error, resolution, or Show output"
+        (all (not . Text.isInfixOf conflictSentinel) outputs)
+      assertBool
+        "the conflicted schema key was not marked secret"
+        ("database.password [required, necessary, secret]" `Text.isInfixOf` renderSchemaText schema)
+  where
+    conflictingConfig =
+      (,) <$> required secretTextSetting <*> required publicConflictSetting
+
+-- A mixed-sensitivity report is unreachable until EP-12 makes reports available on
+-- failure. EP-12 must extend this sentinel scan to that failure report without renaming
+-- SensitivityConflict.
 
 expectSuccess :: Either (NonEmpty ConfigError) a -> IO a
 expectSuccess = \case
@@ -218,6 +264,9 @@ secretTextSetting = secretSetting databasePassword "Database password" textDecod
 secretBoolSetting :: Setting Bool
 secretBoolSetting = secretSetting databasePassword "Database password" boolDecoder
 
+publicConflictSetting :: Setting Text
+publicConflictSetting = publicSetting databasePassword "Metrics password label" textDecoder
+
 secretSource :: Source
 secretSource =
   source
@@ -230,6 +279,18 @@ secretSource =
         )
     )
 
+conflictSource :: Source
+conflictSource =
+  source
+    "conflict-sentinel"
+    (CustomSource "test")
+    ( RawObject
+        ( Map.singleton
+            "database"
+            (RawObject (Map.singleton "password" (RawText conflictSentinel)))
+        )
+    )
+
 unknownSecretSource :: Source
 unknownSecretSource =
   source
@@ -239,6 +300,9 @@ unknownSecretSource =
 
 secretSentinel :: Text
 secretSentinel = "S3cr3t-\"\\\n-[]{}-雪"
+
+conflictSentinel :: Text
+conflictSentinel = "CONFLICT-S3cr3t-\"\\\n-[]{}-雪"
 
 databasePassword :: Key
 databasePassword = validKey "database.password"

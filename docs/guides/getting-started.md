@@ -102,7 +102,9 @@ renderEnvironment Production = "production"
 Use `publicSettingWithRenderer` when a public typed value may be produced by a default.
 The renderer lets explanations show that typed default. Source values do not need it.
 Use `secretSetting` for every credential or sensitive value; Settei then redacts the value
-before constructing errors and reports.
+before constructing errors and reports. Declaring the same key with different sensitivity
+in one declaration is a resolve-time `SensitivityConflict`, and schemas and reports always
+use the most restrictive declaration (`Secret` wins).
 
 `parseKey` accepts non-empty dotted paths such as `service.port`. The dots represent
 structural segments. Source formats therefore use nested objects or nodes rather than a

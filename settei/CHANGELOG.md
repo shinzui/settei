@@ -6,3 +6,9 @@
 - Add inspectable Applicative and Selective configuration declarations.
 - Add hierarchical resolution, ordered provenance, named defaults, secret-safe errors,
   static schemas, and versioned text and JSON reports.
+- Merge duplicate setting sensitivities most-restrictively in schemas and reports, so a
+  key declared `Secret` anywhere cannot be weakened by a conflicting `Public`
+  declaration; add `redactReportedValue` as a one-way collapse of any retained display
+  representation to the redaction marker.
+- Add the structured `SensitivityConflict` resolution error for mixed-sensitivity keys,
+  rendered in JSON with the additive `sensitivity-conflict` kind.
