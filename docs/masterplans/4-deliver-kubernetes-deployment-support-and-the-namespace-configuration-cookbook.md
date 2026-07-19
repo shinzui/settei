@@ -1,0 +1,239 @@
+---
+id: 4
+slug: deliver-kubernetes-deployment-support-and-the-namespace-configuration-cookbook
+title: "Deliver Kubernetes deployment support and the namespace configuration cookbook"
+kind: master-plan
+created_at: 2026-07-19T15:20:03Z
+intention: "intention_01kxxfcw4ke5fbb2kas9ghvv9a"
+---
+
+# Deliver Kubernetes deployment support and the namespace configuration cookbook
+
+This MasterPlan is a living document. The sections Progress, Surprises & Discoveries,
+Decision Log, and Outcomes & Retrospective must be kept up to date as work proceeds.
+If durable project context changes, update or create ADRs in docs/adr/ in the same change.
+
+
+## Vision & Scope
+
+The 2026-07-19 API review judged Kubernetes support the weakest part of Settei: what
+ships today is provenance labeling (`KubernetesRef`, `kubernetesAnnotations`, and the
+`fromKubernetes*` helpers), not integration. The owner is deploying roughly 50
+microservices whose dominant configuration pattern is: one container image promoted
+unchanged through several Kubernetes namespaces (for example dev, staging, production),
+with configuration differing per namespace. That pattern needs no cluster client and no
+special library mechanism — but it does need the mounted-file idioms Kubernetes actually
+produces, structurally honest provenance, and above all a cookbook that shows the whole
+flow end to end. After this initiative is complete, the following holds:
+
+- A new `settei-kubernetes` adapter package reads a projected ConfigMap or Secret volume
+  — the standard Kubernetes mount shape where each object key becomes one file in a
+  directory — as an ordinary Settei `Source`, with explicit per-file key bindings
+  (mirroring settei-env's explicit-bindings philosophy), per-key file locations, the
+  Kubernetes atomic-writer symlink layout handled correctly, and secret-safe errors.
+- Environment bindings can be derived from a `KubernetesRef` in one construction, so the
+  binding and its provenance annotation cannot drift apart, and mounted-source origins
+  carry freshness identity (mount path, file modification time) through the existing
+  annotation vocabulary rather than core type changes.
+- A namespace-driven configuration cookbook — the centerpiece of this initiative —
+  documents how to configure and deploy a Settei microservice across namespaces:
+  per-namespace ConfigMaps and Secrets with identical manifests, the downward API for
+  namespace identity, `--check-config` as an init container gate, `--explain-config` as
+  the incident runbook, and runnable manifests checked into the repository. The cookbook
+  deliberately requires NO new library behavior for the namespace pattern itself; it
+  teaches composition of what already exists.
+- The Kubernetes-shaped reference service exercises the new adapter end to end and the
+  release collateral (registration, compatibility matrix, changelogs, ADRs) is
+  reconciled.
+
+Out of scope, deliberately (consistent with docs/adr/0007): any Kubernetes API client,
+cluster-state verification, watch/hot-reload of mounted volumes (restart-to-reload is
+documented instead), Helm chart authoring (manifests are plain YAML plus kustomize
+overlays), and operator/CRD tooling.
+
+
+## Decomposition Strategy
+
+Four work streams by functional concern:
+
+1. The mounted-directory source is a self-contained new adapter package with its own
+   parsing, validation, and provenance semantics — the same shape as the existing
+   settei-yaml/settei-kdl/settei-dhall adapter plans.
+2. Ref-derived bindings and freshness provenance extend the same package plus the shared
+   annotation vocabulary; they are split from the source adapter because they touch the
+   settei-env integration and the core renderer's Kubernetes suffix, and are
+   independently verifiable.
+3. The cookbook is documentation work with runnable manifests; it is the owner's primary
+   ask and must not be hostage to adapter implementation, so it is a separate plan that
+   can proceed in parallel (its adapter-referencing sections carry contingencies).
+4. Reference-service integration and release collateral form the final conformance pass,
+   per docs/adr/0007 (reference applications are the public-API conformance boundary).
+
+Relevant ADRs consulted: docs/adr/0001-haskell-project-conventions.md (sibling package
+layout, canonical stanza, dependency research process — governs the new package),
+docs/adr/0003-resolution-provenance-and-default-semantics.md (source, origin, and
+annotation semantics the adapter must respect; the Kubernetes annotation vocabulary it
+extends), docs/adr/0007-reference-applications-are-the-public-api-conformance-boundary.md
+(the examples prove the process boundary only; no cluster access — this initiative keeps
+that boundary and the cookbook documents the deployment side that lives outside the
+process). docs/adr/0004/0005/0006 are not directly relevant beyond adapter-error styling
+precedent. The ergonomics initiative's ADRs-to-be (docs/adr/0008 umbrella package,
+docs/adr/0009 renderer contract) are consumed as constraints: settei-kubernetes follows
+the renderer contract and may be added to settei-formats only as a follow-up decision.
+
+
+## Exec-Plan Registry
+
+| # | Title | Path | Hard Deps | Soft Deps | Status |
+|---|-------|------|-----------|-----------|--------|
+| 22 | Create the settei-kubernetes mounted-directory source adapter | docs/plans/22-create-the-settei-kubernetes-mounted-directory-source-adapter.md | None | None | Not Started |
+| 23 | Derive environment bindings and freshness provenance from Kubernetes references | docs/plans/23-derive-environment-bindings-and-freshness-provenance-from-kubernetes-references.md | EP-22 | None | Not Started |
+| 24 | Write the namespace-driven configuration cookbook and deployment manifests | docs/plans/24-write-the-namespace-driven-configuration-cookbook-and-deployment-manifests.md | None | EP-22, EP-23 | Not Started |
+| 25 | Integrate Kubernetes support into the reference service and release collateral | docs/plans/25-integrate-kubernetes-support-into-the-reference-service-and-release-collateral.md | EP-22, EP-23, EP-24 | None | Not Started |
+
+Status values: Not Started, In Progress, Complete, Cancelled.
+Hard Deps and Soft Deps reference other rows by their # prefix (e.g., EP-22).
+
+
+## Dependency Graph
+
+EP-22 is implementable immediately; it creates the settei-kubernetes package and the
+mounted-directory source. EP-23 hard-depends on EP-22 because it extends the same new
+package (its code cannot compile without the package existing). EP-24 (the cookbook) has
+no hard dependency — its core content, the namespace pattern, uses only shipped APIs —
+but soft-depends on EP-22 and EP-23 for the sections that showcase the mounted-directory
+source and derived bindings; those sections carry explicit contingencies if written
+first. EP-25 hard-depends on all three: it wires the adapter into the reference service,
+validates the cookbook's manifests against that service, and closes the release
+collateral.
+
+Cross-MasterPlan constraint: this initiative lands after
+docs/masterplans/2-harden-settei-correctness-before-fleet-wide-adoption.md and
+docs/masterplans/3-improve-settei-api-ergonomics-for-fleet-wide-adoption.md. It builds
+directly on ergonomics deliverables: the validated `Bindings` type from
+docs/plans/18-make-environment-bindings-total-and-validated.md (EP-23's derived bindings
+return it), the adapter error renderer contract from
+docs/plans/17-add-error-renderers-to-every-source-adapter.md (settei-kubernetes ships
+renderers from day one), the `--check-config`/`DiagnosticMode` options from
+docs/plans/21-extend-reusable-cli-options-and-complete-the-ergonomics-docs-sweep.md (the
+cookbook's init-container gate), and the post-EP-12 resolver result shape from
+docs/plans/12-report-resolution-provenance-and-warnings-on-failure.md (the cookbook's
+incident runbook shows failure reports). If this initiative is started earlier, each
+child plan records which sections must be reconciled.
+
+
+## Integration Points
+
+New package settei-kubernetes (EP-22 owns; EP-23 extends; EP-25 registers in release
+collateral): top-level sibling directory per docs/adr/0001 with the canonical common
+stanza. EP-22 defines the package, its error type, its renderer (following the EP-17
+contract), and the mounted-directory source API. EP-23 adds the bindings-derivation and
+freshness modules. Dependency direction: settei-kubernetes may depend on settei and
+settei-env; nothing in the existing family depends on settei-kubernetes.
+
+Kubernetes annotation vocabulary (EP-22, EP-23, core): docs/adr/0003 gives core the
+shared `kubernetes.*` annotation names (kubernetes.object-kind, kubernetes.object-name,
+kubernetes.namespace, kubernetes.object-key) rendered by the kubernetesSuffix in
+settei/src/Settei/Render.hs. EP-23 owns the additive vocabulary extensions
+(kubernetes.mount-path, kubernetes.file-modified, and any resource-identity names) and
+decides whether the core renderer learns to display them; any core change is minimal and
+additive. The vocabulary extension is a durable decision → new ADR (number chosen at
+implementation time after the ergonomics initiative's 0008/0009).
+
+Deployment manifests (EP-24 owns; EP-25 validates): runnable manifests live under
+examples/settei-service/deploy/ (base plus per-namespace kustomize overlays) so the
+cookbook references checked-in, testable files rather than embedding untested YAML. The
+cookbook guide lives at docs/guides/kubernetes-cookbook.md and the existing
+docs/guides/kubernetes-service.md narrows to the application-code guide, linking to the
+cookbook for deployment.
+
+Reference service (EP-25 owns the final pass; EP-22/EP-23 keep example edits minimal per
+the established convention): examples/settei-service gains a mounted-directory
+configuration path demonstrating the adapter; examples remain the conformance boundary
+per docs/adr/0007 and never contact a cluster.
+
+Cross-plan decisions that should become ADRs: the mounted-directory mapping semantics
+(explicit file bindings, atomic-writer symlink handling, UTF-8/trailing-newline policy —
+EP-22, new ADR), the freshness/identity annotation vocabulary (EP-23, same or separate
+ADR), and the documented restart-to-reload posture with the no-cluster-client boundary
+reaffirmed (EP-24 records it in the cookbook; EP-25 promotes it during distillation).
+
+
+## Progress
+
+- [ ] EP-22: settei-kubernetes package scaffolded and registered in cabal/nix/mori
+- [ ] EP-22: mounted-directory source with explicit file bindings, symlink handling, tests
+- [ ] EP-22: error type plus renderer per the adapter renderer contract
+- [ ] EP-23: bindingsFrom* derivation returning validated Bindings, tests
+- [ ] EP-23: freshness/identity annotations and renderer decision, ADR drafted
+- [ ] EP-24: namespace cookbook written with downward API, check-config gate, runbook
+- [ ] EP-24: runnable base+overlay manifests under examples/settei-service/deploy/
+- [ ] EP-25: reference service exercises the mounted-directory source end to end
+- [ ] EP-25: conformance/smoke coverage, compatibility matrix, changelogs, README
+- [ ] EP-25: ADR distillation and MasterPlan closure
+
+
+## Surprises & Discoveries
+
+- Plan authoring (2026-07-19) found that examples/settei-service already ships a small
+  single-namespace manifest set under examples/settei-service/kubernetes/ (configmap,
+  deployment, secret example). EP-24 replaces it with the base-plus-overlays layout
+  under examples/settei-service/deploy/ and deletes the old directory.
+- The child plans were authored in parallel, so each pins its cross-plan assumptions as
+  a preflight reconciliation step (EP-23 verifies EP-22's final module surface and the
+  ergonomics initiative's landed Bindings shape; EP-25 replaces every provisional
+  spelling — including its placeholder name for EP-23's derivation constructors —
+  against landed code before editing). Implementers must run those preflights rather
+  than trust the provisional names.
+- EP-24 research confirmed the nix dev shell currently ships no kubectl/kustomize/
+  kubeconform; the manifest-validation tooling is added via the flake's extension
+  point, and manifest rendering stays a checklist gate rather than a cabal test.
+
+
+## Decision Log
+
+- Decision: Scope this initiative to process-boundary integration only — mounted files,
+  environment variables, and documentation; no Kubernetes API client, no watch/reload.
+  Rationale: docs/adr/0007 already records that configuration delivery is visible to the
+  process as files and environment variables; the review's gaps (projected-volume
+  source, ref-derived bindings, freshness identity, cookbook) are all addressable at
+  that boundary. Restart-to-reload is documented rather than engineered around.
+  Date: 2026-07-19
+
+- Decision: The namespace-driven configuration pattern gets NO special library
+  mechanism; it is delivered as a cookbook (EP-24) composing existing features
+  (per-namespace ConfigMaps, downward API env binding, named defaults, check/explain
+  diagnostics).
+  Rationale: Owner's explicit direction. The pattern is deployment topology, not
+  library semantics: the same declaration resolves against whatever the namespace
+  mounts. Any library affordance would couple Settei to cluster naming conventions.
+  Date: 2026-07-19
+
+- Decision: The mounted-directory source uses explicit per-file key bindings rather
+  than deriving keys from file names automatically.
+  Rationale: ConfigMap and Secret data keys legally contain dots (application.yaml,
+  tls.crt), which collide with Settei's dotted key syntax; guessing a mapping would be
+  the same trap ADR 0003 rejected for environment variables. Explicit bindings mirror
+  settei-env and keep provenance honest. EP-22 records the detailed mapping semantics.
+  Date: 2026-07-19
+
+- Decision: Freshness and identity ride the existing annotation vocabulary
+  (kubernetes.mount-path, kubernetes.file-modified, …) instead of extending the core
+  KubernetesRef record.
+  Rationale: Annotations are additive, adapter-owned, and already rendered through the
+  ordered annotation map; changing the core record would ripple through every adapter
+  for metadata only one adapter produces. EP-23 owns the exact names and the renderer
+  decision.
+  Date: 2026-07-19
+
+- Decision: Run this initiative third, after the correctness and ergonomics
+  MasterPlans.
+  Rationale: The adapter should ship against the hardened core (post-EP-12 resolver
+  shape) and the ergonomics contracts (validated Bindings, renderer convention,
+  DiagnosticMode) rather than being written twice. The cookbook teaches the final API.
+  Date: 2026-07-19
+
+
+## Outcomes & Retrospective
+
+(To be filled during and after implementation.)
