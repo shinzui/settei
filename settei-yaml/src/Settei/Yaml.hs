@@ -11,6 +11,8 @@ module Settei.Yaml
     decodeYamlSource,
     fromKubernetesMountedFile,
     readYamlSource,
+    renderYamlErrorText,
+    renderYamlErrorsText,
     withYamlSourcePath,
     yamlErrorCategory,
     yamlErrorColumn,
@@ -153,6 +155,35 @@ yamlErrorContext problem = problem ^. #context
 -- | Return a concise message that never includes a raw scalar or source excerpt.
 yamlErrorMessage :: YamlSourceError -> Text
 yamlErrorMessage problem = problem ^. #message
+
+-- | Render one YAML input failure as a single operator-readable line.
+--
+-- The line leads with the stable source name, then a parenthetical built from the
+-- colon-joined available location pieces (path, one-based line, one-based column),
+-- then the structural context, then the fixed secret-safe message. Absent pieces
+-- are omitted; when no piece is known the parenthetical disappears. No raw
+-- configuration value can appear because 'YamlSourceError' retains none.
+renderYamlErrorText :: YamlSourceError -> Text
+renderYamlErrorText problem =
+  problem ^. #name
+    <> locationText
+    <> " at "
+    <> problem ^. #context
+    <> ": "
+    <> problem ^. #message
+  where
+    locationText = case locationPieces of
+      [] -> ""
+      pieces -> " (" <> Text.intercalate ":" pieces <> ")"
+    locationPieces =
+      maybe [] (pure . Text.pack) (problem ^. #path)
+        <> maybe [] (pure . Text.pack . show) (problem ^. #line)
+        <> maybe [] (pure . Text.pack . show) (problem ^. #column)
+
+-- | Render every YAML input failure, one line per problem, matching
+-- 'Settei.Render.renderErrorsText' in shape and trailing newline.
+renderYamlErrorsText :: NonEmpty YamlSourceError -> Text
+renderYamlErrorsText = Text.unlines . fmap renderYamlErrorText . NonEmpty.toList
 
 -- | Decode exactly one YAML mapping into a Settei file source.
 --

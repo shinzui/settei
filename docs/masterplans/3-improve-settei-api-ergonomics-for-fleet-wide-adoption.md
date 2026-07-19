@@ -88,7 +88,7 @@ authority).
 |---|-------|------|-----------|-----------|--------|
 | 15 | Add a Decoder functor and combinator kit | docs/plans/15-add-a-decoder-functor-and-combinator-kit.md | None | None | Complete |
 | 16 | Provide shared tagged-format configuration loading | docs/plans/16-provide-shared-tagged-format-configuration-loading.md | None | EP-17 | Complete |
-| 17 | Add error renderers to every source adapter | docs/plans/17-add-error-renderers-to-every-source-adapter.md | None | None | Not Started |
+| 17 | Add error renderers to every source adapter | docs/plans/17-add-error-renderers-to-every-source-adapter.md | None | None | In Progress |
 | 18 | Make environment bindings total and validated | docs/plans/18-make-environment-bindings-total-and-validated.md | None | EP-17 | Not Started |
 | 19 | Add declaration sugar for conditionals and rendered defaults | docs/plans/19-add-declaration-sugar-for-conditionals-and-rendered-defaults.md | None | None | Not Started |
 | 20 | Tighten the public surface and dependency hygiene | docs/plans/20-tighten-the-public-surface-and-dependency-hygiene.md | None | EP-15, EP-16, EP-17, EP-18, EP-19 | Not Started |

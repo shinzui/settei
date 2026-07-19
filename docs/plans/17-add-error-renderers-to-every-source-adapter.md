@@ -59,9 +59,13 @@ Use a checklist to summarize granular steps. Every stopping point must be docume
 even if it requires splitting a partially completed task into two ("done" vs. "remaining").
 This section must always reflect the actual current state of the work.
 
-- [ ] Confirm preconditions: re-read `DhallSourceError` in settei-dhall/src/Settei/Dhall.hs for optional position fields added by EP-13, and check docs/adr/ for the next free ADR number.
-- [ ] Milestone 1: add `renderYamlErrorText`/`renderYamlErrorsText` to settei-yaml/src/Settei/Yaml.hs with haddock and export-list entries.
-- [ ] Milestone 1: renderer unit tests in settei-yaml/test/Settei/YamlTest.hs covering all nine `YamlErrorCategory` values plus no-path and no-position omission; `settei-yaml-tests` green.
+- [x] (2026-07-19T20:19:40Z) Confirm preconditions: `DhallSourceError` has optional one-based `line` and
+      `column` fields from EP-13, EP-16 owns ADR 0008, and ADR 0009 is free.
+- [x] (2026-07-19T20:22:20Z) Milestone 1: add `renderYamlErrorText`/`renderYamlErrorsText` to
+      settei-yaml/src/Settei/Yaml.hs with haddock and export-list entries.
+- [x] (2026-07-19T20:22:20Z) Milestone 1: renderer unit tests in settei-yaml/test/Settei/YamlTest.hs
+      cover all nine `YamlErrorCategory` values plus no-path and no-position omission;
+      all 45 `settei-yaml-tests` pass.
 - [ ] Milestone 2: add `renderKdlErrorText`/`renderKdlErrorsText` to settei-kdl/src/Settei/Kdl.hs with haddock and export-list entries.
 - [ ] Milestone 2: renderer unit tests in settei-kdl/test/Settei/KdlTest.hs covering all eight `KdlErrorCategory` values plus related-span and omission behavior; `settei-kdl-tests` green.
 - [ ] Milestone 3: add `renderDhallErrorText`/`renderDhallErrorsText` to settei-dhall/src/Settei/Dhall.hs with haddock and export-list entries, using position fields if EP-13 added them.
@@ -188,6 +192,15 @@ Record every decision made while working on the plan.
   coupling for four small functions. This rejected-typeclass reasoning goes into the ADR.
   Date: 2026-07-19
 
+- Decision: Include Dhall's optional line and column in the same colon-joined
+  parenthetical as its safe path, and use
+  `docs/adr/0009-adapter-error-rendering-contract.md` for the durable contract.
+  Rationale: The implementation preflight found EP-13's `line :: Maybe Int` and
+  `column :: Maybe Int` fields in `DhallSourceError`, so positioned parse failures can
+  render as `NAME (PATH:LINE:COLUMN): message` while position-free failures omit absent
+  pieces. EP-16 completed first and created ADR 0008, leaving 0009 as the next free ADR.
+  Date: 2026-07-19
+
 
 ## Outcomes & Retrospective
 
@@ -230,9 +243,10 @@ packages turn external inputs into core `Source` values:
   `KdlUnsupportedAnnotation`, `KdlUnsupportedValue`, `KdlMixedNodeShape`,
   `KdlPropertyChildCollision`.
 - `settei-dhall/` (module `Settei.Dhall` in settei-dhall/src/Settei/Dhall.hs) evaluates
-  Dhall under explicit import policies. Its abstract `DhallSourceError` (around line 134)
-  carries only `dhallErrorCategory`, `dhallErrorName`, `dhallErrorPath`
-  (`Maybe FilePath`), and `dhallErrorMessage`. `DhallErrorCategory` (around line 119) has
+  Dhall under explicit import policies. Its abstract `DhallSourceError` (around line 138)
+  carries `dhallErrorCategory`, `dhallErrorName`, `dhallErrorPath`
+  (`Maybe FilePath`), `dhallErrorLine` and `dhallErrorColumn` (`Maybe Int`, one-based),
+  and `dhallErrorMessage`. `DhallErrorCategory` (around line 122) has
   eight values: `DhallIoError`, `DhallParseError`, `DhallImportPolicyError`,
   `DhallImportError`, `DhallTypeError`, `DhallConversionError`, `DhallInvalidKey`,
   `DhallTopLevelType`.

@@ -17,7 +17,8 @@ tests :: TestTree
 tests =
   testGroup
     "Settei.Yaml"
-    [ testCase "nested mappings become segmented keys with exact locations" $ do
+    [ errorRenderingTests,
+      testCase "nested mappings become segmented keys with exact locations" $ do
         input <- expectSource "service:\n  http:\n    host: api.internal\n    port: 8080\n"
         host <- expectCandidate serviceHttpHost input
         assertBool "host did not remain text" (candidateValue host == RawText "api.internal")
@@ -152,6 +153,85 @@ tests =
         yamlErrorCategory problem @?= YamlTopLevelType
     ]
 
+errorRenderingTests :: TestTree
+errorRenderingTests =
+  testGroup
+    "error rendering"
+    [ rendererCase
+        "syntax"
+        YamlSyntaxError
+        "key: [unclosed"
+        "application (application.yaml:2:1) at $: while parsing a flow sequence: did not find expected ',' or ']'",
+      testCase "IO errors render a stable located prefix" $ do
+        result <- readYamlSource (yamlSourceOptions "missing") "test/fixtures/does-not-exist.yaml"
+        case result of
+          Left errors -> do
+            let problem = NonEmpty.head errors
+            yamlErrorCategory problem @?= YamlIoError
+            assertBool
+              "IO renderer omitted its stable prefix"
+              ( "missing (test/fixtures/does-not-exist.yaml) at $: "
+                  `Text.isPrefixOf` renderYamlErrorText problem
+              )
+          Right _ -> fail "expected missing YAML file to fail",
+      rendererCase
+        "multiple documents"
+        YamlMultipleDocuments
+        "---\nservice: one\n---\nservice: two\n"
+        "application (application.yaml:3:1) at $: multiple YAML documents are not supported",
+      rendererCase
+        "duplicate key"
+        YamlDuplicateKey
+        "service:\n  port: 8000\n  port: 9000\n"
+        "application (application.yaml:3:3) at $.service.port: duplicate mapping key",
+      rendererCase
+        "non-string key"
+        YamlNonStringKey
+        "1: value\n"
+        "application (application.yaml:1:1) at $: mapping keys must be strings",
+      rendererCase
+        "dotted key"
+        YamlDottedKey
+        "service.port: 8080\n"
+        "application (application.yaml:1:1) at $.service.port: mapping keys containing dots are not supported; use nested mappings",
+      rendererCase
+        "unsupported feature"
+        YamlUnsupportedFeature
+        "service: *shared\n"
+        "application (application.yaml:1:10) at $.service: YAML aliases are not supported",
+      rendererCase
+        "invalid scalar"
+        YamlInvalidScalar
+        "service:\n  ratio: !!float .inf\n"
+        "application (application.yaml:2:10) at $.service.ratio: invalid or non-finite numeric scalar",
+      rendererCase
+        "top-level type"
+        YamlTopLevelType
+        "[one, two]\n"
+        "application (application.yaml) at $: the top-level YAML value must be a mapping",
+      testCase "a missing path omits it but retains a known position" $ do
+        let options = yamlSourceOptions "memory"
+        problem <- expectErrorWith options "key: [unclosed"
+        assertBool
+          "position-only YAML renderer omitted its location"
+          ("memory (2:1)" `Text.isPrefixOf` renderYamlErrorText problem),
+      testCase "a missing path and position omit the parenthetical" $ do
+        problem <- expectErrorWith (yamlSourceOptions "memory") "[one, two]\n"
+        renderYamlErrorText problem
+          @?= "memory at $: the top-level YAML value must be a mapping",
+      testCase "plural rendering is singular rendering plus a newline" $ do
+        problem <- expectError "service.port: 8080\n"
+        renderYamlErrorsText (NonEmpty.singleton problem)
+          @?= renderYamlErrorText problem <> "\n"
+    ]
+
+rendererCase :: String -> YamlErrorCategory -> String -> Text -> TestTree
+rendererCase label expectedCategory input expected =
+  testCase label $ do
+    problem <- expectError input
+    yamlErrorCategory problem @?= expectedCategory
+    renderYamlErrorText problem @?= expected
+
 sourceOptions :: YamlSourceOptions
 sourceOptions = withYamlSourcePath "application.yaml" (yamlSourceOptions "application")
 
@@ -169,7 +249,10 @@ expectSourceWith options input =
     Right value -> pure value
 
 expectError :: String -> IO YamlSourceError
-expectError input = case decodeYamlSource sourceOptions (ByteString8.pack input) of
+expectError = expectErrorWith sourceOptions
+
+expectErrorWith :: YamlSourceOptions -> String -> IO YamlSourceError
+expectErrorWith options input = case decodeYamlSource options (ByteString8.pack input) of
   Left errors -> pure (NonEmpty.head errors)
   Right _ -> fail "expected YAML decoding to fail"
 
