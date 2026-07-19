@@ -1,0 +1,230 @@
+---
+id: 3
+slug: improve-settei-api-ergonomics-for-fleet-wide-adoption
+title: "Improve Settei API ergonomics for fleet-wide adoption"
+kind: master-plan
+created_at: 2026-07-19T14:54:04Z
+intention: "intention_01kxxdt2m8eysvxggq33jsmt2v"
+---
+
+# Improve Settei API ergonomics for fleet-wide adoption
+
+This MasterPlan is a living document. The sections Progress, Surprises & Discoveries,
+Decision Log, and Outcomes & Retrospective must be kept up to date as work proceeds.
+If durable project context changes, update or create ADRs in docs/adr/ in the same change.
+
+
+## Vision & Scope
+
+Settei is about to be adopted by roughly 50 microservices and 20 applications. A
+2026-07-19 API review found no ergonomics blocker, but it identified boilerplate that every
+adopting codebase would otherwise copy-paste — the two reference applications under
+examples/ already duplicate decoder definitions, format-dispatch code, and error
+formatting between themselves. After this initiative is complete, the following holds:
+
+- `Decoder` has a `Functor` instance and a combinator kit (list decoding, parser-backed
+  decoding for types like URIs and durations, and friends), so a newtype-wrapping decoder
+  is `SecretText <$> textDecoder` instead of a hand-written case expression.
+- Multi-format applications get tagged `FORMAT:PATH` config inputs and a ready-made
+  loader that dispatches to the YAML, KDL, and Dhall adapters, instead of every app
+  hand-rolling the same `ReadM` parser and three-way dispatch.
+- Every adapter error type (`YamlSourceError`, `KdlSourceError`, `DhallSourceError`,
+  `EnvError`) has a text renderer matching the core's `renderErrorsText` tone, so no
+  application prints Haskell `Show` output to operators.
+- Environment bindings are validated once at construction, making source assembly total:
+  no more unreachable `Left` branches or `error (show problems)` in application code.
+- Declaring conditional configuration and rendered defaults needs no raw
+  `Control.Selective.select` encoding and no easily-forgotten renderer plumbing.
+- The public surface is deliberate: the `Settei.Prelude` exposure and the lens dependency
+  footprint are explicitly decided and documented, and the compatibility matrix states the
+  PVP surface adopters may rely on.
+- The reusable command-line options cover the modes real services need (`--check-config`,
+  `--describe-config`), warnings are actually rendered by the reference applications, and
+  all guides teach the new APIs. Docs and examples updates are in scope for every child
+  plan, and the final child plan performs the complete docs-and-examples sweep.
+
+Out of scope: the correctness fixes tracked in
+docs/masterplans/2-harden-settei-correctness-before-fleet-wide-adoption.md (which must land
+first), Hackage publication, configuration hot-reload, and any Kubernetes cluster client.
+
+
+## Decomposition Strategy
+
+The review's ergonomics findings group into six functional concerns plus one final sweep:
+
+1. Decoder composition (Functor plus combinators) is a self-contained core `Settei.Value`
+   extension whose success is measurable by deleting duplicated decoder code from both
+   reference applications.
+2. Tagged-format loading is a new deliverable — a small umbrella package — because
+   settei-optparse-applicative must not depend on the YAML, KDL, and Dhall adapters, yet
+   the dispatch code needs all three. A new package keeps the dependency direction clean.
+3. Adapter error renderers are one concern spanning four packages: the same rendering
+   contract (secret-safe, operator-readable, one line per problem) applied uniformly.
+4. Environment binding totality is an API reshaping of settei-env alone.
+5. Declaration sugar (selective conditionals, rendered defaults) is a core
+   declaration-language concern, distinct from decoding.
+6. Public-surface hygiene (Settei.Prelude exposure, lens footprint, PVP statement) is a
+   packaging concern that touches every package's cabal file and is deliberately
+   scheduled after the API-adding plans so it re-verifies the final surface.
+7. The final sweep extends the reusable CLI options and reconciles every guide, example,
+   fixture, and changelog, because the reference applications are the public-API
+   conformance boundary (docs/adr/0007).
+
+Relevant ADRs consulted: docs/adr/0001-haskell-project-conventions.md (mandates the lens
+convention and the exposed Settei.Prelude — EP-20 amends it if the decision changes),
+docs/adr/0002-inspectable-configuration-algebra.md (the declaration algebra EP-19 extends;
+no Monad instance may be introduced), docs/adr/0003-resolution-provenance-and-default-semantics.md
+(renderer and redaction rules EP-15, EP-17, and EP-19 must preserve),
+docs/adr/0004-yaml-input-semantics.md, docs/adr/0005-canonical-kdl-v2-input-semantics.md,
+and docs/adr/0006-dhall-input-import-and-provenance-semantics.md (adapter error
+vocabularies EP-17 renders), and
+docs/adr/0007-reference-applications-are-the-public-api-conformance-boundary.md (EP-21's
+authority).
+
+
+## Exec-Plan Registry
+
+| # | Title | Path | Hard Deps | Soft Deps | Status |
+|---|-------|------|-----------|-----------|--------|
+| 15 | Add a Decoder functor and combinator kit | docs/plans/15-add-a-decoder-functor-and-combinator-kit.md | None | None | Not Started |
+| 16 | Provide shared tagged-format configuration loading | docs/plans/16-provide-shared-tagged-format-configuration-loading.md | None | EP-17 | Not Started |
+| 17 | Add error renderers to every source adapter | docs/plans/17-add-error-renderers-to-every-source-adapter.md | None | None | Not Started |
+| 18 | Make environment bindings total and validated | docs/plans/18-make-environment-bindings-total-and-validated.md | None | EP-17 | Not Started |
+| 19 | Add declaration sugar for conditionals and rendered defaults | docs/plans/19-add-declaration-sugar-for-conditionals-and-rendered-defaults.md | None | None | Not Started |
+| 20 | Tighten the public surface and dependency hygiene | docs/plans/20-tighten-the-public-surface-and-dependency-hygiene.md | None | EP-15, EP-16, EP-17, EP-18, EP-19 | Not Started |
+| 21 | Extend reusable CLI options and complete the ergonomics docs sweep | docs/plans/21-extend-reusable-cli-options-and-complete-the-ergonomics-docs-sweep.md | EP-15, EP-16, EP-17, EP-18, EP-19 | EP-20 | Not Started |
+
+Status values: Not Started, In Progress, Complete, Cancelled.
+Hard Deps and Soft Deps reference other rows by their # prefix (e.g., EP-15).
+
+
+## Dependency Graph
+
+EP-15, EP-17, EP-18, and EP-19 are implementable immediately and in parallel; they touch
+disjoint modules (settei/src/Settei/Value.hs; the four adapter error modules;
+settei-env/src/Settei/Env.hs; settei/src/Settei/Config.hs and settei/src/Settei/Setting.hs
+respectively).
+
+EP-16 (the new tagged-format loading package) has a soft dependency on EP-17 because its
+loader should surface adapter failures through the new renderers rather than `Show`; it can
+begin with a temporary `Show`-based stub if implemented first. EP-18's soft dependency on
+EP-17 is the same concern for `EnvError` rendering.
+
+EP-20 (surface hygiene) soft-depends on all API-adding plans because it audits and freezes
+the final exposed-module and dependency surface; running it earlier would audit a moving
+target. It has no hard dependency because the audit and cabal restructuring compile
+independently of the new APIs.
+
+EP-21 hard-depends on EP-15 through EP-19: it rewrites both reference applications and all
+guides to use the new decoder kit, loader, renderers, bindings, and sugar, and deletes the
+duplicated boilerplate those plans made obsolete. It soft-depends on EP-20 only for the
+final compatibility-matrix wording.
+
+Cross-MasterPlan constraint: docs/masterplans/2-harden-settei-correctness-before-fleet-wide-adoption.md
+changes the resolver result shape and several adapter behaviors, and its EP-14 re-validates
+the same examples and guides this initiative rewrites. The correctness MasterPlan lands
+first; EP-21 in particular must start from the post-correctness tree.
+
+
+## Integration Points
+
+New package settei-formats (EP-16, EP-21): EP-16 owns the package (name, cabal file,
+registration in cabal.project, flake.nix, nix/, and mori.dhall, following
+docs/adr/0001-haskell-project-conventions.md sibling-directory layout). It defines the
+tagged-input type and loader that EP-21 adopts in both reference applications. If EP-16
+settles on a different package name during implementation, it must update this MasterPlan
+and EP-21 in the same change.
+
+Decoder surface in settei/src/Settei/Value.hs (EP-15, EP-21): EP-15 owns the new
+combinators and instance; EP-21 consumes them in examples and guides. EP-19 must not add
+decoder combinators — decoding sugar belongs to EP-15.
+
+Adapter error renderer contract (EP-17, EP-16, EP-18, EP-21): EP-17 owns the naming and
+formatting convention (`render<Adapter>ErrorText` style, one line per problem, never a raw
+value, matching settei/src/Settei/Render.hs tone). EP-16 and EP-18 consume it; EP-21
+threads it through examples and guides.
+
+Reference applications and guides (every plan; EP-21 final owner): examples/settei-cli,
+examples/settei-service, examples/settei-conformance, and docs/guides/ are updated
+incrementally by each plan for the APIs it introduces; EP-21 performs the coherent final
+pass per docs/adr/0007. Plans should keep example edits minimal and additive so EP-21's
+rewrite is the single large diff.
+
+Cabal and packaging surface (EP-16, EP-20): both edit cabal.project, flake.nix, and
+per-package cabal files. EP-20 is the final authority on exposed-modules lists, the
+Settei.Prelude decision, dependency bounds, and the PVP statement in
+docs/compatibility.md; it must amend docs/adr/0001-haskell-project-conventions.md if it
+changes the prelude exposure or the lens convention.
+
+Cross-plan decisions that should become ADRs: EP-16's umbrella-package boundary (new ADR),
+EP-17's uniform renderer contract (new ADR or an amendment to docs/adr/0003), EP-18's
+construction-time validation semantics (amendment to the env sections of docs/adr/0003 or
+a new ADR), EP-20's public-surface and dependency decision (amendment to docs/adr/0001).
+
+
+## Progress
+
+- [ ] EP-15: Decoder Functor instance and combinator kit with tests
+- [ ] EP-15: examples drop hand-rolled decoders; guides updated
+- [ ] EP-16: settei-formats package with tagged inputs and loader, registered everywhere
+- [ ] EP-16: loader tests and guide coverage
+- [ ] EP-17: text renderers for YAML, KDL, Dhall, and Env errors with tests
+- [ ] EP-17: examples and guides stop using Show for adapter errors
+- [ ] EP-18: validated Bindings construction; envSource total; default label
+- [ ] EP-18: examples and environment guide updated
+- [ ] EP-19: selective conditional helpers and rendered-default ergonomics with tests
+- [ ] EP-19: examples and getting-started guide use the sugar
+- [ ] EP-20: Settei.Prelude exposure and lens footprint decided, implemented, ADR 0001 amended
+- [ ] EP-20: PVP surface statement in compatibility matrix
+- [ ] EP-21: SetteiOptions gains check/describe modes; warnings rendered in examples
+- [ ] EP-21: full docs-and-examples sweep, null-semantics documentation, changelogs, validation green
+
+
+## Surprises & Discoveries
+
+- The child plans were authored in parallel on 2026-07-19, so each records
+  planning-time contingencies for siblings that had not yet been written (EP-16's
+  renderer stub if EP-17 is unlanded, EP-17's Dhall-position contingency pending the
+  correctness MasterPlan's EP-13, EP-18's renderer fallback, EP-21's opening
+  reconciliation step). Implementers must honor those reconciliation steps rather than
+  assume the plans were written against each other's final text.
+- New-ADR numbering was coordinated at authoring time: EP-16 expects docs/adr/0008,
+  EP-17 expects docs/adr/0009, EP-18 picks the next free number at implementation
+  time; each plan verifies the number is free before writing.
+
+
+## Decision Log
+
+- Decision: Run this initiative after
+  docs/masterplans/2-harden-settei-correctness-before-fleet-wide-adoption.md completes.
+  Rationale: The correctness MasterPlan changes the resolver result shape and adapter
+  scalar semantics; rewriting examples and guides twice would waste every plan's
+  docs-and-examples work. The owner explicitly prioritizes a bulletproof library at day
+  one over faster ergonomics delivery.
+  Date: 2026-07-19
+
+- Decision: Deliver tagged-format loading as a new umbrella package rather than extending
+  settei-optparse-applicative.
+  Rationale: The dispatch code needs settei-yaml, settei-kdl, and settei-dhall as
+  dependencies; adding those to the optparse adapter would force every CLI consumer to
+  build all three format stacks. An umbrella package keeps adapters independent while
+  giving multi-format apps one import. EP-16 records the package-design details.
+  Date: 2026-07-19
+
+- Decision: Schedule public-surface hygiene (EP-20) after the API-adding plans and before
+  the final sweep.
+  Rationale: Auditing exposed modules, dependency bounds, and the PVP statement is only
+  meaningful against the final API set; doing it first would audit a moving target.
+  Date: 2026-07-19
+
+- Decision: Keep each plan's example updates minimal and let EP-21 own the coherent
+  example rewrite.
+  Rationale: Five plans editing examples/settei-cli and examples/settei-service
+  concurrently would conflict constantly; per docs/adr/0007 the examples are the
+  conformance boundary and deserve one deliberate final pass.
+  Date: 2026-07-19
+
+
+## Outcomes & Retrospective
+
+(To be filled during and after implementation.)
