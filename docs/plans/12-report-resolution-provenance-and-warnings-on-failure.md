@@ -82,12 +82,12 @@ the change is recorded in `settei/CHANGELOG.md` and in an amendment to
 - [x] (2026-07-19T17:42:07Z) Milestone 1: migrated `settei/test/Settei/ResolveTest.hs`, `settei/test/Settei/DefaultTest.hs`, and `settei/test/Settei/RenderTest.hs` to the new shape.
 - [x] (2026-07-19T17:42:07Z) Milestone 1: added failure-path semantics tests (evaluated nodes on failure, decode-failure node retains rejected value, not-selected completion, structural and sensitivity exits, cycle exit with empty warnings, warnings alongside errors, strict-policy parity, and failure-report redaction).
 - [x] (2026-07-19T17:42:07Z) Milestone 1: added failure-path golden files `settei/test/golden/failure-resolution.txt` and `settei/test/golden/failure-resolution.json` plus their golden test cases.
-- [x] (2026-07-19T17:42:07Z) Milestone 1: `nix develop -c cabal test settei-tests --test-show-details=direct` passed with all 64 tests; ready to commit.
+- [x] (2026-07-19T17:42:07Z) Milestone 1: `nix develop -c cabal test settei-tests --test-show-details=direct` passed with all 64 tests; committed as `95ea264`.
 - [x] (2026-07-19T17:45:34Z) Milestone 2: migrated the `settei-yaml`, `settei-kdl`, `settei-dhall`, `settei-env`, and `settei-optparse-applicative` test suites to the total result; the five package targets and Dhall prototype suite all passed.
 - [x] (2026-07-19T17:50:53Z) Milestone 3: migrated `examples/settei-cli/src/Settei/Example/Cli.hs` and `examples/settei-service/src/Settei/Example/Service.hs`; explain modes now append failure reports to stderr while other modes remain unchanged.
 - [x] (2026-07-19T17:50:53Z) Milestone 3: migrated the CLI, service, and conformance test suites; added text/JSON CLI failure-report cases and secret-safe service failure coverage; `nix develop -c cabal test all --test-show-details=direct` passed, and the manual CLI run exited 4 after printing the decode error and complete report.
 - [x] (2026-07-19T17:53:59Z) Milestone 4: amended ADR 0003, updated both application guides, README, the core changelog, and every additional guide found by the repository-wide stale-signature scan; the scan and full workspace suite passed.
-- [ ] Final: `nix develop -c cabal test all --test-show-details=direct` passes; update this plan's living sections; write Outcomes & Retrospective; confirm the ADR amendment covers the durable decisions.
+- [x] (2026-07-19T17:54:32Z) Final: `nix develop -c cabal test all --test-show-details=direct` passed; the stale-API scan was clean; living sections and Outcomes & Retrospective were completed; ADR 0003 contains the durable decisions.
 
 
 ## Surprises & Discoveries
@@ -234,7 +234,29 @@ the change is recorded in `settei/CHANGELOG.md` and in an amendment to
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+EP-12 is complete. `resolve` now returns one total `ResolveResult`: `answer` carries the
+typed value or non-empty errors, while `report` and `warnings` survive every resolution
+attempt. Evaluated failures retain winning and shadowed provenance, schema-possible nodes
+are completed consistently, sensitivity and structural exits return schema-shaped
+reports, and the default-cycle exit returns a cycle-safe not-selected skeleton without
+touching a source. Failure reports reuse the existing version-1 text and JSON renderers
+and preserve all redaction guarantees.
+
+All core, adapter, example, and conformance callers were migrated. The CLI and service
+reference applications print failure provenance to stderr only in explicit explain modes;
+exit codes, stdout, and non-explain output remain unchanged. The final full workspace run
+passed, including 64 core tests, the five adapter suites, both example suites, conformance,
+and the Dhall prototype suite. The manual CLI scenario exited `4` with its decode error
+followed by the complete report, and the repository-wide stale-signature scan returned no
+old `ResolveResult` API examples outside plan history.
+
+The main lesson is that failure diagnostics must respect preflight termination laws:
+ordinary static schema inspection is not safe on an already-cyclic default graph, so the
+cycle report needs its guarded declaration traversal. A second lesson is that a breaking
+public shape requires a repository-wide documentation scan; the initial caller inventory
+missed five guides. Both durable lessons and the rejected `resolveWithReport` alternative
+are recorded in `docs/adr/0003-resolution-provenance-and-default-semantics.md`. No EP-12
+work remains; EP-13 and EP-14 consume the total result shape.
 
 
 ## Context and Orientation

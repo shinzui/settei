@@ -88,7 +88,7 @@ authority). docs/adr/0001-haskell-project-conventions.md governs code style in e
 | 9 | Close the shared-key sensitivity redaction hole | docs/plans/9-close-the-shared-key-sensitivity-redaction-hole.md | None | None | Complete |
 | 10 | Bound numeric scalar conversion in the YAML and KDL adapters | docs/plans/10-bound-numeric-scalar-conversion-in-the-yaml-and-kdl-adapters.md | None | None | Complete |
 | 11 | Adopt YAML 1.2 core-schema boolean scalars | docs/plans/11-adopt-yaml-1-2-core-schema-boolean-scalars.md | None | EP-10 | Complete |
-| 12 | Report resolution provenance and warnings on failure | docs/plans/12-report-resolution-provenance-and-warnings-on-failure.md | None | EP-9 | In Progress |
+| 12 | Report resolution provenance and warnings on failure | docs/plans/12-report-resolution-provenance-and-warnings-on-failure.md | None | EP-9 | Complete |
 | 13 | Harden source construction and adapter diagnostics | docs/plans/13-harden-source-construction-and-adapter-diagnostics.md | None | EP-10, EP-11, EP-12 | Not Started |
 | 14 | Revalidate correctness and update release collateral | docs/plans/14-revalidate-correctness-and-update-release-collateral.md | EP-9, EP-10, EP-11, EP-12, EP-13 | None | Not Started |
 
@@ -165,8 +165,8 @@ EP-12's always-available report semantics (amend docs/adr/0003).
 - [x] EP-10: ADR 0004/0005 amendments, guides, and changelogs updated
 - [x] EP-11: YAML untagged booleans restricted to true/false with characterization tests
 - [x] EP-11: ADR 0004 amendment, YAML guide, and conformance fixtures updated
-- [ ] EP-12: resolve returns report and warnings on failure; renderers and core tests updated
-- [ ] EP-12: reference applications surface failure reports; guides updated
+- [x] EP-12: resolve returns report and warnings on failure; renderers and core tests updated
+- [x] EP-12: reference applications surface failure reports; guides updated
 - [ ] EP-13: annotation merge, validated source construction, YAML decode hardening landed
 - [ ] EP-13: Dhall parse locations, decimal rendering, docs and ADR notes landed
 - [ ] EP-14: full workspace validation green (tests, goldens, examples, sdist, nix)
@@ -192,6 +192,17 @@ EP-12's always-available report semantics (amend docs/adr/0003).
   Core now keeps default-cycle validation as the first gate and runs schema-based
   sensitivity validation second. EP-12 must preserve this order when reshaping failure
   results.
+- During EP-12 implementation (2026-07-19), the requirement to return a schema-shaped
+  report for a default-cycle failure could not use the ordinary static schema: schema
+  construction follows the cyclic default dependencies and cannot terminate. Core now
+  uses a `RuleName`-guarded declaration traversal for that exit, retains
+  most-restrictive sensitivity, returns no warnings, and still never inspects a source.
+  ADR 0003 records this durable preflight constraint; EP-13 must preserve it while
+  hardening source construction and diagnostics.
+- EP-12's repository-wide stale-signature scan found five additional public guides
+  beyond its initial document inventory. They were migrated, and EP-14 should validate
+  release collateral with repository-wide API searches rather than only its enumerated
+  file list.
 
 
 ## Decision Log
@@ -234,6 +245,15 @@ EP-12's always-available report semantics (amend docs/adr/0003).
   acyclic declarations still receive all sensitivity conflicts in deterministic key order
   before any source-dependent work. ADR 0003 records the durable rule, and EP-12 must
   retain it while changing the failure result shape.
+  Date: 2026-07-19
+
+- Decision: A default-cycle failure returns a not-selected report skeleton built by a
+  cycle-guarded declaration traversal, while all acyclic pre-evaluation exits use the
+  complete static schema.
+  Rationale: Forcing ordinary schema inspection on the cycle exit would follow the
+  recursive defaults forever. The guarded traversal gives operators the promised key
+  and sensitivity view without weakening the established law that cycle validation
+  happens before any source inspection. ADR 0003 records the durable resolver rule.
   Date: 2026-07-19
 
 
