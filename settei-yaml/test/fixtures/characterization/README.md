@@ -9,7 +9,8 @@ The `Settei.Yaml.Characterization` tests prove the supported boundary. Block and
 duplicates fail at the second key. Syntax errors and successful values retain marks, which
 the public adapter reports as one-based positions. Multiple documents, anchors, aliases,
 merge keys, custom tags, and non-string keys fail explicitly. Scalars support null,
-booleans, exact finite numbers, strings, arrays, and ordinary string-keyed mappings.
+YAML 1.2 core-schema booleans (`true`/`false` only, case-insensitive), exact finite
+numbers, strings, arrays, and ordinary string-keyed mappings.
 
 These fixtures are small review artifacts matching the inline executable cases:
 

@@ -174,12 +174,24 @@ layers.
 | sequence | `RawArray` |
 | mapping | `RawObject` |
 
-Plain boolean spellings `y`, `yes`, `on`, `true`, `n`, `no`, `off`, and `false` are
-recognized case-insensitively. Quote a word when the application needs text instead:
+Only `true` and `false` are booleans, compared case-insensitively, so `True` and `TRUE`
+also work. This follows the YAML 1.2 core schema. The older YAML 1.1 spellings `y`,
+`yes`, `on`, `n`, `no`, and `off` are ordinary text. Quoting still forces text, including
+for the two real boolean words:
 
 ```yaml
-featureLabel: "on"
+country: no        # the text "no", never a boolean
+feature:
+  enabled: true    # a boolean
+  label: "on"      # quoted: the text "on" (unquoted "on" is also text)
+literal: "true"    # quoted: the text "true"
 ```
+
+This avoids the Norway problem: YAML 1.1 treated `no` as false, corrupting the country
+code for Norway in an entry such as `country: no`. Settei deliberately follows YAML 1.2
+so that cannot happen. It also agrees with core `boolDecoder` in `Settei.Value`, which
+accepts only textual `true` and `false` case-insensitively; environment variables and YAML
+therefore use the same boolean words.
 
 Quoted and block scalars always remain text. Plain decimal and exponent numbers, `0x`
 hexadecimal integers, and `0o` octal integers become exact rational values. Large
@@ -273,7 +285,7 @@ from a Secret.
 
 - Validate files with the same declaration used by the running application.
 - Document the low-to-high order when more than one file is accepted.
-- Quote boolean-like or numeric-looking values that must remain text.
+- Quote numeric-looking values and the words `true` or `false` when they must remain text.
 - Treat null as explicit input and test the chosen decoder behavior.
 - Render structured adapter fields instead of echoing the original YAML.
 - Reject or report unknown keys according to the application's rollout policy.

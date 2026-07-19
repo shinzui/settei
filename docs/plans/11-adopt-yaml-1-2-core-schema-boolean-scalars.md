@@ -60,11 +60,11 @@ This section must always reflect the actual current state of the work.
 - [x] (2026-07-19 10:22 PDT) Add the tagged `!!bool yes` failure test to settei-yaml/test/Settei/YamlCharacterizationTest.hs.
 - [x] (2026-07-19 10:22 PDT) Run `nix develop -c cabal test settei-yaml-tests --test-show-details=direct` and confirm all 32 tests pass.
 - [x] (2026-07-19 10:22 PDT) Commit the code and test change (Conventional Commit with the three required trailers).
-- [ ] Append a dated amendment note to docs/adr/0004-yaml-input-semantics.md recording the YAML 1.2 core-schema boolean decision and the rejected alternative.
-- [ ] Rewrite the boolean paragraphs of docs/guides/yaml.md, including a short Norway-problem explanation and the note about agreement with core `boolDecoder`.
-- [ ] Update the boolean sentence in settei-yaml/test/fixtures/characterization/README.md.
-- [ ] Add the behavior change to settei-yaml/CHANGELOG.md.
-- [ ] Commit the documentation changes (Conventional Commit with the three required trailers).
+- [x] (2026-07-19 10:23 PDT) Append a dated amendment note to docs/adr/0004-yaml-input-semantics.md recording the YAML 1.2 core-schema boolean decision and the rejected alternative.
+- [x] (2026-07-19 10:23 PDT) Rewrite the boolean paragraphs of docs/guides/yaml.md, including a short Norway-problem explanation and the note about agreement with core `boolDecoder`.
+- [x] (2026-07-19 10:23 PDT) Update the boolean sentence in settei-yaml/test/fixtures/characterization/README.md.
+- [x] (2026-07-19 10:23 PDT) Add the behavior change to settei-yaml/CHANGELOG.md.
+- [x] (2026-07-19 10:23 PDT) Commit the documentation changes (Conventional Commit with the three required trailers); the 32-test YAML suite remained green before commit.
 - [ ] Run `nix develop -c cabal test all --test-show-details=direct` and confirm the entire workspace, including examples/settei-conformance, stays green.
 - [ ] Update the MasterPlan: tick the two EP-11 Progress boxes and set the registry status to Complete.
 - [ ] Fill in Outcomes & Retrospective in this plan and perform the ADR distillation pass (the ADR 0004 amendment covers the durable context; confirm nothing else needs promotion).

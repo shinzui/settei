@@ -97,3 +97,22 @@ per-scalar and adapter-local; core `RawNumber` remains an unbounded exact `Ratio
 literal coefficients of any written length remain accepted because their cost is
 proportional to input size.
 (`docs/plans/10-bound-numeric-scalar-conversion-in-the-yaml-and-kdl-adapters.md`)
+
+
+## Amendment 2026-07-19: YAML 1.2 core-schema booleans
+
+The 2026-07-19 API review found that `yamlBoolean` accepted the YAML 1.1 boolean set
+(`y`, `yes`, `on`, `n`, `no`, `off`, `true`, `false`), resurrecting the Norway problem:
+an unquoted `country: no` became the boolean false, so a text setting failed to decode
+with a baffling "expected text" error, and `enabled: on` silently type-shifted.
+
+Untagged plain-scalar boolean recognition is now restricted to case-insensitive `true`
+and `false`, per the YAML 1.2 core schema. Scalars explicitly tagged `!!bool` accept the
+same restricted set, so `!!bool yes` is a `YamlInvalidScalar` error; the adapter has one
+boolean vocabulary. Null spellings are unchanged: case-folded `null`, `~`, and the empty
+plain scalar were already exactly the 1.2 core-schema null set. This also aligns the
+adapter with core `boolDecoder`, which accepts only textual `true`/`false`.
+
+Rejected alternative: keeping the YAML 1.1 boolean set for compatibility. Settei is
+pre-release with no adopter files to protect, and strictness is this adapter's contract.
+(`docs/plans/11-adopt-yaml-1-2-core-schema-boolean-scalars.md`)
