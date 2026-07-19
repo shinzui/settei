@@ -68,13 +68,13 @@ minimal and additive.
       passes with the new cases listed.
 - [x] (2026-07-19T19:06:58Z) Milestone 2: Commit milestones 1 and 2 as
       `0c0e589` (feature) and this test checkpoint, both with the required trailers.
-- [ ] Milestone 3: Replace `secretTextDecoder` in
+- [x] (2026-07-19T19:08:53Z) Milestone 3: Replace `secretTextDecoder` in
       `examples/settei-cli/src/Settei/Example/Cli.hs` with `SecretText <$> textDecoder`
       and delete the hand-rolled definition.
-- [ ] Milestone 3: Replace `secretTextDecoder`, `textListDecoder`, and `textElement` in
+- [x] (2026-07-19T19:08:53Z) Milestone 3: Replace `secretTextDecoder`, `textListDecoder`, and `textElement` in
       `examples/settei-service/src/Settei/Example/Service.hs` with `SecretText <$>
       textDecoder` and `listDecoder textDecoder`.
-- [ ] Milestone 3: `nix develop -c cabal test all --test-show-details=direct` passes;
+- [x] (2026-07-19T19:08:53Z) Milestone 3: `nix develop -c cabal test all --test-show-details=direct` passes;
       commit the example refactor with trailers.
 - [ ] Milestone 4: Add a "Compose decoders" section to
       `docs/guides/getting-started.md` teaching the combinator kit.

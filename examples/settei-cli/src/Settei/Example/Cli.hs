@@ -333,12 +333,8 @@ outputFormatSetting =
     renderOutputFormat
 
 tokenSetting :: Setting SecretText
-tokenSetting = secretSetting serviceTokenKey "Service authentication token" secretTextDecoder
-
-secretTextDecoder :: Decoder SecretText
-secretTextDecoder = decoder $ \key -> \case
-  RawText value -> Right (SecretText value)
-  _ -> Left (decodeFailure key "text")
+tokenSetting =
+  secretSetting serviceTokenKey "Service authentication token" (SecretText <$> textDecoder)
 
 renderRuntimeEnvironment :: RuntimeEnvironment -> Text
 renderRuntimeEnvironment Development = "development"

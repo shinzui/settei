@@ -373,29 +373,16 @@ databasePoolSizeSetting :: Setting Int
 databasePoolSizeSetting = publicInteger databasePoolSizeKey "Database pool size"
 
 databasePasswordSetting :: Setting SecretText
-databasePasswordSetting = secretSetting databasePasswordKey "Database password" secretTextDecoder
+databasePasswordSetting =
+  secretSetting databasePasswordKey "Database password" (SecretText <$> textDecoder)
 
 serviceTagsSetting :: Setting [Text]
-serviceTagsSetting = publicSetting serviceTagsKey "Conformance service tags" textListDecoder
+serviceTagsSetting =
+  publicSetting serviceTagsKey "Conformance service tags" (listDecoder textDecoder)
 
 publicInteger :: Key -> Text -> Setting Int
 publicInteger key description =
   publicSettingWithRenderer key description boundedIntegralDecoder (Text.pack . show)
-
-secretTextDecoder :: Decoder SecretText
-secretTextDecoder = decoder $ \key -> \case
-  RawText value -> Right (SecretText value)
-  _ -> Left (decodeFailure key "text")
-
-textListDecoder :: Decoder [Text]
-textListDecoder = decoder $ \key -> \case
-  RawArray values -> traverse (textElement key) values
-  _ -> Left (decodeFailure key "an array of text")
-
-textElement :: Key -> RawValue -> Either DecodeFailure Text
-textElement key = \case
-  RawText value -> Right value
-  _ -> Left (decodeFailure key "an array of text")
 
 renderEnvironment :: RuntimeEnvironment -> Text
 renderEnvironment Development = "development"
