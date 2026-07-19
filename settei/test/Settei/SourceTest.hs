@@ -39,6 +39,31 @@ tests =
       testCase "leaf enumeration is ordered and treats arrays wholesale" $
         fmap (renderKey . fst) (sourceLeaves sampleSource)
           @?= ["service.hosts", "service.port"],
+      testCase "source annotations compose across repeated calls" $
+        sourceAnnotations
+          ( annotateSource
+              (Map.singleton "b" "2")
+              (annotateSource (Map.singleton "a" "1") sampleSource)
+          )
+          @?= Map.fromList [("a", "1"), ("b", "2")],
+      testCase "later source annotations win on collision" $
+        sourceAnnotations
+          ( annotateSource
+              (Map.singleton "a" "new")
+              (annotateSource (Map.singleton "a" "old") sampleSource)
+          )
+          ^. at "a"
+          @?= Just "new",
+      testCase "candidate origins observe merged source annotations" $ do
+        let annotated =
+              annotateSource
+                (Map.singleton "b" "2")
+                (annotateSource (Map.singleton "a" "1") sampleSource)
+        case lookupSource servicePort annotated of
+          Right (Just found) ->
+            candidateOrigin found ^. #annotations
+              @?= Map.fromList [("a", "1"), ("b", "2")]
+          _ -> fail "expected the annotated source candidate",
       testCase "per-key annotations reach only their matching origins" $ do
         let annotated =
               annotateSourceAt

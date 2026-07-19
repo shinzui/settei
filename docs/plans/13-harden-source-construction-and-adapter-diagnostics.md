@@ -57,13 +57,15 @@ below also names a small observable behavior you can check directly.
 
 ## Progress
 
-- [ ] M1: change `annotateSource` in settei/src/Settei/Source.hs to merge annotations
+- [x] (2026-07-19T18:07:01Z) M1: changed `annotateSource` in settei/src/Settei/Source.hs to merge annotations
       left-biased and update its haddock to state that new annotations win on collision.
-- [ ] M1: audit and confirm no behavior change for internal callers (settei-yaml,
+- [x] (2026-07-19T18:07:01Z) M1: audited and confirmed no behavior change for internal callers (settei-yaml,
       settei-kdl, settei-dhall, settei-optparse-applicative) and record the audit result
       in Surprises & Discoveries or the Decision Log.
-- [ ] M1: add merge-semantics unit tests to settei/test/Settei/SourceTest.hs.
-- [ ] M1: append a dated amendment note to docs/adr/0003-resolution-provenance-and-default-semantics.md.
+- [x] (2026-07-19T18:07:01Z) M1: added merge-semantics unit tests to settei/test/Settei/SourceTest.hs.
+- [x] (2026-07-19T18:07:01Z) M1: appended a dated amendment note to docs/adr/0003-resolution-provenance-and-default-semantics.md.
+- [x] (2026-07-19T18:07:57Z) M1 validation: `nix develop -c cabal test settei-tests
+      --test-show-details=direct` passed all 67 tests.
 - [ ] M2: add `SourceConstructionError` and `sourceFromPairs` to settei/src/Settei/Source.hs
       and export both (they flow through the `Settei` re-export automatically).
 - [ ] M2: add `sourceUnaddressableLeaves` and haddock warnings on `source` and
@@ -98,7 +100,13 @@ below also names a small observable behavior you can check directly.
 
 ## Surprises & Discoveries
 
-(None yet.)
+- The Milestone 1 caller audit confirmed the pre-plan result: every in-repository adapter
+  calls `annotateSource` exactly once around a freshly constructed `source`, so merging
+  against the initially empty annotation map is observationally identical for those
+  callers. Only repeated application by downstream callers changes behavior.
+  Evidence: `rg -n "annotateSource" settei settei-env settei-yaml settei-kdl settei-dhall
+  settei-optparse-applicative --glob '*.hs'` found the four documented adapter call sites
+  and no additional production use.
 
 
 ## Decision Log

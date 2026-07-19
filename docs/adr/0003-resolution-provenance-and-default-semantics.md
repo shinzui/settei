@@ -208,3 +208,12 @@ Under `RejectUnknownKeys`, unknown leaves remain errors in `answer` and `warning
 empty. JSON reports retain `schemaVersion: 1`: the report document representation is
 unchanged, and failure merely makes an existing secret-safe document available on more
 resolution paths.
+
+
+## Amendment 2026-07-19: composable source annotations
+
+`annotateSource` originally replaced the source-wide annotation map, unlike every sibling
+annotation combinator. It now merges left-biased: annotations supplied by a later call win
+on a name collision and other entries are retained, matching `annotateSourceAt` and the
+adapter option combinators. Per-key entries still take precedence over source-wide entries
+when names overlap.

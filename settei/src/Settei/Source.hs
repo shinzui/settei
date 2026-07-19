@@ -53,8 +53,13 @@ source name kind root =
     }
 
 -- | Attach adapter-specific descriptive metadata. It never changes precedence.
+--
+-- Repeated calls merge: annotations from a later call win when the same annotation
+-- name is already present, and entries under other names are retained. Per-key
+-- annotations from 'annotateSourceAt' still take precedence over source-wide entries.
 annotateSource :: Map Text Text -> Source -> Source
-annotateSource annotations sourceValue = sourceValue & #annotations .~ annotations
+annotateSource annotations sourceValue =
+  sourceValue & #annotations %~ (annotations <>)
 
 -- | Attach descriptive metadata for individual keys.
 --

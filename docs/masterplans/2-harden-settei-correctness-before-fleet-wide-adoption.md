@@ -89,7 +89,7 @@ authority). docs/adr/0001-haskell-project-conventions.md governs code style in e
 | 10 | Bound numeric scalar conversion in the YAML and KDL adapters | docs/plans/10-bound-numeric-scalar-conversion-in-the-yaml-and-kdl-adapters.md | None | None | Complete |
 | 11 | Adopt YAML 1.2 core-schema boolean scalars | docs/plans/11-adopt-yaml-1-2-core-schema-boolean-scalars.md | None | EP-10 | Complete |
 | 12 | Report resolution provenance and warnings on failure | docs/plans/12-report-resolution-provenance-and-warnings-on-failure.md | None | EP-9 | Complete |
-| 13 | Harden source construction and adapter diagnostics | docs/plans/13-harden-source-construction-and-adapter-diagnostics.md | None | EP-10, EP-11, EP-12 | Not Started |
+| 13 | Harden source construction and adapter diagnostics | docs/plans/13-harden-source-construction-and-adapter-diagnostics.md | None | EP-10, EP-11, EP-12 | In Progress |
 | 14 | Revalidate correctness and update release collateral | docs/plans/14-revalidate-correctness-and-update-release-collateral.md | EP-9, EP-10, EP-11, EP-12, EP-13 | None | Not Started |
 
 Status values: Not Started, In Progress, Complete, Cancelled.
