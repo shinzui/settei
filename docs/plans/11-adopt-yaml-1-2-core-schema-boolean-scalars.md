@@ -53,13 +53,13 @@ Use a checklist to summarize granular steps. Every stopping point must be docume
 even if it requires splitting a partially completed task into two ("done" vs. "remaining").
 This section must always reflect the actual current state of the work.
 
-- [ ] Mark EP-11 "In Progress" in the MasterPlan registry table in docs/masterplans/2-harden-settei-correctness-before-fleet-wide-adoption.md.
-- [ ] Check whether EP-10 (docs/plans/10-bound-numeric-scalar-conversion-in-the-yaml-and-kdl-adapters.md) has landed; note the answer in Surprises & Discoveries and adapt line references if settei-yaml/src/Settei/Yaml.hs has shifted.
-- [ ] Restrict `yamlBoolean` in settei-yaml/src/Settei/Yaml.hs to case-insensitive `true`/`false` only.
-- [ ] Add success-path boolean scalar tests to settei-yaml/test/Settei/YamlTest.hs, including the named Norway regression test.
-- [ ] Add the tagged `!!bool yes` failure test to settei-yaml/test/Settei/YamlCharacterizationTest.hs.
-- [ ] Run `nix develop -c cabal test settei-yaml-tests --test-show-details=direct` and confirm all tests pass.
-- [ ] Commit the code and test change (Conventional Commit with the three required trailers).
+- [x] (2026-07-19 10:19 PDT) Mark EP-11 "In Progress" in the MasterPlan registry table in docs/masterplans/2-harden-settei-correctness-before-fleet-wide-adoption.md.
+- [x] (2026-07-19 10:19 PDT) Check whether EP-10 (docs/plans/10-bound-numeric-scalar-conversion-in-the-yaml-and-kdl-adapters.md) has landed; note the answer in Surprises & Discoveries and adapt line references if settei-yaml/src/Settei/Yaml.hs has shifted.
+- [x] (2026-07-19 10:22 PDT) Restrict `yamlBoolean` in settei-yaml/src/Settei/Yaml.hs to case-insensitive `true`/`false` only.
+- [x] (2026-07-19 10:22 PDT) Add success-path boolean scalar tests to settei-yaml/test/Settei/YamlTest.hs, including the named Norway regression test.
+- [x] (2026-07-19 10:22 PDT) Add the tagged `!!bool yes` failure test to settei-yaml/test/Settei/YamlCharacterizationTest.hs.
+- [x] (2026-07-19 10:22 PDT) Run `nix develop -c cabal test settei-yaml-tests --test-show-details=direct` and confirm all 32 tests pass.
+- [x] (2026-07-19 10:22 PDT) Commit the code and test change (Conventional Commit with the three required trailers).
 - [ ] Append a dated amendment note to docs/adr/0004-yaml-input-semantics.md recording the YAML 1.2 core-schema boolean decision and the rejected alternative.
 - [ ] Rewrite the boolean paragraphs of docs/guides/yaml.md, including a short Norway-problem explanation and the note about agreement with core `boolDecoder`.
 - [ ] Update the boolean sentence in settei-yaml/test/fixtures/characterization/README.md.
@@ -75,7 +75,18 @@ This section must always reflect the actual current state of the work.
 Document unexpected behaviors, bugs, optimizations, or insights discovered during
 implementation. Provide concise evidence.
 
-(None yet.)
+- EP-10 was already Complete when implementation began. Its numeric guard moved
+  `yamlBoolean` to line 421 in `settei-yaml/src/Settei/Yaml.hs` and appended the bounded
+  exponent amendment to ADR 0004. The EP-11 edit remains isolated to `yamlBoolean`, and
+  its ADR amendment can append cleanly after EP-10's section as planned.
+- The plan's suggested success assertions used `@?=`, but `RawValue` deliberately has no
+  `Show` instance, so the first red run stopped at compile time with `No instance for
+  Show RawValue`. The executable tests now follow the module's established `assertBool`
+  style through a small `assertCandidateValue` helper; no production interface changed.
+- After fixing the assertion shape, the pre-change suite produced the intended red
+  evidence: the tagged `!!bool yes` case unexpectedly decoded successfully and the
+  Norway regression reported `country did not remain text`; 2 of 32 tests failed. This
+  confirms the new tests exercise the YAML 1.1 behavior rather than merely compiling.
 
 
 ## Decision Log

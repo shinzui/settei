@@ -420,13 +420,7 @@ yamlNumberParser =
 
 yamlBoolean :: Text -> Maybe Bool
 yamlBoolean value = case Text.toCaseFold value of
-  "y" -> Just True
-  "yes" -> Just True
-  "on" -> Just True
   "true" -> Just True
-  "n" -> Just False
-  "no" -> Just False
-  "off" -> Just False
   "false" -> Just False
   _ -> Nothing
 

@@ -47,6 +47,32 @@ tests =
         assertBool
           "array shape changed"
           (candidateValue names == RawArray [RawText "one", RawText "two"]),
+      testCase "Norway regression: YAML 1.1 boolean spellings remain text" $ do
+        input <-
+          expectSource
+            "country: no\nfeature:\n  legacy: yes\n  toggle: on\n  kill: off\n  short: y\n  tiny: n\n"
+        country <- expectCandidate countryKey input
+        assertCandidateValue "country did not remain text" country (RawText "no")
+        legacy <- expectCandidate legacyKey input
+        assertCandidateValue "legacy did not remain text" legacy (RawText "yes")
+        toggle <- expectCandidate toggleKey input
+        assertCandidateValue "toggle did not remain text" toggle (RawText "on")
+        kill <- expectCandidate killKey input
+        assertCandidateValue "kill did not remain text" kill (RawText "off")
+        short <- expectCandidate shortKey input
+        assertCandidateValue "short did not remain text" short (RawText "y")
+        tiny <- expectCandidate tinyKey input
+        assertCandidateValue "tiny did not remain text" tiny (RawText "n"),
+      testCase "core-schema booleans parse case-insensitively and quoted true stays text" $ do
+        input <- expectSource "plain: true\nupper: TRUE\nnegative: false\nquoted: \"true\"\n"
+        plain <- expectCandidate plainKey input
+        assertCandidateValue "plain true was not boolean" plain (RawBool True)
+        upper <- expectCandidate upperKey input
+        assertCandidateValue "uppercase true was not boolean" upper (RawBool True)
+        negative <- expectCandidate negativeKey input
+        assertCandidateValue "plain false was not boolean" negative (RawBool False)
+        quoted <- expectCandidate quotedKey input
+        assertCandidateValue "quoted true did not remain text" quoted (RawText "true"),
       testCase "higher YAML overrides leaves and replaces arrays wholesale" $ do
         low <- expectNamedSource "low" "service:\n  host: old.internal\n  port: 7000\n  names: [one, two]\n"
         high <- expectNamedSource "high" "service:\n  port: 9000\n  names: [three]\n"
@@ -147,6 +173,10 @@ expectCandidate key input = case lookupSource key input of
   Right (Just found) -> pure found
   _ -> fail "expected YAML candidate"
 
+assertCandidateValue :: String -> Candidate -> RawValue -> IO ()
+assertCandidateValue message found expected =
+  assertBool message (candidateValue found == expected)
+
 expectResolution :: Either (NonEmpty ConfigError) a -> IO a
 expectResolution = \case
   Left _ -> fail "expected YAML resolution to succeed"
@@ -174,7 +204,7 @@ textElement key = \case
   RawText value -> Right value
   _ -> Left (decodeFailure key "an array of text")
 
-serviceHttpHost, serviceHttpPort, serviceHost, servicePort, serviceNames, serviceOptional, hugeNumber, ratioNumber, featureEnabled, featureNames, databasePassword :: Key
+serviceHttpHost, serviceHttpPort, serviceHost, servicePort, serviceNames, serviceOptional, hugeNumber, ratioNumber, featureEnabled, featureNames, databasePassword, countryKey, legacyKey, toggleKey, killKey, shortKey, tinyKey, plainKey, upperKey, negativeKey, quotedKey :: Key
 serviceHttpHost = validKey "service.http.host"
 serviceHttpPort = validKey "service.http.port"
 serviceHost = validKey "service.host"
@@ -186,6 +216,16 @@ ratioNumber = validKey "limits.ratio"
 featureEnabled = validKey "feature.enabled"
 featureNames = validKey "feature.names"
 databasePassword = validKey "database.password"
+countryKey = validKey "country"
+legacyKey = validKey "feature.legacy"
+toggleKey = validKey "feature.toggle"
+killKey = validKey "feature.kill"
+shortKey = validKey "feature.short"
+tinyKey = validKey "feature.tiny"
+plainKey = validKey "plain"
+upperKey = validKey "upper"
+negativeKey = validKey "negative"
+quotedKey = validKey "quoted"
 
 validKey :: Text -> Key
 validKey value = either (error . show) id (parseKey value)

@@ -47,6 +47,14 @@ tests =
         yamlErrorCategory problem @?= YamlSyntaxError
         assertBool "syntax error omitted its line" (maybe False (> 0) (yamlErrorLine problem))
         assertBool "syntax error omitted its column" (maybe False (> 0) (yamlErrorColumn problem)),
+      testCase "tagged !!bool with a YAML 1.1 spelling fails as an invalid scalar" $ do
+        problem <- expectError "feature:\n  enabled: !!bool yes\n"
+        yamlErrorCategory problem @?= YamlInvalidScalar
+        yamlErrorContext problem @?= "$.feature.enabled"
+        yamlErrorMessage problem @?= "invalid boolean scalar",
+      testCase "tagged !!bool true still parses" $ do
+        input <- expectSource "feature:\n  enabled: !!bool true\n"
+        expectValue "feature.enabled" input (RawBool True),
       localOption (mkTimeout 10000000) $
         testGroup
           "bounded numeric scalar conversion"
