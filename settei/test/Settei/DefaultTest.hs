@@ -16,16 +16,18 @@ tests =
   testGroup
     "Settei.Default"
     [ testCase "constant default resolves without a source" $ do
-        result <- expectSuccess (resolve defaultResolveOptions [] constantPort)
-        result ^. #value @?= 8080
+        let result = resolve defaultResolveOptions [] constantPort
+        value <- expectAnswer result
+        value @?= 8080
         case result ^. #report . #nodes . at servicePort of
           Just node -> do
             fmap (^. #name) (node ^. #origin) @?= Just "built-in-port"
             fmap (^. #rule) (node ^. #derivation) @?= Just "built-in-port"
           Nothing -> fail "expected a derived port node",
       testCase "production port records its environment dependency" $ do
-        result <- expectSuccess (resolve defaultResolveOptions [environmentSource Production] casePort)
-        result ^. #value @?= 443
+        let result = resolve defaultResolveOptions [environmentSource Production] casePort
+        value <- expectAnswer result
+        value @?= 443
         case result ^. #report . #nodes . at servicePort of
           Just node -> case node ^. #derivation of
             Just derivation -> do
@@ -37,8 +39,9 @@ tests =
             Nothing -> fail "expected default derivation metadata"
           Nothing -> fail "expected the port report node",
       testCase "an explicit target overrides and skips its default dependencies" $ do
-        result <- expectSuccess (resolve defaultResolveOptions [portSource 9443] casePort)
-        result ^. #value @?= 9443
+        let result = resolve defaultResolveOptions [portSource 9443] casePort
+        value <- expectAnswer result
+        value @?= 9443
         case result ^. #report . #nodes . at runtimeEnvironment of
           Just node -> node ^. #outcome @?= NotSelected
           Nothing -> fail "expected the skipped dependency in the report"
@@ -46,7 +49,7 @@ tests =
           Just node -> node ^. #derivation @?= Nothing
           Nothing -> fail "expected the explicit port node",
       testCase "an unmatched case without fallback is structured" $ do
-        case resolve defaultResolveOptions [environmentSource Staging] casePort of
+        case (resolve defaultResolveOptions [environmentSource Staging] casePort) ^. #answer of
           Left errors -> case NonEmpty.toList errors of
             [DefaultError problem] -> do
               problem ^. #key @?= servicePort
@@ -64,8 +67,9 @@ tests =
                     ((Development, 8080) :| [])
                     (Just 9000)
                 )
-        result <- expectSuccess (resolve defaultResolveOptions [environmentSource Staging] withFallback)
-        result ^. #value @?= 9000,
+        let result = resolve defaultResolveOptions [environmentSource Staging] withFallback
+        value <- expectAnswer result
+        value @?= 9000,
       testCase "default dependencies remain conditional in the static schema" $ do
         let schema = describe casePort
             necessaryKeys = fmap schemaSettingKey (schemaNecessary schema)
@@ -74,13 +78,19 @@ tests =
           [portSchema] -> schemaSettingRequirement portSchema @?= Optional
           _ -> fail "expected one port schema entry",
       testCase "cyclic defaults fail before source evaluation" $ do
-        case resolve defaultResolveOptions [poisonSource] cyclicA of
+        let result = resolve defaultResolveOptions [poisonSource] cyclicA
+        case result ^. #answer of
           Left errors -> case NonEmpty.toList errors of
             [DefaultCycle problem] ->
               NonEmpty.toList (problem ^. #rules)
                 @?= [RuleName "cycle-a", RuleName "cycle-b", RuleName "cycle-a"]
             _ -> fail "expected one default cycle"
           Right _ -> fail "expected cyclic defaults to fail"
+        fmap (^. #key) (reportNodes (result ^. #report)) @?= [cycleAKey, cycleBKey]
+        fmap (^. #outcome) (reportNodes (result ^. #report))
+          @?= [NotSelected, NotSelected]
+        result ^. #report . #branches @?= []
+        result ^. #warnings @?= []
     ]
 
 data Environment = Development | Test | Staging | Production
@@ -189,9 +199,9 @@ environmentText Test = "test"
 environmentText Staging = "staging"
 environmentText Production = "production"
 
-expectSuccess :: Either (NonEmpty ConfigError) a -> IO a
-expectSuccess = \case
-  Left _ -> fail "expected successful resolution"
+expectAnswer :: ResolveResult a -> IO a
+expectAnswer result = case result ^. #answer of
+  Left errors -> fail ("expected successful resolution: " <> show errors)
   Right value -> pure value
 
 servicePort :: Key

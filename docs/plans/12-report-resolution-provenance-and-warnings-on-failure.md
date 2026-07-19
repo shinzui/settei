@@ -78,11 +78,11 @@ the change is recorded in `settei/CHANGELOG.md` and in an amendment to
 
 ## Progress
 
-- [ ] Milestone 1: reshape `ResolveResult` and `resolve` in `settei/src/Settei/Resolve.hs`; update haddocks in `Settei/Resolve.hs`, `Settei/Report.hs`, and `Settei/Render.hs`.
-- [ ] Milestone 1: migrate `settei/test/Settei/ResolveTest.hs`, `settei/test/Settei/DefaultTest.hs`, and `settei/test/Settei/RenderTest.hs` to the new shape.
-- [ ] Milestone 1: add failure-path semantics tests (evaluated nodes on failure, decode-failure node retains rejected value, not-selected completion, structural-exit report, cycle-exit report with empty warnings, warnings alongside errors, strict-policy parity, failure-report redaction).
-- [ ] Milestone 1: add failure-path golden files `settei/test/golden/failure-resolution.txt` and `settei/test/golden/failure-resolution.json` plus their golden test cases.
-- [ ] Milestone 1: `nix develop -c cabal test settei-tests --test-show-details=direct` passes; commit.
+- [x] (2026-07-19T17:42:07Z) Milestone 1: reshaped `ResolveResult` and `resolve` in `settei/src/Settei/Resolve.hs`; updated haddocks in `Settei/Resolve.hs`, `Settei/Report.hs`, and `Settei/Render.hs`.
+- [x] (2026-07-19T17:42:07Z) Milestone 1: migrated `settei/test/Settei/ResolveTest.hs`, `settei/test/Settei/DefaultTest.hs`, and `settei/test/Settei/RenderTest.hs` to the new shape.
+- [x] (2026-07-19T17:42:07Z) Milestone 1: added failure-path semantics tests (evaluated nodes on failure, decode-failure node retains rejected value, not-selected completion, structural and sensitivity exits, cycle exit with empty warnings, warnings alongside errors, strict-policy parity, and failure-report redaction).
+- [x] (2026-07-19T17:42:07Z) Milestone 1: added failure-path golden files `settei/test/golden/failure-resolution.txt` and `settei/test/golden/failure-resolution.json` plus their golden test cases.
+- [x] (2026-07-19T17:42:07Z) Milestone 1: `nix develop -c cabal test settei-tests --test-show-details=direct` passed with all 64 tests; ready to commit.
 - [ ] Milestone 2: migrate the adapter test suites (`settei-yaml`, `settei-kdl`, `settei-dhall`, `settei-env`, `settei-optparse-applicative`) to the total result; commit.
 - [ ] Milestone 3: migrate `examples/settei-cli/src/Settei/Example/Cli.hs` and `examples/settei-service/src/Settei/Example/Service.hs`; add failure-report-on-stderr behavior for explain modes.
 - [ ] Milestone 3: migrate `examples/settei-cli/test/Settei/Example/CliTest.hs`, `examples/settei-service/test/Settei/Example/ServiceTest.hs`, and `examples/settei-conformance/test/Settei/Example/ConformanceTest.hs`; add new failure-report test cases; commit.
@@ -92,7 +92,14 @@ the change is recorded in `settei/CHANGELOG.md` and in an amendment to
 
 ## Surprises & Discoveries
 
-(None yet.)
+- The plan's proposed default-cycle report reused the complete static schema, but EP-9
+  had already established that static schema construction follows default dependencies
+  and cannot terminate for a cyclic declaration. `resolve` therefore builds the cycle
+  report with a small guarded traversal of the declaration syntax: it records every
+  encountered setting with most-restrictive sensitivity and stops following a default
+  when its `RuleName` is already active. The existing poisoned-source test now forces
+  both cycle report nodes and still passes, proving termination and zero source
+  inspection. Evidence: the 2026-07-19 core run completed with all 64 tests passing.
 
 
 ## Decision Log
@@ -189,6 +196,15 @@ the change is recorded in `settei/CHANGELOG.md` and in an amendment to
   suites are the only consumers and are migrated inside this plan (they are the
   conformance boundary per docs/adr/0007). A shim would preserve the lossy shape this
   plan exists to remove.
+  Date: 2026-07-19
+
+- Decision: Build a default-cycle failure's not-selected report skeleton with a
+  cycle-guarded declaration traversal instead of `schemaPossible (describe config)`.
+  Rationale: `describe` recursively follows default dependencies, so forcing it on the
+  cycle exit would reintroduce nontermination. The guarded traversal preserves the
+  promised schema-shaped operator view, merges duplicate sensitivities with Secret
+  dominance, and retains the stronger existing law that cycle detection touches no
+  source. Non-cycle validation exits continue to use the complete static schema.
   Date: 2026-07-19
 
 

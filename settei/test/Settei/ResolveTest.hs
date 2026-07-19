@@ -18,8 +18,9 @@ tests =
   testGroup
     "Settei.Resolve"
     [ testCase "rightmost source wins per leaf" $ do
-        result <- expectSuccess (resolve defaultResolveOptions layeredSources serviceConfig)
-        result ^. #value @?= ("file.example", 443)
+        let result = resolve defaultResolveOptions layeredSources serviceConfig
+        value <- expectAnswer result
+        value @?= ("file.example", 443)
         let nodes = result ^. #report . #nodes
         case nodes ^. at serviceHost of
           Just node -> do
@@ -32,10 +33,12 @@ tests =
             fmap (^. #name) (node ^. #shadowed) @?= ["built-in"]
           Nothing -> fail "expected port report node",
       testCase "reversing source order predictably reverses precedence" $ do
-        result <- expectSuccess (resolve defaultResolveOptions (reverse layeredSources) serviceConfig)
-        result ^. #value @?= ("built-in.example", 8080),
+        let result = resolve defaultResolveOptions (reverse layeredSources) serviceConfig
+        value <- expectAnswer result
+        value @?= ("built-in.example", 8080),
       testCase "shadowed origins are ordered from highest to lowest precedence" $ do
-        result <- expectSuccess (resolve defaultResolveOptions (fmap snd lawSources) (required portSetting))
+        let result = resolve defaultResolveOptions (fmap snd lawSources) (required portSetting)
+        _ <- expectAnswer result
         case result ^. #report . #nodes . at servicePort of
           Just node -> fmap (^. #name) (node ^. #shadowed) @?= ["two", "one"]
           Nothing -> fail "expected the port resolution node",
@@ -44,7 +47,7 @@ tests =
       testCase "malformed winner does not fall back" $ do
         let lower = treeSource "lower" (RawNumber 8080) Map.empty
             higher = treeSource "higher" (RawText "not-a-port") Map.empty
-        case resolve defaultResolveOptions [lower, higher] (required portSetting) of
+        case (resolve defaultResolveOptions [lower, higher] (required portSetting)) ^. #answer of
           Left errors -> case NonEmpty.toList errors of
             [DecodeError problem] -> do
               problem ^. #key @?= servicePort
@@ -54,8 +57,9 @@ tests =
       testCase "arrays replace rather than concatenate" $ do
         let lower = arraySource "lower" ["one", "two"]
             higher = arraySource "higher" ["three"]
-        result <- expectSuccess (resolve defaultResolveOptions [lower, higher] (required hostsSetting))
-        result ^. #value @?= ["three"],
+        let result = resolve defaultResolveOptions [lower, higher] (required hostsSetting)
+        value <- expectAnswer result
+        value @?= ["three"],
       testCase "unknown keys warn by default and can be promoted" $ do
         let values =
               RawObject
@@ -66,27 +70,29 @@ tests =
                 )
             input = source "document" (FileSource "memory") values
             declaration = required knownSetting
-        result <- expectSuccess (resolve defaultResolveOptions [input] declaration)
+        let result = resolve defaultResolveOptions [input] declaration
+        _ <- expectAnswer result
         length (result ^. #warnings) @?= 1
         case result ^. #warnings of
           [UnknownKeyWarning problem] -> problem ^. #key @?= typoKey
           _ -> fail "expected one unknown-key warning"
         let strictOptions = ResolveOptions {unknownKeyPolicy = RejectUnknownKeys}
-        case resolve strictOptions [input] declaration of
+        case (resolve strictOptions [input] declaration) ^. #answer of
           Left errors -> case NonEmpty.toList errors of
             [UnknownKeyError problem] -> problem ^. #key @?= typoKey
             _ -> fail "expected one strict unknown-key error"
           Right _ -> fail "strict mode should reject the unknown key",
       testCase "independent applicative errors accumulate in declaration order" $ do
-        case resolve defaultResolveOptions [] serviceConfig of
+        case (resolve defaultResolveOptions [] serviceConfig) ^. #answer of
           Left errors ->
             fmap errorKey (NonEmpty.toList errors)
               @?= [serviceHost, servicePort]
           Right _ -> fail "expected both required settings to be missing",
       testCase "unselected selective branch is traced without errors" $ do
         let development = environmentSource "development"
-        result <- expectSuccess (resolve defaultResolveOptions [development] productionPassword)
-        result ^. #value @?= Nothing
+        let result = resolve defaultResolveOptions [development] productionPassword
+        value <- expectAnswer result
+        value @?= Nothing
         case result ^. #report . #nodes . at databasePassword of
           Just node -> node ^. #outcome @?= NotSelected
           Nothing -> fail "expected a not-selected password node"
@@ -94,9 +100,50 @@ tests =
           [branch] -> branch ^. #selected @?= False
           _ -> fail "expected one selective branch trace",
       testCase "selected selective branch reports its missing requirement" $ do
-        case resolve defaultResolveOptions [environmentSource "production"] productionPassword of
+        case (resolve defaultResolveOptions [environmentSource "production"] productionPassword) ^. #answer of
           Left errors -> fmap errorKey (NonEmpty.toList errors) @?= [databasePassword]
           Right _ -> fail "production should require a password",
+      testCase "failure report retains evaluated provenance" $ do
+        let input = treeSource "only-port" (RawNumber 8080) Map.empty
+            result = resolve defaultResolveOptions [input] serviceConfig
+        case result ^. #answer of
+          Left errors -> fmap errorKey (NonEmpty.toList errors) @?= [serviceHost]
+          Right _ -> fail "expected the missing host to fail"
+        case result ^. #report . #nodes . at servicePort of
+          Just node -> do
+            node ^. #outcome @?= Resolved (reportedValue Public (RawNumber 8080))
+            fmap (^. #name) (node ^. #origin) @?= Just "only-port"
+          Nothing -> fail "expected the evaluated port node"
+        case result ^. #report . #nodes . at serviceHost of
+          Just node -> node ^. #outcome @?= MissingValue
+          Nothing -> fail "expected the missing host node",
+      testCase "decode failure keeps the rejected candidate's provenance" $ do
+        let lower = treeSource "lower" (RawNumber 8080) Map.empty
+            higher = treeSource "higher" (RawText "not-a-port") Map.empty
+            result = resolve defaultResolveOptions [lower, higher] (required portSetting)
+        case result ^. #answer of
+          Left errors -> case NonEmpty.toList errors of
+            [DecodeError problem] -> problem ^. #origin . #name @?= "higher"
+            _ -> fail "expected one decode error"
+          Right _ -> fail "expected the malformed winner to fail"
+        case result ^. #report . #nodes . at servicePort of
+          Just node -> do
+            node ^. #outcome @?= Resolved (reportedValue Public (RawText "not-a-port"))
+            fmap (^. #name) (node ^. #origin) @?= Just "higher"
+            fmap (^. #name) (node ^. #shadowed) @?= ["lower"]
+          Nothing -> fail "expected the rejected winner's report node",
+      testCase "failure report completes not-selected settings" $ do
+        let declaration = (,) <$> productionPassword <*> required knownSetting
+            result = resolve defaultResolveOptions [environmentSource "development"] declaration
+        case result ^. #answer of
+          Left errors -> fmap errorKey (NonEmpty.toList errors) @?= [knownKey]
+          Right _ -> fail "expected the unrelated required setting to fail"
+        case result ^. #report . #nodes . at databasePassword of
+          Just node -> node ^. #outcome @?= NotSelected
+          Nothing -> fail "expected the unselected password node"
+        case result ^. #report . #branches of
+          [branch] -> branch ^. #selected @?= False
+          _ -> fail "expected one unselected branch trace",
       testCase "structural conflicts are rejected even under an unselected branch" $ do
         let development = environmentSource "development"
             conflicting =
@@ -104,12 +151,66 @@ tests =
                 "conflicting"
                 (FileSource "memory")
                 (RawObject (Map.singleton "database" (RawText "not-an-object")))
-        case resolve defaultResolveOptions [development, conflicting] productionPassword of
+        case (resolve defaultResolveOptions [development, conflicting] productionPassword) ^. #answer of
           Left errors -> case NonEmpty.toList errors of
             [StructuralConflict structuralError] ->
               structuralError ^. #key @?= databasePassword
             _ -> fail "expected one structural conflict"
           Right _ -> fail "source shape validation should fail",
+      testCase "structural exit still reports schema and warnings" $ do
+        let malformed =
+              source
+                "malformed"
+                (FileSource "memory")
+                ( RawObject
+                    ( Map.fromList
+                        [ ("database", RawText "not-an-object"),
+                          ("typo", RawText "unused")
+                        ]
+                    )
+                )
+            result =
+              resolve
+                defaultResolveOptions
+                [environmentSource "development", malformed]
+                productionPassword
+        case result ^. #answer of
+          Left errors -> case NonEmpty.toList errors of
+            [StructuralConflict structuralError] ->
+              structuralError ^. #key @?= databasePassword
+            _ -> fail "expected one structural conflict"
+          Right _ -> fail "source shape validation should fail"
+        fmap (^. #key) (reportNodes (result ^. #report))
+          @?= [databasePassword, runtimeEnvironment]
+        fmap (^. #outcome) (reportNodes (result ^. #report))
+          @?= [NotSelected, NotSelected]
+        fmap (^. #origin) (reportNodes (result ^. #report)) @?= [Nothing, Nothing]
+        result ^. #report . #branches @?= []
+        any
+          ( \case
+              UnknownKeyWarning problem -> problem ^. #key == typoKey
+          )
+          (result ^. #warnings)
+          @?= True,
+      testCase "warnings accompany failures and strict mode promotes them" $ do
+        let input =
+              source
+                "document"
+                (FileSource "memory")
+                (RawObject (Map.singleton "typo" (RawText "unused")))
+            warned = resolve defaultResolveOptions [input] (required knownSetting)
+        case warned ^. #answer of
+          Left errors -> fmap errorKey (NonEmpty.toList errors) @?= [knownKey]
+          Right _ -> fail "expected the missing known setting to fail"
+        case warned ^. #warnings of
+          [UnknownKeyWarning problem] -> problem ^. #key @?= typoKey
+          _ -> fail "expected one warning alongside the failure"
+        let strictOptions = ResolveOptions {unknownKeyPolicy = RejectUnknownKeys}
+            rejected = resolve strictOptions [input] (required knownSetting)
+        case rejected ^. #answer of
+          Left errors -> fmap errorKey (NonEmpty.toList errors) @?= [knownKey, typoKey]
+          Right _ -> fail "strict mode should reject the unknown key"
+        rejected ^. #warnings @?= [],
       testCase "conflicting sensitivity declarations fail with a structured error" $ do
         assertSensitivityConflict secretThenPublic
         assertSensitivityConflict publicThenSecret,
@@ -136,12 +237,19 @@ tests =
     ]
 
 assertSensitivityConflict :: Config a -> IO ()
-assertSensitivityConflict declaration =
-  case resolve defaultResolveOptions [passwordSource] declaration of
+assertSensitivityConflict declaration = do
+  let result = resolve defaultResolveOptions [passwordSource] declaration
+  case result ^. #answer of
     Left errors -> case NonEmpty.toList errors of
       [SensitivityConflict problem] -> problem ^. #key @?= databasePassword
       _ -> fail "expected one sensitivity conflict"
     Right _ -> fail "mixed-sensitivity declaration should fail"
+  case result ^. #report . #nodes . at databasePassword of
+    Just node -> do
+      node ^. #sensitivity @?= Secret
+      node ^. #outcome @?= NotSelected
+      node ^. #origin @?= Nothing
+    Nothing -> fail "expected a schema-only conflict report node"
 
 schemaEntry :: Key -> Schema -> SchemaSetting
 schemaEntry key schema =
@@ -151,10 +259,9 @@ schemaEntry key schema =
 
 checkOrdering :: [(Int, Source)] -> IO ()
 checkOrdering orderedSources = do
-  result <-
-    expectSuccess
-      (resolve defaultResolveOptions (fmap snd orderedSources) (required portSetting))
-  result ^. #value @?= fst (last orderedSources)
+  let result = resolve defaultResolveOptions (fmap snd orderedSources) (required portSetting)
+  value <- expectAnswer result
+  value @?= fst (last orderedSources)
 
 lawSources :: [(Int, Source)]
 lawSources =
@@ -163,9 +270,9 @@ lawSources =
     (3003, treeSource "three" (RawNumber 3003) Map.empty)
   ]
 
-expectSuccess :: Either (NonEmpty ConfigError) a -> IO a
-expectSuccess = \case
-  Left _ -> fail "expected successful resolution"
+expectAnswer :: ResolveResult a -> IO a
+expectAnswer result = case result ^. #answer of
+  Left errors -> fail ("expected successful resolution: " <> show errors)
   Right value -> pure value
 
 errorKey :: ConfigError -> Key

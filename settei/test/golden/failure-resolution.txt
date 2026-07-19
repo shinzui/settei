@@ -1,0 +1,8 @@
+database.password = <not selected>
+runtime.environment = "development"
+  from built-in source built-in
+service.host = <missing>
+service.port = "not-a-port"
+  from command-line option command-line
+  shadowed: built-in source built-in
+branch 1 [not selected]: runtime.environment -> database.password

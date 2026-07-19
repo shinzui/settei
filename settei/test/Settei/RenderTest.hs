@@ -2,6 +2,7 @@
 
 module Settei.RenderTest (tests) where
 
+import Control.Selective (select)
 import Data.Generics.Labels ()
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
@@ -24,12 +25,23 @@ tests =
         assertGolden "test/golden/resolution.txt" (renderResolutionText snapshotReport),
       testCase "resolution JSON matches its versioned golden snapshot" $
         assertGolden "test/golden/resolution.json" (renderResolutionJson snapshotReport),
+      testCase "failure resolution text matches its golden snapshot" $ do
+        _ <- expectFailure failureResolutionResult
+        assertGolden
+          "test/golden/failure-resolution.txt"
+          (renderResolutionText (failureResolutionResult ^. #report)),
+      testCase "failure resolution JSON matches its versioned golden snapshot" $ do
+        _ <- expectFailure failureResolutionResult
+        assertGolden
+          "test/golden/failure-resolution.json"
+          (renderResolutionJson (failureResolutionResult ^. #report)),
       testCase "error renderers match their golden snapshots" $ do
         errors <- expectFailure (resolve defaultResolveOptions [secretSource] (required secretBoolSetting))
         assertGolden "test/golden/errors.txt" (renderErrorsText errors)
         assertGolden "test/golden/errors.json" (renderErrorsJson errors),
       testCase "warning renderers match their golden snapshots" $ do
-        result <- expectSuccess (resolve defaultResolveOptions [unknownSecretSource] (pure ()))
+        let result = resolve defaultResolveOptions [unknownSecretSource] (pure ())
+        _ <- expectAnswer result
         assertGolden "test/golden/warnings.txt" (renderWarningsText (result ^. #warnings))
         assertGolden "test/golden/warnings.json" (renderWarningsJson (result ^. #warnings)),
       testCase "renderers distinguish missing from not selected" $ do
@@ -59,16 +71,22 @@ assertGolden path actual = do
 
 redactionTest :: IO ()
 redactionTest = do
-  success <- expectSuccess (resolve defaultResolveOptions [secretSource] (required secretTextSetting))
-  errors <- expectFailure (resolve defaultResolveOptions [secretSource] (required secretBoolSetting))
-  warningResult <- expectSuccess (resolve defaultResolveOptions [unknownSecretSource] (pure ()))
+  let success = resolve defaultResolveOptions [secretSource] (required secretTextSetting)
+      failure = resolve defaultResolveOptions [secretSource] (required secretBoolSetting)
+      warningResult = resolve defaultResolveOptions [unknownSecretSource] (pure ())
+  _ <- expectAnswer success
+  errors <- expectFailure failure
+  _ <- expectAnswer warningResult
   let report = success ^. #report
+      failureReport = failure ^. #report
       warnings = warningResult ^. #warnings
       outputs =
         [ renderSchemaText (describe (required secretTextSetting)),
           renderSchemaJson (describe (required secretTextSetting)),
           renderResolutionText report,
           renderResolutionJson report,
+          renderResolutionText failureReport,
+          renderResolutionJson failureReport,
           renderErrorsText errors,
           renderErrorsJson errors,
           renderWarningsText warnings,
@@ -82,10 +100,13 @@ redactionTest = do
     (all (not . Text.isInfixOf secretSentinel) outputs)
   assertBool "decode error did not show a redaction marker" $
     "<redacted>" `Text.isInfixOf` renderErrorsText errors
+  assertBool "failure report did not show a redaction marker" $
+    "<redacted>" `Text.isInfixOf` renderResolutionText failureReport
 
 sensitivityConflictRedactionTest :: IO ()
-sensitivityConflictRedactionTest =
-  case resolve defaultResolveOptions [conflictSource] conflictingConfig of
+sensitivityConflictRedactionTest = do
+  let conflictResult = resolve defaultResolveOptions [conflictSource] conflictingConfig
+  case conflictResult ^. #answer of
     Right _ -> fail "mixed-sensitivity declaration should fail"
     Left errors -> do
       assertBool
@@ -97,10 +118,11 @@ sensitivityConflictRedactionTest =
             )
             (NonEmpty.toList errors)
         )
-      secretOnly <-
-        expectSuccess (resolve defaultResolveOptions [conflictSource] (required secretTextSetting))
+      let secretOnly = resolve defaultResolveOptions [conflictSource] (required secretTextSetting)
+      _ <- expectAnswer secretOnly
       let schema = describe conflictingConfig
           report = secretOnly ^. #report
+          conflictReport = conflictResult ^. #report
           outputs =
             [ renderSchemaText schema,
               renderSchemaJson schema,
@@ -108,6 +130,8 @@ sensitivityConflictRedactionTest =
               renderErrorsJson errors,
               renderResolutionText report,
               renderResolutionJson report,
+              renderResolutionText conflictReport,
+              renderResolutionJson conflictReport,
               Text.pack (show schema),
               Text.pack (show errors),
               Text.pack (show report)
@@ -122,17 +146,13 @@ sensitivityConflictRedactionTest =
     conflictingConfig =
       (,) <$> required secretTextSetting <*> required publicConflictSetting
 
--- A mixed-sensitivity report is unreachable until EP-12 makes reports available on
--- failure. EP-12 must extend this sentinel scan to that failure report without renaming
--- SensitivityConflict.
-
-expectSuccess :: Either (NonEmpty ConfigError) a -> IO a
-expectSuccess = \case
-  Left _ -> fail "expected successful resolution"
+expectAnswer :: ResolveResult a -> IO a
+expectAnswer result = case result ^. #answer of
+  Left errors -> fail ("expected successful resolution: " <> show errors)
   Right value -> pure value
 
-expectFailure :: Either (NonEmpty ConfigError) a -> IO (NonEmpty ConfigError)
-expectFailure = \case
+expectFailure :: ResolveResult a -> IO (NonEmpty ConfigError)
+expectFailure result = case result ^. #answer of
   Left errors -> pure errors
   Right _ -> fail "expected resolution to fail"
 
@@ -225,6 +245,48 @@ absentReport =
         ]
     }
 
+failureResolutionResult :: ResolveResult (Text, Int, Maybe Text)
+failureResolutionResult =
+  resolve defaultResolveOptions failureSources failureResolutionConfig
+
+failureResolutionConfig :: Config (Text, Int, Maybe Text)
+failureResolutionConfig =
+  (,,)
+    <$> required hostSetting
+    <*> required portSetting
+    <*> productionPassword
+
+productionPassword :: Config (Maybe Text)
+productionPassword = select selector branch
+  where
+    selector =
+      (\environment -> if environment == "production" then Left () else Right Nothing)
+        <$> required environmentSetting
+    branch = (\password _ -> Just password) <$> required passwordSetting
+
+failureSources :: [Source]
+failureSources =
+  [ source
+      "built-in"
+      BuiltInSource
+      ( RawObject
+          ( Map.fromList
+              [ ("runtime", RawObject (Map.singleton "environment" (RawText "development"))),
+                ("service", RawObject (Map.singleton "port" (RawNumber 8080)))
+              ]
+          )
+      ),
+    source
+      "command-line"
+      CommandLineSource
+      ( RawObject
+          ( Map.singleton
+              "service"
+              (RawObject (Map.singleton "port" (RawText "not-a-port")))
+          )
+      )
+  ]
+
 environmentOrigin :: Key -> Text -> Origin
 environmentOrigin key variable =
   Origin
@@ -257,6 +319,15 @@ builtInOrigin =
 
 passwordSetting :: Setting Text
 passwordSetting = secretSetting databasePassword "Database password" textDecoder
+
+hostSetting :: Setting Text
+hostSetting = publicSetting serviceHost "Service host" textDecoder
+
+portSetting :: Setting Int
+portSetting = publicSetting servicePort "Service port" boundedIntegralDecoder
+
+environmentSetting :: Setting Text
+environmentSetting = publicSetting runtimeEnvironment "Runtime environment" textDecoder
 
 secretTextSetting :: Setting Text
 secretTextSetting = secretSetting databasePassword "Database password" textDecoder
@@ -306,6 +377,9 @@ conflictSentinel = "CONFLICT-S3cr3t-\"\\\n-[]{}-雪"
 
 databasePassword :: Key
 databasePassword = validKey "database.password"
+
+serviceHost :: Key
+serviceHost = validKey "service.host"
 
 runtimeEnvironment :: Key
 runtimeEnvironment = validKey "runtime.environment"

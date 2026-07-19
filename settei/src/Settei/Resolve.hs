@@ -68,9 +68,11 @@ data ResolveOptions = ResolveOptions
   }
   deriving stock (Generic, Eq, Show)
 
--- | The typed result plus its safe explanation and non-fatal diagnostics.
+-- | The outcome of one resolution attempt. The provenance report and non-fatal
+-- warnings are always present; the typed value or accumulated errors live in
+-- 'answer'.
 data ResolveResult a = ResolveResult
-  { value :: !a,
+  { answer :: !(Either (NonEmpty ConfigError) a),
     report :: !ResolutionReport,
     warnings :: ![ConfigWarning]
   }
@@ -84,29 +86,43 @@ defaultResolveOptions = ResolveOptions {unknownKeyPolicy = WarnUnknownKeys}
 --
 -- Each request chooses its rightmost candidate and decodes it exactly once. Independent
 -- applicative errors accumulate in declaration order; selective branches evaluate only
--- the branch selected by their resolved selector.
-resolve :: ResolveOptions -> [Source] -> Config a -> Either (NonEmpty ConfigError) (ResolveResult a)
+-- the branch selected by their resolved selector. The report and warnings are returned
+-- on both success and failure. Validation failures that happen before evaluation return
+-- a schema-shaped report of not-selected nodes with no branch traces; default-cycle
+-- failures additionally return no warnings and do not inspect any source.
+resolve :: ResolveOptions -> [Source] -> Config a -> ResolveResult a
 resolve options sources config =
   case NonEmpty.nonEmpty (validateDefaultCycles config) of
-    Just errors -> Left errors
+    Just errors ->
+      ResolveResult
+        { answer = Left errors,
+          report = ResolutionReport {nodes = cycleSchemaNodes config, branches = []},
+          warnings = []
+        }
     Nothing -> case NonEmpty.nonEmpty (validateSensitivityConflicts schemaSettings) of
-      Just errors -> Left errors
+      Just errors -> preEvaluationFailure errors
       Nothing -> resolveValidated
   where
     resolveValidated =
       case NonEmpty.nonEmpty structuralErrors of
-        Just errors -> Left errors
+        Just errors -> preEvaluationFailure errors
         Nothing ->
-          case appendErrors (evaluation ^. #answer) strictUnknownErrors of
-            Left errors -> Left (toNonEmpty errors)
-            Right value ->
-              Right
-                ResolveResult
-                  { value,
-                    report = ResolutionReport {nodes = completeNodes, branches = evaluation ^. #branches},
-                    warnings = unknownWarnings
-                  }
+          ResolveResult
+            { answer =
+                case appendErrors (evaluation ^. #answer) strictUnknownErrors of
+                  Left errors -> Left (toNonEmpty errors)
+                  Right value -> Right value,
+              report = ResolutionReport {nodes = completeNodes, branches = evaluation ^. #branches},
+              warnings = unknownWarnings
+            }
+    preEvaluationFailure errors =
+      ResolveResult
+        { answer = Left errors,
+          report = ResolutionReport {nodes = schemaOnlyNodes, branches = []},
+          warnings = unknownWarnings
+        }
     schemaSettings = schemaPossible (describeEvaluation config)
+    schemaOnlyNodes = addNotSelected schemaSettings Map.empty
     sensitivities =
       Map.fromList
         [ (schemaSettingKey schemaSetting, schemaSettingSensitivity schemaSetting)
@@ -122,6 +138,58 @@ resolve options sources config =
       WarnUnknownKeys -> Right ()
       RejectUnknownKeys -> errorsOnly (fmap UnknownKeyError unknownProblems)
     completeNodes = addNotSelected schemaSettings (evaluation ^. #nodes)
+
+-- | Build the not-selected skeleton for a default-cycle failure without calling
+-- 'describeEvaluation'. Static schema construction follows default dependencies and
+-- therefore cannot terminate for the cyclic declaration this path is reporting.
+cycleSchemaNodes :: Config a -> Map Key ResolutionNode
+cycleSchemaNodes = Map.mapWithKey notSelectedNode . cycleSettings []
+  where
+    cycleSettings :: [RuleName] -> Config b -> Map Key Sensitivity
+    cycleSettings active = \case
+      PureConfig _ -> Map.empty
+      MapConfig _ declaration -> cycleSettings active declaration
+      ApplyConfig function inputConfig ->
+        Map.unionWith
+          mergeSensitivity
+          (cycleSettings active function)
+          (cycleSettings active inputConfig)
+      RequestConfig request -> case request of
+        RequiredRequest settingSpec -> oneSetting settingSpec
+        OptionalRequest settingSpec -> oneSetting settingSpec
+      DefaultConfig settingSpec defaultSpec ->
+        Map.unionWith
+          mergeSensitivity
+          (oneSetting settingSpec)
+          (defaultSettings active defaultSpec)
+      SelectConfig selector branch ->
+        Map.unionWith
+          mergeSensitivity
+          (cycleSettings active selector)
+          (cycleSettings active branch)
+
+    defaultSettings :: [RuleName] -> Default b -> Map Key Sensitivity
+    defaultSettings active defaultSpec
+      | rule `elem` active = Map.empty
+      | otherwise = case defaultSpec of
+          ConstantDefault _ _ _ -> Map.empty
+          DerivedDefault _ _ dependency _ -> cycleSettings (active <> [rule]) dependency
+          CaseDefault _ _ dependency _ _ -> cycleSettings (active <> [rule]) dependency
+      where
+        rule = defaultRule defaultSpec
+
+    oneSetting settingSpec =
+      Map.singleton (settingKey settingSpec) (settingSensitivity settingSpec)
+
+    notSelectedNode key sensitivity =
+      ResolutionNode
+        { key,
+          sensitivity,
+          outcome = NotSelected,
+          origin = Nothing,
+          shadowed = [],
+          derivation = Nothing
+        }
 
 validateSensitivityConflicts :: [SchemaSetting] -> [ConfigError]
 validateSensitivityConflicts schemaSettings =

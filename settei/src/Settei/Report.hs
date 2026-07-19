@@ -54,7 +54,7 @@ data BranchTrace = BranchTrace
   }
   deriving stock (Generic, Eq, Show)
 
--- | Complete, secret-safe trace for one successful resolution.
+-- | Complete, secret-safe trace for one resolution attempt.
 data ResolutionReport = ResolutionReport
   { nodes :: !(Map Key ResolutionNode),
     branches :: ![BranchTrace]

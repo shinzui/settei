@@ -64,7 +64,7 @@ renderConditionText (conditionNumber, condition) =
       <> commaKeys (Set.toAscList (conditionSettings condition))
   ]
 
--- | Render one successful resolution, including skipped settings and branch decisions.
+-- | Render one resolution attempt, including skipped settings and branch decisions.
 renderResolutionText :: ResolutionReport -> Text
 renderResolutionText report =
   Text.concat (fmap (renderNodeText report) (reportNodes report))
@@ -240,7 +240,7 @@ conditionJson condition =
       ("settings", jsonKeyArray (Set.toAscList (conditionSettings condition)))
     ]
 
--- | Render a successful resolution as versioned deterministic JSON.
+-- | Render a resolution attempt as versioned deterministic JSON.
 renderResolutionJson :: ResolutionReport -> Text
 renderResolutionJson report =
   versionedJson
