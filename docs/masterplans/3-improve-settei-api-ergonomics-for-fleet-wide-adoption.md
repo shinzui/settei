@@ -90,7 +90,7 @@ authority).
 | 16 | Provide shared tagged-format configuration loading | docs/plans/16-provide-shared-tagged-format-configuration-loading.md | None | EP-17 | Complete |
 | 17 | Add error renderers to every source adapter | docs/plans/17-add-error-renderers-to-every-source-adapter.md | None | None | Complete |
 | 18 | Make environment bindings total and validated | docs/plans/18-make-environment-bindings-total-and-validated.md | None | EP-17 | Complete |
-| 19 | Add declaration sugar for conditionals and rendered defaults | docs/plans/19-add-declaration-sugar-for-conditionals-and-rendered-defaults.md | None | None | Not Started |
+| 19 | Add declaration sugar for conditionals and rendered defaults | docs/plans/19-add-declaration-sugar-for-conditionals-and-rendered-defaults.md | None | None | In Progress |
 | 20 | Tighten the public surface and dependency hygiene | docs/plans/20-tighten-the-public-surface-and-dependency-hygiene.md | None | EP-15, EP-16, EP-17, EP-18, EP-19 | Not Started |
 | 21 | Extend reusable CLI options and complete the ergonomics docs sweep | docs/plans/21-extend-reusable-cli-options-and-complete-the-ergonomics-docs-sweep.md | EP-15, EP-16, EP-17, EP-18, EP-19 | EP-20 | Not Started |
 

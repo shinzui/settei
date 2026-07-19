@@ -69,9 +69,9 @@ Use a checklist to summarize granular steps. Every stopping point must be docume
 even if it requires splitting a partially completed task into two ("done" vs. "remaining").
 This section must always reflect the actual current state of the work.
 
-- [ ] Milestone 1: add `whenConfig`, `whenEq`, `fallbackTo` to settei/src/Settei/Config.hs with schema-footprint haddocks; rewrite the module haddock example to teach `whenEq` first while keeping `select` documented.
-- [ ] Milestone 1: add `publicShowSetting` and `withRenderer` to settei/src/Settei/Setting.hs with haddocks covering the Show-renderer caveat and secret-setting behavior.
-- [ ] Milestone 1: library compiles warning-clean (`nix develop -c cabal build settei`).
+- [x] (2026-07-19) Milestone 1: add `whenConfig`, `whenEq`, `fallbackTo` to settei/src/Settei/Config.hs with schema-footprint haddocks; rewrite the module haddock example to teach `whenEq` first while keeping `select` documented.
+- [x] (2026-07-19) Milestone 1: add `publicShowSetting` and `withRenderer` to settei/src/Settei/Setting.hs with haddocks covering the Show-renderer caveat and secret-setting behavior.
+- [x] (2026-07-19) Milestone 1: library compiles warning-clean (`nix develop -c cabal build settei`).
 - [ ] Milestone 2: describe-level tests in settei/test/Settei/ConfigTest.hs (schema possible/necessary/condition rows for all three combinators, plus agreement with the raw `select` encoding) and runConfig-level tests for both branch outcomes.
 - [ ] Milestone 2: resolution-report tests in settei/test/Settei/ResolveTest.hs (selected / not-selected outcomes and `BranchTrace` rows for `whenEq` and `fallbackTo`; rendered-default tests for `publicShowSetting`, `withRenderer`, and secret redaction).
 - [ ] Milestone 2: `nix develop -c cabal test settei-tests --test-show-details=direct` passes.

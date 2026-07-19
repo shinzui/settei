@@ -5,6 +5,7 @@ module Settei.Setting
   ( Sensitivity (..),
     Setting,
     decodeSetting,
+    publicShowSetting,
     publicSetting,
     publicSettingWithRenderer,
     secretSetting,
@@ -12,10 +13,12 @@ module Settei.Setting
     settingKey,
     settingSensitivity,
     settingValueRenderer,
+    withRenderer,
   )
 where
 
 import Data.Generics.Labels ()
+import Data.Text qualified as Text
 import Settei.Key (Key)
 import Settei.Prelude
 import Settei.Value (DecodeFailure, Decoder, RawValue, runDecoder)
@@ -51,10 +54,27 @@ publicSettingWithRenderer :: Key -> Text -> Decoder a -> (a -> Text) -> Setting 
 publicSettingWithRenderer key description decoder renderer =
   Setting {key, description, sensitivity = Public, decoder, renderer = Just renderer}
 
+-- | Declare a public setting whose typed default values render via 'show'.
+--
+-- Equivalent to 'publicSettingWithRenderer' with @Text.pack . show@. Best for primitive
+-- and enum-like types; a derived 'Show' of a rich type may be ugly in reports but is
+-- never unsafe, because renderers only affect display of typed defaults and secret
+-- settings always redact regardless of any renderer.
+publicShowSetting :: (Show a) => Key -> Text -> Decoder a -> Setting a
+publicShowSetting key description decoder =
+  publicSettingWithRenderer key description decoder (Text.pack . show)
+
 -- | Declare a setting whose resolved value must be redacted from reports.
 secretSetting :: Key -> Text -> Decoder a -> Setting a
 secretSetting key description decoder =
   Setting {key, description, sensitivity = Secret, decoder, renderer = Nothing}
+
+-- | Attach or replace the typed-default renderer of an existing setting.
+--
+-- On a secret setting this is harmless: the stored renderer is ignored and reports keep
+-- showing the redaction marker (see "Settei.Resolve").
+withRenderer :: (a -> Text) -> Setting a -> Setting a
+withRenderer renderValue settingSpec = settingSpec & #renderer ?~ renderValue
 
 -- | Decode one raw candidate using the setting's validated key.
 decodeSetting :: Setting a -> RawValue -> Either DecodeFailure a
