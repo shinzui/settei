@@ -76,14 +76,13 @@ tests =
       testCase "higher YAML overrides leaves and replaces arrays wholesale" $ do
         low <- expectNamedSource "low" "service:\n  host: old.internal\n  port: 7000\n  names: [one, two]\n"
         high <- expectNamedSource "high" "service:\n  port: 9000\n  names: [three]\n"
-        result <-
-          expectResolution
-            ( resolve
+        let result =
+              resolve
                 defaultResolveOptions
                 [low, high]
                 ((,,) <$> required hostSetting <*> required portSetting <*> required namesSetting)
-            )
-        result ^. #value @?= ("old.internal", 9000, ["three"])
+        value <- expectResolution result
+        value @?= ("old.internal", 9000, ["three"])
         case result ^. #report . #nodes . at servicePort of
           Just node -> do
             node ^. #origin . _Just . #name @?= "high"
@@ -109,7 +108,8 @@ tests =
         let reference = kubernetesRef SecretObject (Just "production") "database-config" (Just "config.yaml")
             options = fromKubernetesMountedFile reference sourceOptions
         input <- expectSourceWith options ("database:\n  password: " <> Text.unpack secretSentinel <> "\n")
-        result <- expectResolution (resolve defaultResolveOptions [input] (required passwordSetting))
+        let result = resolve defaultResolveOptions [input] (required passwordSetting)
+        _ <- expectResolution result
         let textOutput = renderResolutionText (result ^. #report)
             jsonOutput = renderResolutionJson (result ^. #report)
         assertBool "secret reached text output" (not (secretSentinel `Text.isInfixOf` textOutput))
@@ -177,8 +177,8 @@ assertCandidateValue :: String -> Candidate -> RawValue -> IO ()
 assertCandidateValue message found expected =
   assertBool message (candidateValue found == expected)
 
-expectResolution :: Either (NonEmpty ConfigError) a -> IO a
-expectResolution = \case
+expectResolution :: ResolveResult a -> IO a
+expectResolution result = case result ^. #answer of
   Left _ -> fail "expected YAML resolution to succeed"
   Right value -> pure value
 

@@ -65,14 +65,13 @@ tests =
       testCase "higher KDL overrides leaves and replaces arrays through core" $ do
         low <- expectNamedSource "low" "service { host \"old.internal\"; port 7000; names \"one\" \"two\"; }\n"
         high <- expectNamedSource "high" "service { port 9000; names \"three\" \"four\"; }\n"
-        result <-
-          expectResolution
-            ( resolve
+        let result =
+              resolve
                 defaultResolveOptions
                 [low, high]
                 ((,,) <$> required hostSetting <*> required portSetting <*> required namesSetting)
-            )
-        result ^. #value @?= ("old.internal", 9000, ["three", "four"])
+        value <- expectResolution result
+        value @?= ("old.internal", 9000, ["three", "four"])
         case result ^. #report . #nodes . at servicePort of
           Just node -> do
             node ^. #origin . _Just . #name @?= "high"
@@ -82,7 +81,8 @@ tests =
         let reference = kubernetesRef SecretObject (Just "production") "database-config" (Just "config.kdl")
             options = fromKubernetesMountedFile reference sourceOptions
         input <- expectSourceWith options ("database { password \"" <> secretSentinel <> "\"; }\n")
-        result <- expectResolution (resolve defaultResolveOptions [input] (required passwordSetting))
+        let result = resolve defaultResolveOptions [input] (required passwordSetting)
+        _ <- expectResolution result
         let textOutput = renderResolutionText (result ^. #report)
             jsonOutput = renderResolutionJson (result ^. #report)
         assertBool "secret reached text output" (not (secretSentinel `Text.isInfixOf` textOutput))
@@ -136,8 +136,8 @@ expectRaw key input expected = do
   found <- expectCandidate key input
   assertBool "unexpected KDL raw value" (candidateValue found == expected)
 
-expectResolution :: Either (NonEmpty ConfigError) a -> IO a
-expectResolution = \case
+expectResolution :: ResolveResult a -> IO a
+expectResolution result = case result ^. #answer of
   Left errors -> fail (Text.unpack (renderErrorsText errors))
   Right value -> pure value
 

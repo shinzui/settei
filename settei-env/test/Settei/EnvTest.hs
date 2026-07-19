@@ -52,7 +52,8 @@ tests =
         let reference = kubernetesRef SecretObject (Just "payments") "payments-database" (Just "password")
             passwordBinding = fromKubernetesObject reference (binding (EnvName "DATABASE_PASSWORD") databasePassword)
         input <- expectSourceWith [passwordBinding] [("DATABASE_PASSWORD", secretSentinel)]
-        result <- expectResolution (resolve defaultResolveOptions [input] (required passwordSetting))
+        let result = resolve defaultResolveOptions [input] (required passwordSetting)
+        _ <- expectResolution result
         let output = renderResolutionText (result ^. #report)
         assertBool "secret value reached the report" (not (secretSentinel `Text.isInfixOf` output))
         assertBool "secret object metadata was omitted" ("payments-database" `Text.isInfixOf` output)
@@ -61,7 +62,8 @@ tests =
         let reference = kubernetesRef ConfigMapObject Nothing "service-network" (Just "host")
             hostBinding = fromKubernetesObject reference (binding (EnvName "SERVICE_HOST") serviceHost)
         input <- expectSourceWith [hostBinding] [("SERVICE_HOST", "api.internal")]
-        result <- expectResolution (resolve defaultResolveOptions [input] (required hostSetting))
+        let result = resolve defaultResolveOptions [input] (required hostSetting)
+        _ <- expectResolution result
         let output = renderResolutionText (result ^. #report)
         assertBool "ConfigMap metadata was omitted" ("service-network" `Text.isInfixOf` output)
         assertBool "public value was omitted" ("api.internal" `Text.isInfixOf` output)
@@ -76,8 +78,8 @@ expectSourceWith bindings values =
     Left _ -> fail "expected a valid environment source"
     Right value -> pure value
 
-expectResolution :: Either (NonEmpty ConfigError) a -> IO a
-expectResolution = \case
+expectResolution :: ResolveResult a -> IO a
+expectResolution result = case result ^. #answer of
   Left _ -> fail "expected successful resolution"
   Right value -> pure value
 

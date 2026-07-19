@@ -19,14 +19,13 @@ tests =
     [ testCase "final repeated --set wins with shadow trace" $ do
         overrides <- expectParse overrideOptions ["--set", "service.port=9000", "--set", "service.port=9001"]
         environment <- environmentPort 8000
-        result <-
-          expectResolution
-            ( resolve
+        let result =
+              resolve
                 defaultResolveOptions
                 ([portSource "built-in" BuiltInSource 6000, portSource "file" (FileSource "memory") 7000, environment] <> cliSources "arguments" overrides)
                 (required portSetting)
-            )
-        result ^. #value @?= 9001
+        value <- expectResolution result
+        value @?= 9001
         case result ^. #report . #nodes . at servicePort of
           Just node -> do
             node ^. #origin . _Just . #annotations . at "command-line.occurrence" @?= Just "2"
@@ -39,7 +38,7 @@ tests =
       testCase "malformed final CLI value does not fall back" $ do
         overrides <- expectParse overrideOptions ["--set", "service.port=9000", "--set", "service.port=broken"]
         environment <- environmentPort 8000
-        case resolve defaultResolveOptions (environment : cliSources "arguments" overrides) (required portSetting) of
+        case (resolve defaultResolveOptions (environment : cliSources "arguments" overrides) (required portSetting)) ^. #answer of
           Left errors -> case NonEmpty.toList errors of
             [DecodeError problem] -> do
               problem ^. #origin . #name @?= "arguments --set #2"
@@ -48,7 +47,8 @@ tests =
           Right _ -> fail "expected the malformed final override to fail",
       testCase "secret override spelling omits the value" $ do
         overrides <- expectParse overrideOptions ["--set", "database.password=" <> Text.unpack secretSentinel]
-        result <- expectResolution (resolve defaultResolveOptions (cliSources "arguments" overrides) (required passwordSetting))
+        let result = resolve defaultResolveOptions (cliSources "arguments" overrides) (required passwordSetting)
+        _ <- expectResolution result
         let textOutput = renderResolutionText (result ^. #report)
             jsonOutput = renderResolutionJson (result ^. #report)
         assertBool "secret reached text output" (not (secretSentinel `Text.isInfixOf` textOutput))
@@ -64,8 +64,9 @@ tests =
         case input of
           Nothing -> fail "expected the named option source"
           Just sourceValue -> do
-            result <- expectResolution (resolve defaultResolveOptions [sourceValue] (required portSetting))
-            result ^. #value @?= 8080,
+            let result = resolve defaultResolveOptions [sourceValue] (required portSetting)
+            value <- expectResolution result
+            value @?= 8080,
       testCase "setteiOptions parses grouped paths, overrides, and diagnostics" $ do
         parsed <-
           expectParse
@@ -104,8 +105,8 @@ expectParse parser arguments =
     Nothing -> fail "expected command-line parsing to succeed"
     Just value -> pure value
 
-expectResolution :: Either (NonEmpty ConfigError) a -> IO a
-expectResolution = \case
+expectResolution :: ResolveResult a -> IO a
+expectResolution result = case result ^. #answer of
   Left _ -> fail "expected configuration resolution to succeed"
   Right value -> pure value
 

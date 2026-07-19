@@ -105,7 +105,8 @@ tests =
           annotations ^. at "dhall.import-count" @?= Just "2"
           annotations ^. at "dhall.provenance-precision"
             @?= Just "root-and-import-closure; leaf-level import attribution unavailable after normalization"
-          result <- expectResolution (resolve defaultResolveOptions [input] (required portSetting))
+          let result = resolve defaultResolveOptions [input] (required portSetting)
+          _ <- expectResolution result
           let rendered = renderResolutionText (result ^. #report)
           assertBool "text report omitted Dhall root" (Text.pack application `Text.isInfixOf` rendered)
           assertBool
@@ -181,14 +182,13 @@ tests =
       testCase "higher Dhall sources override leaves through the core resolver" $ do
         low <- expectSource (dhallSourceOptions "low" NoImports) (dhallExpression "low" "{ service = { host = \"old.internal\", port = 7000 } }")
         high <- expectSource (dhallSourceOptions "high" NoImports) (dhallExpression "high" "{ service = { port = 9000 } }")
-        result <-
-          expectResolution
-            ( resolve
+        let result =
+              resolve
                 defaultResolveOptions
                 [low, high]
                 ((,) <$> required hostSetting <*> required portSetting)
-            )
-        result ^. #value @?= ("old.internal", 9000),
+        value <- expectResolution result
+        value @?= ("old.internal", 9000),
       testCase "stable error phases and Show output never retain source secrets" $ do
         let cases =
               [ (dhallExpression "parse" ("{ password = \"" <> secretSentinel <> "\", broken ="), DhallParseError),
@@ -211,8 +211,9 @@ tests =
           expectSource
             noImportOptions
             (dhallExpression "secret root" ("{ database = { password = \"" <> secretSentinel <> "\" } }"))
-        result <- expectResolution (resolve defaultResolveOptions [input] (required passwordSetting))
-        result ^. #value @?= secretSentinel
+        let result = resolve defaultResolveOptions [input] (required passwordSetting)
+        value <- expectResolution result
+        value @?= secretSentinel
         let textOutput = renderResolutionText (result ^. #report)
             jsonOutput = renderResolutionJson (result ^. #report)
         assertBool "secret reached text report" (not (secretSentinel `Text.isInfixOf` textOutput))
@@ -248,8 +249,8 @@ expectCandidate key input = case lookupSource key input of
   Right (Just found) -> pure found
   _ -> assertFailure "expected Dhall candidate" >> error "unreachable"
 
-expectResolution :: Either (NonEmpty ConfigError) a -> IO a
-expectResolution = \case
+expectResolution :: ResolveResult a -> IO a
+expectResolution result = case result ^. #answer of
   Left _ -> assertFailure "expected Dhall resolution to succeed" >> error "unreachable"
   Right value -> pure value
 
