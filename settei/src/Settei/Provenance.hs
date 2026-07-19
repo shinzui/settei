@@ -88,9 +88,12 @@ renderRawValue = \case
   RawNumber value
     | Ratio.denominator value == 1 -> Text.pack (show (Ratio.numerator value))
     | otherwise ->
-        Text.pack (show (Ratio.numerator value))
-          <> "/"
-          <> Text.pack (show (Ratio.denominator value))
+        case renderDecimal value of
+          Just decimal -> decimal
+          Nothing ->
+            Text.pack (show (Ratio.numerator value))
+              <> "/"
+              <> Text.pack (show (Ratio.denominator value))
   RawArray values -> "[" <> Text.intercalate ", " (fmap renderRawValue values) <> "]"
   RawObject values ->
     "{"
@@ -100,6 +103,30 @@ renderRawValue = \case
         | (key, value) <- Map.toAscList values
         ]
       <> "}"
+
+renderDecimal :: Rational -> Maybe Text
+renderDecimal value =
+  let numerator = Ratio.numerator value
+      denominator = Ratio.denominator value
+      (twos, afterTwos) = countFactor 2 denominator
+      (fives, residual) = countFactor 5 afterTwos
+   in if residual /= 1
+        then Nothing
+        else
+          let scale = max twos fives
+              scaled = abs numerator * (10 ^ scale) `quot` denominator
+              digits = Text.pack (show scaled)
+              padded = Text.replicate (max 0 (scale + 1 - Text.length digits)) "0" <> digits
+              (whole, fractional) = Text.splitAt (Text.length padded - scale) padded
+              sign = if numerator < 0 then "-" else ""
+           in Just (sign <> whole <> "." <> fractional)
+
+countFactor :: Integer -> Integer -> (Int, Integer)
+countFactor factor = go 0
+  where
+    go count remaining
+      | remaining `rem` factor == 0 = go (count + 1) (remaining `quot` factor)
+      | otherwise = (count, remaining)
 
 escapeText :: Text -> Text
 escapeText =

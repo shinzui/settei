@@ -217,3 +217,12 @@ annotation combinator. It now merges left-biased: annotations supplied by a late
 on a name collision and other entries are retained, matching `annotateSourceAt` and the
 adapter option combinators. Per-key entries still take precedence over source-wide entries
 when names overlap.
+
+
+## Amendment 2026-07-19: exact decimal report rendering
+
+Public non-integer rationals now render in plain decimal notation exactly when their
+reduced denominator contains no prime factors other than 2 and 5. The conversion uses
+integer scaling only and never rounds. Rationals with non-terminating decimal expansions
+retain their exact numerator/denominator rendering. This changes display strings only;
+the versioned report representation remains `schemaVersion: 1`.

@@ -6,6 +6,7 @@ import Control.Selective (select)
 import Data.Generics.Labels ()
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
+import Data.Ratio qualified as Ratio
 import Data.Text qualified as Text
 import Data.Text.IO qualified as TextIO
 import Settei
@@ -51,6 +52,21 @@ tests =
         assertBool "text omitted the not-selected outcome" ("<not selected>" `Text.isInfixOf` textOutput)
         assertBool "JSON omitted the missing outcome" ("\"outcome\":\"missing\"" `Text.isInfixOf` jsonOutput)
         assertBool "JSON omitted the not-selected outcome" ("\"outcome\":\"not-selected\"" `Text.isInfixOf` jsonOutput),
+      testCase "terminating rationals render as exact decimals" $ do
+        renderNumber (1 Ratio.% 2) @?= "0.5"
+        renderNumber ((-3) Ratio.% 8) @?= "-0.375"
+        renderNumber (1 Ratio.% 1000) @?= "0.001"
+        renderNumber (25 Ratio.% 2) @?= "12.5",
+      testCase "non-terminating rationals retain exact fractions" $ do
+        renderNumber (1 Ratio.% 3) @?= "1/3"
+        renderNumber (7 Ratio.% 12) @?= "7/12",
+      testCase "arrays use decimal and fraction rendering recursively" $
+        renderReportedValue
+          ( reportedValue
+              Public
+              (RawArray [RawNumber (1 Ratio.% 2), RawNumber (1 Ratio.% 3)])
+          )
+          @?= "[0.5, 1/3]",
       testCase "sensitivity conflicts render as structured errors" $ do
         let errors = SensitivityConflict (SensitivityConflictProblem {key = databasePassword}) :| []
         assertBool
@@ -63,6 +79,9 @@ tests =
       testCase "mixed-sensitivity declarations never expose their secret sentinel" $
         sensitivityConflictRedactionTest
     ]
+
+renderNumber :: Rational -> Text
+renderNumber = renderReportedValue . reportedValue Public . RawNumber
 
 assertGolden :: FilePath -> Text -> IO ()
 assertGolden path actual = do

@@ -98,10 +98,15 @@ below also names a small observable behavior you can check directly.
       --test-show-details=direct` passed all 16 tests; the root and imported fixture both
       pinned line 2, column 13; `nix develop -c cabal build all` compiled the workspace;
       the solved direct dependency is Megaparsec 9.8.1.
-- [ ] M5: implement terminating-decimal rendering in `renderRawValue` in
+- [x] (2026-07-19T18:21:35Z) M5: implemented terminating-decimal rendering in `renderRawValue` in
       settei/src/Settei/Provenance.hs.
-- [ ] M5: add rendering unit tests; run golden tests and reconcile
+- [x] (2026-07-19T18:21:35Z) M5: added rendering unit tests; ran golden tests and reconciled
       settei/test/golden/ files if any drift appears (none expected — see Context).
+- [x] (2026-07-19T18:21:35Z) M5: appended the exact-decimal display rule and unchanged
+      `schemaVersion: 1` decision to ADR 0003.
+- [x] (2026-07-19T18:21:35Z) M5 validation: `nix develop -c cabal test settei-tests
+      --test-show-details=direct` passed all 74 tests, including every golden; no golden
+      file changed. `nix develop -c cabal build all` compiled the workspace.
 - [ ] Cross-cutting: update settei/CHANGELOG.md, settei-yaml/CHANGELOG.md, and
       settei-dhall/CHANGELOG.md.
 - [ ] Cross-cutting: run the full workspace validation and confirm green.
