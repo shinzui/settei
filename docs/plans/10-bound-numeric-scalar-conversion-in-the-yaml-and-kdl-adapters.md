@@ -54,10 +54,10 @@ This section must always reflect the actual current state of the work.
 - [x] (2026-07-19 10:02 PDT) Milestone 1: route the `FloatTag`, `IntTag` (`parseTaggedInteger`), and untagged (`NoTag`) numeric paths through the guard
 - [x] (2026-07-19 10:02 PDT) Milestone 1: add YAML characterization tests (fast rejection of huge positive/negative exponents, tagged-path rejection, boundary acceptance at 4096, boundary rejection at 4097, exactness of decimals/hex/octal/negative exponents, stable category/message/location)
 - [x] (2026-07-19 10:02 PDT) Milestone 1: `nix develop -c cabal test settei-yaml-tests --test-show-details=direct` green (28 tests passed in 0.00s); commit
-- [ ] Milestone 2: add `scientific >=0.3.7 && <0.4` to the `settei-kdl` library `build-depends`
-- [ ] Milestone 2: add `maximumScalarExponent` and the guarded `KDL.Number` branch in `translateValue` in `settei-kdl/src/Settei/Kdl.hs`
-- [ ] Milestone 2: add KDL characterization tests (same matrix as YAML, minus YAML-specific tags; KDL hex literal exactness)
-- [ ] Milestone 2: `nix develop -c cabal test settei-kdl-tests --test-show-details=direct` green; commit
+- [x] (2026-07-19 10:04 PDT) Milestone 2: add `scientific >=0.3.7 && <0.4` to the `settei-kdl` library `build-depends`
+- [x] (2026-07-19 10:04 PDT) Milestone 2: add `maximumScalarExponent` and the guarded `KDL.Number` branch in `translateValue` in `settei-kdl/src/Settei/Kdl.hs`
+- [x] (2026-07-19 10:04 PDT) Milestone 2: add KDL characterization tests (same matrix as YAML, minus YAML-specific tags; KDL hex literal exactness)
+- [x] (2026-07-19 10:04 PDT) Milestone 2: `nix develop -c cabal test settei-kdl-tests --test-show-details=direct` green (24 tests passed in 0.01s); commit
 - [ ] Milestone 3: append dated 2026-07-19 amendment notes to `docs/adr/0004-yaml-input-semantics.md` and `docs/adr/0005-canonical-kdl-v2-input-semantics.md`
 - [ ] Milestone 3: update the number sections of `docs/guides/yaml.md` and `docs/guides/kdl.md`
 - [ ] Milestone 3: update `settei-yaml/CHANGELOG.md` and `settei-kdl/CHANGELOG.md`
@@ -71,7 +71,11 @@ This section must always reflect the actual current state of the work.
 Document unexpected behaviors, bugs, optimizations, or insights discovered during
 implementation. Provide concise evidence.
 
-(None yet.)
+- During Milestone 2 dependency verification, Mori had no registered `scientific`
+  project, so the release line was checked against both Hackage and the authoritative
+  upstream tags. Hackage listed 0.3.8.1 as current and `git ls-remote --tags --refs`
+  returned `refs/tags/v0.3.8.1`; the planned `>=0.3.7 && <0.4` bound therefore includes
+  the current release rather than relying on the local corpus alone.
 
 
 ## Decision Log

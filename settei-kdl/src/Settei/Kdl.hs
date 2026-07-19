@@ -38,6 +38,7 @@ import Data.Generics.Labels ()
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Maybe (listToMaybe)
+import Data.Scientific (base10Exponent)
 import Data.Text qualified as Text
 import Data.Text.IO qualified as TextIO
 import Data.Text.Read qualified as TextRead
@@ -407,12 +408,33 @@ firstCollision properties childGroups =
       Just (child : _) <- [childGroups ^. at name]
     ]
 
+-- | Largest absolute base-10 exponent accepted for a numeric value.
+--
+-- 'toRational' materializes @10 ^ exponent@ as an exact 'Integer', so cost
+-- grows with the exponent's magnitude rather than the input's length. This
+-- adapter-local bound leaves core 'RawNumber' values unbounded.
+maximumScalarExponent :: Int
+maximumScalarExponent = 4096
+
 translateValue :: KdlSourceOptions -> [Text] -> KDL.Value -> Either KdlSourceError RawValue
 translateValue options path value = do
   rejectValueAnnotation options path value
   case valueData value of
     KDL.String text -> Right (RawText text)
-    KDL.Number number -> Right (RawNumber (toRational number))
+    KDL.Number number
+      | scalarExponent < negate maximumScalarExponent || scalarExponent > maximumScalarExponent ->
+          Left
+            ( kdlError
+                options
+                KdlUnsupportedValue
+                (Just (valueLocation value))
+                Nothing
+                path
+                "numeric value exponent is out of the supported range"
+            )
+      | otherwise -> Right (RawNumber (toRational number))
+      where
+        scalarExponent = base10Exponent number
     KDL.Bool boolean -> Right (RawBool boolean)
     KDL.Null -> Right RawNull
     KDL.Inf -> unsupported

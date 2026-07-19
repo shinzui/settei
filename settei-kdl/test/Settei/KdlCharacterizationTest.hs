@@ -7,7 +7,7 @@ import Data.Text qualified as Text
 import Settei
 import Settei.Kdl
 import Settei.Prelude
-import Test.Tasty (TestTree, testGroup)
+import Test.Tasty (TestTree, localOption, mkTimeout, testGroup)
 import Test.Tasty.HUnit (assertBool, testCase, (@?=))
 
 tests :: TestTree
@@ -56,7 +56,31 @@ tests =
         assertBool "syntax error omitted its column" (maybe False ((> 0) . kdlSpanColumn) (kdlErrorSpan problem))
         assertBool
           "syntax error retained the source excerpt"
-          (not (sentinel `Text.isInfixOf` Text.pack (show problem)))
+          (not (sentinel `Text.isInfixOf` Text.pack (show problem))),
+      localOption (mkTimeout 10000000) $
+        testGroup
+          "bounded numeric value conversion"
+          [ testCase "huge positive exponents are rejected quickly" $ do
+              problem <- expectError "huge 1e1000000000\n"
+              expectExponentError "$.huge" problem,
+            testCase "huge negative exponents are rejected quickly" $ do
+              problem <- expectError "tiny 1e-1000000000\n"
+              expectExponentError "$.tiny" problem,
+            testCase "positive boundary exponents convert exactly" $ do
+              input <- expectSource "edge 1e4096\n"
+              expectValue "edge" input (RawNumber (10 ^ (4096 :: Integer) % 1)),
+            testCase "negative boundary exponents convert exactly" $ do
+              input <- expectSource "edge 1e-4096\n"
+              expectValue "edge" input (RawNumber (1 % 10 ^ (4096 :: Integer))),
+            testCase "exponents immediately above the bound are rejected" $ do
+              problem <- expectError "over 1e4097\n"
+              expectExponentError "$.over" problem,
+            testCase "ordinary decimals and hex values remain exact" $ do
+              input <- expectSource "rate 1.5e-3\nmask 0x1A\ncoefficient 12345678901234567890\n"
+              expectValue "rate" input (RawNumber (3 % 2000))
+              expectValue "mask" input (RawNumber 26)
+              expectValue "coefficient" input (RawNumber 12345678901234567890)
+          ]
     ]
 
 sourceOptions :: KdlSourceOptions
@@ -76,6 +100,13 @@ expectValue :: Text -> Source -> RawValue -> IO ()
 expectValue keyText input expected = case lookupSource (validKey keyText) input of
   Right (Just found) -> assertBool "unexpected KDL raw value" (candidateValue found == expected)
   _ -> fail "expected KDL candidate"
+
+expectExponentError :: Text -> KdlSourceError -> IO ()
+expectExponentError expectedContext problem = do
+  kdlErrorCategory problem @?= KdlUnsupportedValue
+  fmap kdlSpanLine (kdlErrorSpan problem) @?= Just 1
+  kdlErrorContext problem @?= expectedContext
+  kdlErrorMessage problem @?= "numeric value exponent is out of the supported range"
 
 validKey :: Text -> Key
 validKey value = either (error . show) id (parseKey value)
