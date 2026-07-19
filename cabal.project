@@ -5,6 +5,7 @@ packages:
   settei
   settei-dhall
   settei-env
+  settei-formats
   settei-kdl
   settei-optparse-applicative
   settei-yaml
@@ -16,6 +17,9 @@ package settei-dhall
   tests: True
 
 package settei-env
+  tests: True
+
+package settei-formats
   tests: True
 
 package settei-kdl

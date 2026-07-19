@@ -50,11 +50,11 @@ that one deliberate pass rewrites the conformance-boundary examples.
 
 ## Progress
 
-- [ ] Milestone 1: `settei-formats/` directory scaffolded (cabal file, LICENSE, CHANGELOG.md).
-- [ ] Milestone 1: `Settei.Formats` pure core implemented (`ConfigFormat`, `ConfigInput`,
+- [x] (2026-07-19T20:05:00Z) Milestone 1: `settei-formats/` directory scaffolded (cabal file, LICENSE, CHANGELOG.md).
+- [x] (2026-07-19T20:05:00Z) Milestone 1: `Settei.Formats` pure core implemented (`ConfigFormat`, `ConfigInput`,
       `parseConfigInput`, `LoadOptions`, `FormatLoadError`, `loadConfigInput`,
       `renderFormatLoadErrorText`).
-- [ ] Milestone 1: package registered in `cabal.project`, `nix/haskell.nix`, and `mori.dhall`;
+- [x] (2026-07-19T20:05:00Z) Milestone 1: package registered in `cabal.project`, `nix/haskell.nix`, and `mori.dhall`;
       `nix develop -c cabal build settei-formats` succeeds.
 - [ ] Milestone 2: `Settei.Formats.Optparse` implemented (`configInputReader`,
       `configInputOption`, `configInputOptions`).
@@ -66,14 +66,28 @@ that one deliberate pass rewrites the conformance-boundary examples.
       `docs/guides/README.md`, `docs/guides/cli-application.md`,
       `docs/guides/kubernetes-service.md`; `docs/compatibility.md` public-module list updated.
 - [ ] Milestone 4: `docs/adr/0008-settei-formats-umbrella-package.md` written.
-- [ ] If EP-17 renderers were unavailable and the `Show` stub was used: tracked TODO
-      recorded here and in the code, later replaced. (Mark not-applicable if EP-17 landed first.)
+- [x] (2026-07-19T20:05:00Z) EP-17 renderers were unavailable, so the typed `Show` stub is active and a
+      `TODO(EP-17)` is recorded in `Settei.Formats`; the function type is final so replacement
+      will not churn callers.
 - [ ] ADR distillation pass done; plan marked complete; MasterPlan registry row updated.
 
 
 ## Surprises & Discoveries
 
-(None yet.)
+- Observation: EP-17 had not landed when Milestone 1 began, so
+  `renderFormatLoadErrorText` currently uses the plan's `Show` fallback over each
+  adapter's structured error list.
+  Evidence: `rg -n "TODO\(EP-17\)" settei-formats/src/Settei/Formats.hs` finds the
+  tracked replacement marker, while the `FormatLoadError` constructors preserve the
+  full typed adapter errors for a source-compatible swap later.
+  Date: 2026-07-19
+
+- Observation: a Git-backed local flake cannot evaluate a new package directory until
+  that path is in Git's index.
+  Evidence: the first `nix build .#settei-formats` failed with `path .../settei-formats
+  does not exist`; after `git add settei-formats`, the same command built
+  `settei-formats-0.1.0.0` successfully.
+  Date: 2026-07-19
 
 
 ## Decision Log
@@ -186,6 +200,18 @@ that one deliberate pass rewrites the conformance-boundary examples.
   (docs/adr/0007-reference-applications-are-the-public-api-conformance-boundary.md) and
   five concurrent plans editing them would conflict constantly. The duplication evidence
   stays in place until EP-21 deletes it.
+  Date: 2026-07-19
+
+- Decision: Retain the sibling packages' existing dependency ranges in
+  `settei-formats.cabal`, including `containers >=0.6.8 && <0.8`, rather than widening
+  only the new package to the latest major release.
+  Rationale: Mori inspection confirmed the local APIs used here, and a 2026-07-19
+  freshness check against Hackage plus upstream release tags found
+  optparse-applicative 0.19.0.0, generic-lens 2.3.0.0, tasty 1.5.4,
+  tasty-hunit 0.10.2, containers 0.8, and text 2.1.4. All proposed ranges cover the
+  workspace's audited versions except containers 0.8; widening containers for one
+  package would create family inconsistency, while EP-20 is explicitly responsible for
+  the fleet-wide bounds audit.
   Date: 2026-07-19
 
 

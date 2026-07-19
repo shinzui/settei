@@ -39,6 +39,20 @@ in  Schema.Project::{
         , dependencies = [ Schema.Dependency.ByName "settei" ]
         }
       , Schema.Package::{
+        , name = "settei-formats"
+        , type = Schema.PackageType.Library
+        , language = Schema.Language.Haskell
+        , path = Some "settei-formats"
+        , description = Some "Tagged multi-format configuration inputs and a shared adapter loader for Settei"
+        , dependencies =
+          [ Schema.Dependency.ByName "settei"
+          , Schema.Dependency.ByName "settei-dhall"
+          , Schema.Dependency.ByName "settei-kdl"
+          , Schema.Dependency.ByName "settei-optparse-applicative"
+          , Schema.Dependency.ByName "settei-yaml"
+          ]
+        }
+      , Schema.Package::{
         , name = "settei-kdl"
         , type = Schema.PackageType.Library
         , language = Schema.Language.Haskell

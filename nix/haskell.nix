@@ -70,6 +70,17 @@
               settei-env = setteiEnvPackage;
             }
         );
+      setteiFormatsPackage =
+        pkgs.haskell.lib.dontCheck (
+          haskellPackages.callCabal2nix "settei-formats" ../settei-formats {
+            optparse-applicative = optparseApplicativePackage;
+            settei = setteiPackage;
+            settei-dhall = setteiDhallPackage;
+            settei-kdl = setteiKdlPackage;
+            settei-optparse-applicative = setteiOptparseApplicativePackage;
+            settei-yaml = setteiYamlPackage;
+          }
+        );
       setteiExampleCliPackage =
         pkgs.haskell.lib.dontCheck (
           haskellPackages.callCabal2nix "settei-example-cli" ../examples/settei-cli {
@@ -138,6 +149,7 @@
       packages.settei-example-service = setteiExampleServicePackage;
       packages.settei-dhall = setteiDhallPackage;
       packages.settei-env = setteiEnvPackage;
+      packages.settei-formats = setteiFormatsPackage;
       packages.settei-kdl = setteiKdlPackage;
       packages.settei-optparse-applicative = setteiOptparseApplicativePackage;
       packages.settei-yaml = setteiYamlPackage;
