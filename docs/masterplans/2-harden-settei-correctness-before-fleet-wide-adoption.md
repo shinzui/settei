@@ -89,7 +89,7 @@ authority). docs/adr/0001-haskell-project-conventions.md governs code style in e
 | 10 | Bound numeric scalar conversion in the YAML and KDL adapters | docs/plans/10-bound-numeric-scalar-conversion-in-the-yaml-and-kdl-adapters.md | None | None | Complete |
 | 11 | Adopt YAML 1.2 core-schema boolean scalars | docs/plans/11-adopt-yaml-1-2-core-schema-boolean-scalars.md | None | EP-10 | Complete |
 | 12 | Report resolution provenance and warnings on failure | docs/plans/12-report-resolution-provenance-and-warnings-on-failure.md | None | EP-9 | Complete |
-| 13 | Harden source construction and adapter diagnostics | docs/plans/13-harden-source-construction-and-adapter-diagnostics.md | None | EP-10, EP-11, EP-12 | In Progress |
+| 13 | Harden source construction and adapter diagnostics | docs/plans/13-harden-source-construction-and-adapter-diagnostics.md | None | EP-10, EP-11, EP-12 | Complete |
 | 14 | Revalidate correctness and update release collateral | docs/plans/14-revalidate-correctness-and-update-release-collateral.md | EP-9, EP-10, EP-11, EP-12, EP-13 | None | Not Started |
 
 Status values: Not Started, In Progress, Complete, Cancelled.
@@ -167,8 +167,8 @@ EP-12's always-available report semantics (amend docs/adr/0003).
 - [x] EP-11: ADR 0004 amendment, YAML guide, and conformance fixtures updated
 - [x] EP-12: resolve returns report and warnings on failure; renderers and core tests updated
 - [x] EP-12: reference applications surface failure reports; guides updated
-- [ ] EP-13: annotation merge, validated source construction, YAML decode hardening landed
-- [ ] EP-13: Dhall parse locations, decimal rendering, docs and ADR notes landed
+- [x] EP-13: annotation merge, validated source construction, YAML decode hardening landed
+- [x] EP-13: Dhall parse locations, decimal rendering, docs and ADR notes landed
 - [ ] EP-14: full workspace validation green (tests, goldens, examples, sdist, nix)
 - [ ] EP-14: security model, compatibility matrix, changelogs, README reconciled
 

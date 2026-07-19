@@ -107,10 +107,12 @@ below also names a small observable behavior you can check directly.
 - [x] (2026-07-19T18:21:35Z) M5 validation: `nix develop -c cabal test settei-tests
       --test-show-details=direct` passed all 74 tests, including every golden; no golden
       file changed. `nix develop -c cabal build all` compiled the workspace.
-- [ ] Cross-cutting: update settei/CHANGELOG.md, settei-yaml/CHANGELOG.md, and
+- [x] (2026-07-19T18:23:23Z) Cross-cutting: updated settei/CHANGELOG.md, settei-yaml/CHANGELOG.md, and
       settei-dhall/CHANGELOG.md.
-- [ ] Cross-cutting: run the full workspace validation and confirm green.
-- [ ] Completion: write Outcomes & Retrospective and perform the ADR distillation pass.
+- [x] (2026-07-19T18:23:23Z) Cross-cutting: `nix develop -c cabal test all
+      --test-show-details=direct` passed all 10 suites and 188 test cases.
+- [x] (2026-07-19T18:23:23Z) Completion: wrote Outcomes & Retrospective and performed the ADR
+      distillation pass across ADRs 0003, 0004, and 0006.
 
 
 ## Surprises & Discoveries
@@ -235,7 +237,24 @@ below also names a small observable behavior you can check directly.
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+EP-13 completed all five hardening outcomes. Repeated source annotations now compose;
+custom source construction has a validated, accumulating API plus secret-safe inspection;
+the YAML pure boundary contains unexpected synchronous exceptions; Dhall root and import
+parse failures carry exact one-based positions; and terminating rational report values use
+exact decimal notation. The public changes are documented in the three package changelogs,
+the Dhall guide, the security model, and ADRs 0003, 0004, and 0006.
+
+Validation finished with all 10 workspace suites and 188 test cases passing. The core
+golden suite remained unchanged, as expected, because no existing fixture contained a
+fractional public value. Repository guide search found no custom-source construction guide
+that needed migration. No EP-13 work remains.
+
+The main implementation lesson was to verify even a carefully researched plan against the
+resolved dependency source: Megaparsec 9.x returns an updated `PosState` from
+`reachOffsetNoLine`, so using `pstateSourcePos` avoided the plan's stale tuple assumption
+without rendering a source excerpt. The YAML fallback remains a deliberate code-review
+gate because manufacturing the unexpected exception honestly would require corrupting
+parser internals; ordinary positioned syntax errors remain regression-tested.
 
 
 ## Context and Orientation

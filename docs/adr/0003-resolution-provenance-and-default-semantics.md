@@ -226,3 +226,17 @@ reduced denominator contains no prime factors other than 2 and 5. The conversion
 integer scaling only and never rounds. Rationals with non-terminating decimal expansions
 retain their exact numerator/denominator rendering. This changes display strings only;
 the versioned report representation remains `schemaVersion: 1`.
+
+
+## Amendment 2026-07-19: validated custom source construction
+
+Hand-built sources should use `sourceFromPairs`, which accepts already validated `Key`
+values and accumulates duplicate-key and structural-prefix conflicts before constructing
+the source tree. Its successful output guarantees that every leaf is addressable by
+`lookupSource` and visible to `sourceLeaves`. The older `source` constructor remains a
+total, unvalidated escape hatch for adapters that already guarantee tree validity.
+
+`sourceUnaddressableLeaves` inspects escape-hatch sources and returns only raw segment
+paths that cannot form a `Key`, never their possibly secret values. `sourceLeaves` remains
+total and preserves its existing addressable-leaf contract; it does not silently broaden
+key syntax to accommodate invalid hand-built trees.

@@ -10,3 +10,6 @@
 - Restrict boolean scalars to the YAML 1.2 core schema: only case-insensitive `true` and
   `false` are booleans, whether plain or tagged `!!bool`. The YAML 1.1 spellings `y`,
   `yes`, `on`, `n`, `no`, and `off` are now plain text, eliminating the Norway problem.
+- Contain all synchronous failures at the pure decode boundary; unexpected exceptions
+  become `YamlSyntaxError` with a fixed secret-safe message, while asynchronous exceptions
+  continue to propagate.
