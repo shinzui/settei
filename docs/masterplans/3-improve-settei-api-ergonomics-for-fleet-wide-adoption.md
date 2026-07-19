@@ -88,7 +88,7 @@ authority).
 |---|-------|------|-----------|-----------|--------|
 | 15 | Add a Decoder functor and combinator kit | docs/plans/15-add-a-decoder-functor-and-combinator-kit.md | None | None | Complete |
 | 16 | Provide shared tagged-format configuration loading | docs/plans/16-provide-shared-tagged-format-configuration-loading.md | None | EP-17 | Complete |
-| 17 | Add error renderers to every source adapter | docs/plans/17-add-error-renderers-to-every-source-adapter.md | None | None | In Progress |
+| 17 | Add error renderers to every source adapter | docs/plans/17-add-error-renderers-to-every-source-adapter.md | None | None | Complete |
 | 18 | Make environment bindings total and validated | docs/plans/18-make-environment-bindings-total-and-validated.md | None | EP-17 | Not Started |
 | 19 | Add declaration sugar for conditionals and rendered defaults | docs/plans/19-add-declaration-sugar-for-conditionals-and-rendered-defaults.md | None | None | Not Started |
 | 20 | Tighten the public surface and dependency hygiene | docs/plans/20-tighten-the-public-surface-and-dependency-hygiene.md | None | EP-15, EP-16, EP-17, EP-18, EP-19 | Not Started |
@@ -100,15 +100,13 @@ Hard Deps and Soft Deps reference other rows by their # prefix (e.g., EP-15).
 
 ## Dependency Graph
 
-EP-15 is complete. EP-17, EP-18, and EP-19 remain implementable immediately and in
-parallel; they touch disjoint modules (the four adapter error modules;
-settei-env/src/Settei/Env.hs; settei/src/Settei/Config.hs and
-settei/src/Settei/Setting.hs respectively).
+EP-15, EP-16, and EP-17 are complete. EP-18 and EP-19 remain implementable immediately
+and in parallel; they touch disjoint modules (settei-env/src/Settei/Env.hs;
+settei/src/Settei/Config.hs and settei/src/Settei/Setting.hs respectively).
 
-EP-16 (the new tagged-format loading package) has a soft dependency on EP-17 because its
-loader should surface adapter failures through the new renderers rather than `Show`; it can
-begin with a temporary `Show`-based stub if implemented first. EP-18's soft dependency on
-EP-17 is the same concern for `EnvError` rendering.
+EP-17 fulfilled EP-16's soft dependency by replacing the tagged-format loader's temporary
+`Show` fallback with adapter-owned renderers. It also provides the stable `EnvError`
+renderer that EP-18 can consume while reshaping environment binding construction.
 
 EP-20 (surface hygiene) soft-depends on all API-adding plans because it audits and freezes
 the final exposed-module and dependency surface; running it earlier would audit a moving
@@ -168,8 +166,8 @@ a new ADR), EP-20's public-surface and dependency decision (amendment to docs/ad
 - [x] EP-15: examples drop hand-rolled decoders; guides updated
 - [x] EP-16: settei-formats package with tagged inputs and loader, registered everywhere
 - [x] EP-16: loader tests and guide coverage
-- [ ] EP-17: text renderers for YAML, KDL, Dhall, and Env errors with tests
-- [ ] EP-17: examples and guides stop using Show for adapter errors
+- [x] EP-17: text renderers for YAML, KDL, Dhall, and Env errors with tests
+- [x] EP-17: examples and guides stop using Show for adapter errors
 - [ ] EP-18: validated Bindings construction; envSource total; default label
 - [ ] EP-18: examples and environment guide updated
 - [ ] EP-19: selective conditional helpers and rendered-default ergonomics with tests
@@ -195,11 +193,10 @@ a new ADR), EP-20's public-surface and dependency decision (amendment to docs/ad
   `element`, which made the natural local binder name in the list combinators trigger
   `-Wname-shadowing`. EP-15 used `elementDecoder` and stayed warning-free. EP-20 should
   include this concrete collision in its public-surface and lens-footprint audit.
-- EP-16 completed before its soft dependency EP-17. The public
-  `renderFormatLoadErrorText` type is final, but its implementation currently carries a
-  `TODO(EP-17)` and uses the planned typed `Show` fallback. EP-17 must replace that body
-  with its adapter-owned renderers and remove the marker; callers and EP-21 need no API
-  change.
+- EP-16 completed before its soft dependency EP-17. EP-17 replaced
+  `renderFormatLoadErrorText`'s temporary typed `Show` fallback with the adapter-owned
+  renderers, removed `TODO(EP-17)`, and added direct three-adapter delegation coverage;
+  callers and EP-21 need no API change.
 - EP-16 reconciled its planning-time test sketch with the correctness initiative's final
   resolver API: end-to-end loader tests inspect `ResolveResult.answer`, preserving the
   always-present report and warning channels. This does not change any downstream

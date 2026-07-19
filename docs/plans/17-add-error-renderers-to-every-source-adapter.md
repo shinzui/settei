@@ -96,7 +96,9 @@ This section must always reflect the actual current state of the work.
       KDL, Dhall, and environment adapter changelogs.
 - [x] (2026-07-19T20:34:14Z) Milestone 6: record the durable cross-adapter contract in
       docs/adr/0009-adapter-error-rendering-contract.md.
-- [ ] Final: update the MasterPlan's Progress rows for EP-17, run the full validation commands, write Outcomes & Retrospective, and perform the ADR distillation pass.
+- [x] (2026-07-19T20:37:05Z) Final: update the MasterPlan's EP-17 registry and Progress
+      rows; `nix fmt`, `cabal build all`, the four adapter suites, `cabal test all`, and
+      `nix flake check` pass; write this retrospective and complete ADR distillation.
 
 
 ## Surprises & Discoveries
@@ -229,12 +231,25 @@ Record every decision made while working on the plan.
 
 ## Outcomes & Retrospective
 
-Summarize outcomes, gaps, and lessons learned at major milestones or at completion.
-Compare the result against the original purpose. Before marking the plan complete,
-distill durable project context from the Decision Log, Surprises & Discoveries, and
-this section into docs/adr/. Keep task-local execution details here.
+EP-17 delivered the fixed singular/plural renderer pair in all four source adapters.
+Golden tests cover every YAML, KDL, Dhall, and environment error category, available and
+missing locations, KDL related spans, IO-safe prefixes, and the plural trailing-newline
+contract. Both reference applications and the `settei-formats` umbrella loader now use
+those APIs instead of derived `Show`, satisfying EP-16's soft integration dependency and
+leaving stable names for EP-18 and EP-21.
 
-(To be filled during and after implementation.)
+The original purpose is met without a shared error type, a new common dependency, or any
+new retained source data. Each adapter preserves its honest diagnostic precision, and
+the examples, four guides, and four changelogs teach the same operator-facing path. The
+umbrella loader gained direct delegation tests for YAML, KDL, and Dhall; its test-only KDL
+dependency was the sole implementation-time adjustment beyond the planned consumers.
+
+Final validation passed on 2026-07-19: `nix fmt`, `cabal build all`, all four focused
+adapter suites (45 YAML, 34 KDL, 26 Dhall, and 13 environment tests), the complete Cabal
+test suite, and `nix flake check`. ADR 0009 distills the durable naming, formatting,
+omission, newline, dependency-boundary, and secret-safety decisions. The remaining
+Surprises & Discoveries entry is task-local test-component bookkeeping and needs no
+additional ADR. No planned gap remains.
 
 
 ## Context and Orientation
