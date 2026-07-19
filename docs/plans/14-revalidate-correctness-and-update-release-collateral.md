@@ -59,15 +59,15 @@ This section must always reflect the actual current state of the work.
       asserts (resolve's failure shape, the numeric-bound error category names in
       settei-yaml and settei-kdl, the sensitivity-conflict error constructor) and record
       them in this plan's Context section.
-- [ ] Milestone 1: add the Norway-regression YAML conformance fixture and test (untagged
+- [x] (2026-07-19T18:29:48Z) Milestone 1: add the Norway-regression YAML conformance fixture and test (untagged
       `no`/`on` are text through the public adapter).
-- [ ] Milestone 1: add the huge-exponent rejection fixtures and tests for YAML and KDL,
+- [x] (2026-07-19T18:29:48Z) Milestone 1: add the huge-exponent rejection fixtures and tests for YAML and KDL,
       asserting each adapter's stable EP-10 bound category.
-- [ ] Milestone 1: add the resolution-failure fixtures (YAML, KDL, Dhall) and the test
+- [x] (2026-07-19T18:29:48Z) Milestone 1: add the resolution-failure fixtures (YAML, KDL, Dhall) and the test
       asserting the EP-12 failure report shape is normalized-equal across all three.
-- [ ] Milestone 1: extend the existing conformance secret-sentinel scan so it also covers
+- [x] (2026-07-19T18:29:48Z) Milestone 1: extend the existing conformance secret-sentinel scan so it also covers
       the new failure-path report renderings.
-- [ ] Milestone 1: conformance suite passes; commit.
+- [x] (2026-07-19T18:29:48Z) Milestone 1: conformance suite passes with 11 tests; commit.
 - [ ] Milestone 2: `nix develop -c cabal build all` green.
 - [ ] Milestone 2: `nix develop -c cabal test all --test-show-details=direct` green; new
       total test count recorded in this plan.

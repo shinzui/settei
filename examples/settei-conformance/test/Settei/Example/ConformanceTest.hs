@@ -121,7 +121,44 @@ tests =
             secured <- expectResolution (resolve defaultResolveOptions [sources ^. #yaml, withSecret] Service.serviceConfig)
             assertBool "Production did not retain the selected password" (isJust (resolvedAnswer secured ^. #database . #password))
             let rendered = renderResolutionText (secured ^. #report) <> renderResolutionJson (secured ^. #report)
-            assertBool "Secret sentinel reached a report" (not (secretSentinel `Text.isInfixOf` rendered))
+            assertBool "Secret sentinel reached a report" (not (secretSentinel `Text.isInfixOf` rendered)),
+          testCase "YAML 1.2 booleans: no and on are text at the adapter boundary" $ do
+            path <- Paths.getDataFileName "test/fixtures/booleans.yaml"
+            input <- Yaml.readYamlSource (Yaml.yamlSourceOptions "Norway YAML") path >>= expectLoaded
+            country <- expectCandidate regionCountryKey input
+            telemetry <- expectCandidate regionTelemetryKey input
+            enabled <- expectCandidate regionEnabledKey input
+            disabled <- expectCandidate regionDisabledKey input
+            assertBool "country: no did not remain text" (candidateValue country == RawText "no")
+            assertBool "telemetry: on did not remain text" (candidateValue telemetry == RawText "on")
+            assertBool "enabled: true did not become a boolean" (candidateValue enabled == RawBool True)
+            assertBool "disabled: FALSE did not become a boolean" (candidateValue disabled == RawBool False),
+          testCase "huge exponents are rejected by YAML and KDL with stable categories" $ do
+            yamlPath <- Paths.getDataFileName "test/fixtures/huge-exponent.yaml"
+            kdlPath <- Paths.getDataFileName "test/fixtures/huge-exponent.kdl"
+            yamlResult <- Yaml.readYamlSource (Yaml.yamlSourceOptions "huge YAML") yamlPath
+            kdlResult <- Kdl.readKdlSource (Kdl.kdlSourceOptions "huge KDL") kdlPath
+            case yamlResult of
+              Left errors -> Yaml.yamlErrorCategory (NonEmpty.head errors) @?= Yaml.YamlInvalidScalar
+              Right _ -> fail "YAML accepted an out-of-range numeric exponent"
+            case kdlResult of
+              Left errors -> Kdl.kdlErrorCategory (NonEmpty.head errors) @?= Kdl.KdlUnsupportedValue
+              Right _ -> fail "KDL accepted an out-of-range numeric exponent"
+            -- Dhall uses its bounded Double representation and was not changed by EP-10.
+            pure (),
+          testCase "failure reports are format-independent and carry provenance" $ do
+            sources <- loadNamedFixtureSources "failure"
+            let yamlResult = resolve defaultResolveOptions [sources ^. #yaml] Service.serviceConformanceConfig
+                kdlResult = resolve defaultResolveOptions [sources ^. #kdl] Service.serviceConformanceConfig
+                dhallResult = resolve defaultResolveOptions [sources ^. #dhall] Service.serviceConformanceConfig
+            yamlReport <- expectDatabaseHostFailure yamlResult
+            kdlReport <- expectDatabaseHostFailure kdlResult
+            dhallReport <- expectDatabaseHostFailure dhallResult
+            assertResolvedFileNode httpHostKey yamlReport
+            assertResolvedFileNode httpHostKey kdlReport
+            assertResolvedFileNode httpHostKey dhallReport
+            normalizeReport kdlReport @?= normalizeReport yamlReport
+            normalizeReport dhallReport @?= normalizeReport yamlReport
         ],
       testGroup
         "Security"
@@ -147,7 +184,30 @@ tests =
                     <> Service.serviceStandardOutput serviceRun
                     <> Service.serviceStandardError serviceRun
             assertBool "captured output leaked a secret sentinel" (not (secretSentinel `Text.isInfixOf` captured))
-            assertBool "captured explanations did not show redaction" ("<redacted>" `Text.isInfixOf` captured)
+            assertBool "captured explanations did not show redaction" ("<redacted>" `Text.isInfixOf` captured),
+          testCase "failure-path reports and errors redact secret sentinels" $ do
+            sources <- loadNamedFixtureSources "failure"
+            let environment =
+                  expectEnvSource
+                    ( Env.envSnapshot
+                        [ ("HASKELL_ENV", "production"),
+                          ("DATABASE_PASSWORD", secretSentinel)
+                        ]
+                    )
+                result =
+                  resolve
+                    defaultResolveOptions
+                    [sources ^. #yaml, environment]
+                    Service.serviceConfig
+            problems <- case result ^. #answer of
+              Left errors -> pure errors
+              Right _ -> fail "failure fixture unexpectedly resolved"
+            let rendered =
+                  renderErrorsText problems
+                    <> renderResolutionText (result ^. #report)
+                    <> renderResolutionJson (result ^. #report)
+            assertBool "failure output leaked a secret sentinel" (not (secretSentinel `Text.isInfixOf` rendered))
+            assertBool "failure report omitted the redaction marker" ("<redacted>" `Text.isInfixOf` rendered)
         ]
     ]
 
@@ -194,15 +254,19 @@ data NormalizedReport = NormalizedReport
   deriving stock (Generic, Eq, Show)
 
 loadFixtureSources :: IO FixtureSources
-loadFixtureSources = do
-  yamlPath <- Paths.getDataFileName "test/fixtures/service.yaml"
-  kdlPath <- Paths.getDataFileName "test/fixtures/service.kdl"
-  dhallPath <- Paths.getDataFileName "test/fixtures/service.dhall"
-  yaml <- Yaml.readYamlSource (Yaml.yamlSourceOptions "conformance YAML") yamlPath >>= expectLoaded
-  kdl <- Kdl.readKdlSource (Kdl.kdlSourceOptions "conformance KDL") kdlPath >>= expectLoaded
+loadFixtureSources = loadNamedFixtureSources "service"
+
+loadNamedFixtureSources :: String -> IO FixtureSources
+loadNamedFixtureSources fixtureName = do
+  yamlPath <- Paths.getDataFileName ("test/fixtures/" <> fixtureName <> ".yaml")
+  kdlPath <- Paths.getDataFileName ("test/fixtures/" <> fixtureName <> ".kdl")
+  dhallPath <- Paths.getDataFileName ("test/fixtures/" <> fixtureName <> ".dhall")
+  let fixtureLabel = Text.pack fixtureName
+  yaml <- Yaml.readYamlSource (Yaml.yamlSourceOptions (fixtureLabel <> " YAML")) yamlPath >>= expectLoaded
+  kdl <- Kdl.readKdlSource (Kdl.kdlSourceOptions (fixtureLabel <> " KDL")) kdlPath >>= expectLoaded
   dhall <-
     Dhall.loadDhallSource
-      (Dhall.dhallSourceOptions "conformance Dhall" Dhall.NoImports)
+      (Dhall.dhallSourceOptions (fixtureLabel <> " Dhall") Dhall.NoImports)
       (Dhall.DhallFile dhallPath)
       >>= expectLoaded
   pure FixtureSources {yaml, kdl, dhall}
@@ -355,6 +419,27 @@ assertOutcome keyText expected result =
     Just node -> node ^. #outcome @?= expected
     Nothing -> fail "expected a resolution node"
 
+expectDatabaseHostFailure :: ResolveResult value -> IO ResolutionReport
+expectDatabaseHostFailure result = case result ^. #answer of
+  Left problems -> do
+    fmap problemKey (NonEmpty.toList problems) @?= [databaseHostKey]
+    pure (result ^. #report)
+  Right _ -> fail "failure fixture unexpectedly resolved"
+
+assertResolvedFileNode :: Key -> ResolutionReport -> IO ()
+assertResolvedFileNode key report =
+  case report ^. #nodes . at key of
+    Just node -> do
+      case node ^. #outcome of
+        Resolved _ -> pure ()
+        _ -> fail "expected a resolved failure-report node"
+      case node ^. #origin of
+        Just origin -> case origin ^. #kind of
+          FileSource _ -> pure ()
+          _ -> fail "expected a file origin in the failure report"
+        Nothing -> fail "expected an origin in the failure report"
+    Nothing -> fail "expected the failure report node"
+
 problemKey :: ConfigError -> Key
 problemKey = \case
   MissingRequired problem -> problem ^. #key
@@ -368,10 +453,15 @@ problemKey = \case
 validKey :: Text -> Key
 validKey value = either (error . show) id (parseKey value)
 
-httpHostKey, httpPortKey, databasePasswordKey :: Key
+httpHostKey, httpPortKey, databaseHostKey, databasePasswordKey, regionCountryKey, regionTelemetryKey, regionEnabledKey, regionDisabledKey :: Key
 httpHostKey = validKey "http.host"
 httpPortKey = validKey "http.port"
+databaseHostKey = validKey "database.host"
 databasePasswordKey = validKey "database.password"
+regionCountryKey = validKey "region.country"
+regionTelemetryKey = validKey "region.telemetry"
+regionEnabledKey = validKey "region.enabled"
+regionDisabledKey = validKey "region.disabled"
 
 secretSentinel :: Text
 secretSentinel = "never-render-this-conformance-secret"
