@@ -87,7 +87,7 @@ authority).
 | # | Title | Path | Hard Deps | Soft Deps | Status |
 |---|-------|------|-----------|-----------|--------|
 | 15 | Add a Decoder functor and combinator kit | docs/plans/15-add-a-decoder-functor-and-combinator-kit.md | None | None | Complete |
-| 16 | Provide shared tagged-format configuration loading | docs/plans/16-provide-shared-tagged-format-configuration-loading.md | None | EP-17 | In Progress |
+| 16 | Provide shared tagged-format configuration loading | docs/plans/16-provide-shared-tagged-format-configuration-loading.md | None | EP-17 | Complete |
 | 17 | Add error renderers to every source adapter | docs/plans/17-add-error-renderers-to-every-source-adapter.md | None | None | Not Started |
 | 18 | Make environment bindings total and validated | docs/plans/18-make-environment-bindings-total-and-validated.md | None | EP-17 | Not Started |
 | 19 | Add declaration sugar for conditionals and rendered defaults | docs/plans/19-add-declaration-sugar-for-conditionals-and-rendered-defaults.md | None | None | Not Started |
@@ -166,8 +166,8 @@ a new ADR), EP-20's public-surface and dependency decision (amendment to docs/ad
 
 - [x] EP-15: Decoder Functor instance and combinator kit with tests
 - [x] EP-15: examples drop hand-rolled decoders; guides updated
-- [ ] EP-16: settei-formats package with tagged inputs and loader, registered everywhere
-- [ ] EP-16: loader tests and guide coverage
+- [x] EP-16: settei-formats package with tagged inputs and loader, registered everywhere
+- [x] EP-16: loader tests and guide coverage
 - [ ] EP-17: text renderers for YAML, KDL, Dhall, and Env errors with tests
 - [ ] EP-17: examples and guides stop using Show for adapter errors
 - [ ] EP-18: validated Bindings construction; envSource total; default label
@@ -195,6 +195,16 @@ a new ADR), EP-20's public-surface and dependency decision (amendment to docs/ad
   `element`, which made the natural local binder name in the list combinators trigger
   `-Wname-shadowing`. EP-15 used `elementDecoder` and stayed warning-free. EP-20 should
   include this concrete collision in its public-surface and lens-footprint audit.
+- EP-16 completed before its soft dependency EP-17. The public
+  `renderFormatLoadErrorText` type is final, but its implementation currently carries a
+  `TODO(EP-17)` and uses the planned typed `Show` fallback. EP-17 must replace that body
+  with its adapter-owned renderers and remove the marker; callers and EP-21 need no API
+  change.
+- EP-16 reconciled its planning-time test sketch with the correctness initiative's final
+  resolver API: end-to-end loader tests inspect `ResolveResult.answer`, preserving the
+  always-present report and warning channels. This does not change any downstream
+  interface, but later plans should use `#answer` rather than the obsolete `#value`
+  assumption.
 
 
 ## Decision Log

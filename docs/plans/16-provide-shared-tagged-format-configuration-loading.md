@@ -69,7 +69,7 @@ that one deliberate pass rewrites the conformance-boundary examples.
 - [x] (2026-07-19T20:05:00Z) EP-17 renderers were unavailable, so the typed `Show` stub is active and a
       `TODO(EP-17)` is recorded in `Settei.Formats`; the function type is final so replacement
       will not churn callers.
-- [ ] ADR distillation pass done; plan marked complete; MasterPlan registry row updated.
+- [x] (2026-07-19T20:24:00Z) ADR distillation pass done; plan marked complete; MasterPlan registry row updated.
 
 
 ## Surprises & Discoveries
@@ -231,7 +231,32 @@ that one deliberate pass rewrites the conformance-boundary examples.
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+EP-16 delivered the publishable `settei-formats` package with a typed `FORMAT:PATH`
+grammar, shared provenance and Dhall-policy options, structured YAML/KDL/Dhall load
+errors, one dispatching loader, and reusable optparse-applicative parsers. The package is
+registered in Cabal, Nix, and Mori, and its public modules are listed in the compatibility
+matrix. A dedicated guide teaches the API and ADR 0008 records the one-way umbrella
+dependency boundary.
+
+The package suite has 14 passing tests covering the exact parser contract, all three
+adapter paths through typed resolution, Kubernetes and caller annotations, the
+`NoImports` default plus explicit local imports, structured missing-file errors, and the
+default and caller-configured command-line parsers. Final validation passed with
+`nix develop -c cabal test settei-formats-tests --test-show-details=direct`,
+`nix develop -c cabal test all`, `nix build .#settei-formats`, and `nix flake check`.
+
+The implementation produced four working commits: `cc522ef` (package and core loader),
+`6d082eb` (optparse module), `29d5fca` (fixtures and tests), and `899dbbe` (guide and
+ADR). The intended downstream work remains deliberately outside this plan: EP-17 must
+replace the typed `Show` renderer fallback at `TODO(EP-17)` with the adapter-owned text
+renderers, and EP-21 must migrate the reference applications and delete their duplicated
+parser and dispatch code.
+
+The ADR distillation pass promoted the durable package boundary, dependency direction,
+module split, and restrictive Dhall default into
+`docs/adr/0008-settei-formats-umbrella-package.md`. The Git-index requirement for local
+flake paths and the stale test sketch's `ResolveResult.answer` correction are task-local
+execution details, so they remain in Surprises & Discoveries rather than becoming ADRs.
 
 
 ## Context and Orientation
