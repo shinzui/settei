@@ -61,13 +61,13 @@ minimal and additive.
       actual accepted range; document `enumDecoder`'s exact-match case sensitivity and its
       asymmetry with `boolDecoder` in haddock.
 - [x] (2026-07-19T19:05:14Z) Milestone 1: `nix develop -c cabal build settei` succeeds with no warnings.
-- [ ] Milestone 2: Add test cases to `settei/test/Settei/ValueTest.hs` covering the
+- [x] (2026-07-19T19:06:58Z) Milestone 2: Add test cases to `settei/test/Settei/ValueTest.hs` covering the
       Functor instance (success and failure paths), every new combinator, the improved
       range message, and secret-sentinel safety for `listDecoder` and `parsedDecoder`.
-- [ ] Milestone 2: `nix develop -c cabal test settei-tests --test-show-details=direct`
+- [x] (2026-07-19T19:06:58Z) Milestone 2: `nix develop -c cabal test settei-tests --test-show-details=direct`
       passes with the new cases listed.
-- [ ] Milestone 2: Commit milestones 1 and 2 (feat commit, then test commit, both with
-      the required trailers).
+- [x] (2026-07-19T19:06:58Z) Milestone 2: Commit milestones 1 and 2 as
+      `0c0e589` (feature) and this test checkpoint, both with the required trailers.
 - [ ] Milestone 3: Replace `secretTextDecoder` in
       `examples/settei-cli/src/Settei/Example/Cli.hs` with `SecretText <$> textDecoder`
       and delete the hand-rolled definition.
