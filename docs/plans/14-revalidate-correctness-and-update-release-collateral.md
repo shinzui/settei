@@ -68,19 +68,21 @@ This section must always reflect the actual current state of the work.
 - [x] (2026-07-19T18:29:48Z) Milestone 1: extend the existing conformance secret-sentinel scan so it also covers
       the new failure-path report renderings.
 - [x] (2026-07-19T18:29:48Z) Milestone 1: conformance suite passes with 11 tests; commit.
-- [ ] Milestone 2: `nix develop -c cabal build all` green.
-- [ ] Milestone 2: `nix develop -c cabal test all --test-show-details=direct` green; new
-      total test count recorded in this plan.
-- [ ] Milestone 2: `cabal check` clean in all six publishable package directories.
-- [ ] Milestone 2: `nix develop -c cabal haddock all` green.
-- [ ] Milestone 2: `nix develop -c cabal sdist all` green and the isolated unpacked-sdist
-      build-and-test procedure passes for the six publishable packages.
-- [ ] Milestone 2: formatting gate green (`nix fmt` produces no diff) and
-      `nix flake check` green.
-- [ ] Milestone 2: example CLI and service smoke tests pass, including the failure-path
-      report behavior from EP-12.
-- [ ] Milestone 2: `git diff --check` clean; any collateral drift fixed forward and any
-      behavior defect routed back to the responsible child plan (record which).
+- [x] (2026-07-19T18:30:58Z) Milestone 2: `nix develop -c cabal build all` green.
+- [x] (2026-07-19T18:31:30Z) Milestone 2: `nix develop -c cabal test all --test-show-details=direct` green;
+      192 tests passed across 10 suites.
+- [x] (2026-07-19T18:31:56Z) Milestone 2: `cabal check` clean in all six publishable package directories.
+- [x] (2026-07-19T18:32:47Z) Milestone 2: `nix develop -c cabal haddock all` green.
+- [x] (2026-07-19T18:34:39Z) Milestone 2: `nix develop -c cabal sdist all` green and the isolated
+      unpacked-sdist build-and-test procedure passes 169 tests across the six publishable
+      packages.
+- [x] (2026-07-19T18:35:14Z) Milestone 2: formatting gate green (`nix fmt` changed no files) and
+      `nix flake check` green for the host system.
+- [x] (2026-07-19T18:42:26Z) Milestone 2: example CLI and service smoke tests pass, including the
+      failure-path report behavior from EP-12 and an explicit CLI secret-sentinel
+      redaction probe.
+- [x] (2026-07-19T18:42:26Z) Milestone 2: `git diff --check` clean; no collateral drift or behavior
+      defect was found.
 - [ ] Milestone 3: README.md Release status section rewritten with the re-validation date,
       the new test count, and an honest statement of what changed since the first
       0.1.0.0 validation.
@@ -773,16 +775,27 @@ Workspace gates (Milestone 2). Each of the following exits 0 from the repository
 --test-show-details=direct` with every suite `PASS` and a recorded total strictly greater
 than 138; `cabal check` clean in all six publishable directories; `nix develop -c cabal
 haddock all`; `nix develop -c cabal sdist all` writing six `settei*-0.1.0.0.tar.gz`
-files; the unpacked-sdist workspace test run passing in a fresh `mktemp -d` directory;
-`nix fmt` followed by empty `git status --porcelain`; `nix flake check`; `git diff
---check` with no output. Smoke tests: both `--check-config` invocations above exit 0 and
-print a success line; `--explain-config-json` output contains `"schemaVersion": 1` (or
-the renderer's exact spelling — confirm against settei/src/Settei/Render.hs) and
-`<redacted>`, and piping it through `grep never-render-this-conformance-secret` finds
-nothing; the production-without-password service run exits nonzero, names
-`database.password` (the missing key) in its diagnostic, and still prints
-source-consultation provenance per EP-12 — paste the observed transcript here when run,
-replacing this clause, so the plan carries its own evidence.
+files; the unpacked-sdist workspace test run passing 169 tests in a fresh `mktemp -d`
+directory; `nix fmt` changing no files; `nix flake check`; `git diff --check` with no
+output. Smoke tests: both `--check-config` invocations exited 0 and printed
+`configuration valid`. The CLI JSON explanation emitted `"schemaVersion":1`; with
+`SERVICE_TOKEN=never-render-this-conformance-secret`, its `credentials.token` node
+rendered `"value":"<redacted>"` and did not contain the sentinel. The production service
+without `DATABASE_PASSWORD` exited 4 and printed:
+
+```text
+database.password: required value is missing
+database.host = "postgres.internal"
+  from file source examples/settei-service/test/fixtures/application.yaml (YAML) from Kubernetes ConfigMap settei-example-service key application.yaml
+database.password = <missing>
+runtime.environment = "production"
+  from environment variable HASKELL_ENV
+branch 1 [selected]: runtime.environment -> database.password
+```
+
+The full observed explanation also retained the file origin for `http.host` and the
+default derivations for `database.poolSize`, `database.port`, and `http.port`, confirming
+EP-12 provenance remains available on failure.
 
 Collateral truthfulness (Milestone 3). Verified by cross-reading: the test count printed
 by the Milestone 2 test run equals the count claimed in README.md's Release status; the
