@@ -48,6 +48,7 @@ platform, dependency bounds, and public adoption surface.
 | [`settei`](settei/) | Declaration algebra, hierarchical resolver, provenance, defaults, schemas, errors, and report rendering. |
 | [`settei-env`](settei-env/) | Explicit environment-variable bindings and injectable snapshots. |
 | [`settei-optparse-applicative`](settei-optparse-applicative/) | Ordered generic and named CLI overrides for optparse-applicative. |
+| [`settei-formats`](settei-formats/) | Tagged `FORMAT:PATH` inputs and shared YAML, KDL, and Dhall loading. |
 | [`settei-yaml`](settei-yaml/) | Strict YAML input with exact node locations. |
 | [`settei-kdl`](settei-kdl/) | Canonical KDL v2 input with exact node spans. |
 | [`settei-dhall`](settei-dhall/) | Typed Dhall input with enforceable import policies and root/import-closure provenance. |
@@ -132,6 +133,7 @@ not receive a recoverable secret value.
 - [Getting started](docs/guides/getting-started.md)
 - [Guide index](docs/guides/README.md)
 - [Environment and CLI sources](docs/guides/environment-and-cli.md)
+- [Tagged multi-format sources](docs/guides/formats.md)
 - [YAML adapter](docs/guides/yaml.md)
 - [KDL v2 adapter](docs/guides/kdl.md)
 - [Dhall adapter and import policy](docs/guides/dhall.md)

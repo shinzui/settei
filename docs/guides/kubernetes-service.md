@@ -181,19 +181,15 @@ mountedConfigReference =
     (Just "application.yaml")
 
 loadMountedConfiguration
-  :: IO (Either (NonEmpty YamlSourceError) Source)
+  :: IO (Either (NonEmpty FormatLoadError) Source)
 loadMountedConfiguration =
-  readYamlSource
-    ( fromKubernetesMountedFile
-        mountedConfigReference
-        (yamlSourceOptions "mounted application configuration")
-    )
-    "/etc/my-service/application.yaml"
+  loadConfigInput
+    (fromKubernetesMountedFile mountedConfigReference defaultLoadOptions)
+    (configInput YamlFormat "/etc/my-service/application.yaml")
 ```
 
-KDL has an equivalent `fromKubernetesMountedFile`. For Dhall, apply
-`kubernetesAnnotations mountedConfigReference` with `annotateDhallSourceOptions` and choose
-`NoImports` or a narrow `LocalImportsWithin` root.
+The shared loader applies the mounted-file annotation for YAML, KDL, and Dhall. For
+Dhall, start with its safe `NoImports` default or set a narrow `LocalImportsWithin` policy.
 
 The annotation is trusted metadata supplied by application code. It does not prove that a
 volume is current or mounted from the named object.
@@ -307,7 +303,7 @@ could be mistaken for a credential.
 
 ## Expose safe diagnostics
 
-Provide `--check-config`, `--explain-config`, and `--explain-config-json` as described in
+Provide `--check-config`, `--describe-config`, `--describe-config-json`, `--explain-config`, and `--explain-config-json` as described in
 the [CLI application guide](cli-application.md). Use `--check-config` in image smoke tests
 or deployment validation where all required mounted files and environment values are
 available.
@@ -328,6 +324,26 @@ render and exit. For a running service, log only:
 
 Never log the complete typed record. Secret-bearing record types should have no automatic
 `Show` instance.
+
+### Validate before accepting traffic
+
+Use the same command in an initContainer (or startup probe) to reject a bad ConfigMap
+before the main container receives traffic:
+
+```yaml
+initContainers:
+  - name: validate-configuration
+    image: registry.example/my-service:VERSION
+    args: ["--config", "yaml:/etc/my-service/application.yaml", "--check-config"]
+    volumeMounts:
+      - name: configuration
+        mountPath: /etc/my-service
+        readOnly: true
+```
+
+Exit code `0` permits startup, `3` means the mounted source could not be read or parsed,
+and `4` means typed resolution failed. Consider `RejectUnknownKeys` for services where a
+misspelled ConfigMap key must fail deployment rather than emit an advisory warning.
 
 ## Run and test locally
 

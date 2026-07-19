@@ -67,14 +67,14 @@ resolver warnings rendered on stderr, and by running the full test suite green.
 - [x] 2026-07-19 M2: `nix develop -c cabal test all --test-show-details=direct` green; commit pending.
 - [x] 2026-07-19 M3: docs/guides/getting-started.md — decoder kit, sugar, a warnings subsection, and the new "null is not unset" subsection with the YAML example.
 - [x] 2026-07-19 M3: docs/guides/environment-and-cli.md — validated Bindings construction, new DiagnosticMode flags and helpers.
-- [ ] M3: docs/guides/yaml.md, kdl.md, dhall.md — error-handling snippets use the EP-17 renderers.
+- [x] 2026-07-19 M3: docs/guides/yaml.md, kdl.md, dhall.md — audited; error-handling snippets use the EP-17 renderers.
 - [x] 2026-07-19 M3: docs/guides/cli-application.md — rewritten around the new example code.
-- [ ] M3: docs/guides/kubernetes-service.md — rewritten around the new example code, plus the readiness/initContainer `--check-config` recipe and the `RejectUnknownKeys` recommendation.
-- [ ] M3: docs/guides/README.md index updated (formats guide from EP-16 linked; descriptions match new capabilities).
-- [ ] M3: README.md feature snippets updated where the API changed.
-- [ ] M3: docs/compatibility.md adoption surface includes settei-formats and all new public modules, reconciled with EP-20's PVP wording.
-- [ ] M3: CHANGELOG entries for settei-optparse-applicative and every touched package; EP-15..EP-19 changelog lines read coherently together.
-- [ ] M3: commit.
+- [x] 2026-07-19 M3: docs/guides/kubernetes-service.md — uses the shared mounted-file loader and includes the initContainer `--check-config` recipe and `RejectUnknownKeys` recommendation.
+- [x] 2026-07-19 M3: docs/guides/README.md index audited; its tagged-format row and descriptions match the final capabilities.
+- [x] 2026-07-19 M3: README.md feature snippets updated where the API changed.
+- [x] 2026-07-19 M3: docs/compatibility.md adoption surface audited; it includes settei-formats and EP-20's PVP wording.
+- [x] 2026-07-19 M3: CHANGELOG entries audited; the EP-15..EP-19 lines use the final API names coherently.
+- [x] 2026-07-19 M3: commit pending.
 - [ ] M4: `nix develop -c cabal test all --test-show-details=direct` green from a clean state.
 - [ ] M4: Manual smoke transcripts for --describe-config, --describe-config-json, --check-config, and a failure-with-warnings run captured in this plan.
 - [ ] M4: MasterPlan registry row EP-21 marked Complete; MasterPlan Progress checkboxes for EP-21 checked; MasterPlan Outcomes & Retrospective filled.
@@ -931,3 +931,9 @@ and adapter dispatcher with `settei-formats`; documenting `DiagnosticMode`'s sou
 schema helpers and JSON schema mode; and recording the explicit-null precedence rule in
 the getting-started guide. The environment guide now uses `publicShowSetting` and names
 the final diagnostic API.
+
+2026-07-19: Completed the remaining documentation audit. The Kubernetes guide now uses
+the mounted-file option of `settei-formats`, documents both schema modes, and includes a
+pre-traffic validation recipe. The README now lists `settei-formats`; the adapter guides,
+guide index, compatibility matrix, and changelogs already described the shipped APIs and
+were verified against the final source.
