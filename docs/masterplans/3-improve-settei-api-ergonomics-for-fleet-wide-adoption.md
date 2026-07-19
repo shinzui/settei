@@ -90,7 +90,7 @@ authority).
 | 16 | Provide shared tagged-format configuration loading | docs/plans/16-provide-shared-tagged-format-configuration-loading.md | None | EP-17 | Complete |
 | 17 | Add error renderers to every source adapter | docs/plans/17-add-error-renderers-to-every-source-adapter.md | None | None | Complete |
 | 18 | Make environment bindings total and validated | docs/plans/18-make-environment-bindings-total-and-validated.md | None | EP-17 | Complete |
-| 19 | Add declaration sugar for conditionals and rendered defaults | docs/plans/19-add-declaration-sugar-for-conditionals-and-rendered-defaults.md | None | None | In Progress |
+| 19 | Add declaration sugar for conditionals and rendered defaults | docs/plans/19-add-declaration-sugar-for-conditionals-and-rendered-defaults.md | None | None | Complete |
 | 20 | Tighten the public surface and dependency hygiene | docs/plans/20-tighten-the-public-surface-and-dependency-hygiene.md | None | EP-15, EP-16, EP-17, EP-18, EP-19 | Not Started |
 | 21 | Extend reusable CLI options and complete the ergonomics docs sweep | docs/plans/21-extend-reusable-cli-options-and-complete-the-ergonomics-docs-sweep.md | EP-15, EP-16, EP-17, EP-18, EP-19 | EP-20 | Not Started |
 
@@ -100,9 +100,10 @@ Hard Deps and Soft Deps reference other rows by their # prefix (e.g., EP-15).
 
 ## Dependency Graph
 
-EP-15 through EP-18 are complete. EP-19 is the first remaining implementable plan; it
-touches declaration modules in settei/src/Settei/Config.hs and
-settei/src/Settei/Setting.hs rather than EP-18's completed environment-adapter surface.
+EP-15 through EP-19 are complete. EP-20 is the next implementable plan and audits the
+final public/dependency surface after all API-adding plans. EP-21's hard dependencies are
+now satisfied, but its soft dependency on EP-20 makes EP-20 the preferred next plan so
+the final compatibility wording is settled before the docs-and-examples sweep.
 
 EP-17 fulfilled EP-16's soft dependency by replacing the tagged-format loader's temporary
 `Show` fallback with adapter-owned renderers. EP-18 consumed its stable `EnvError`
@@ -138,6 +139,11 @@ Decoder surface in settei/src/Settei/Value.hs (EP-15, EP-21): EP-15 owns the new
 combinators and instance; EP-21 consumes them in examples and guides. EP-19 must not add
 decoder combinators — decoding sugar belongs to EP-15.
 
+Declaration and renderer surface (EP-19, EP-20, EP-21): EP-19 owns `whenConfig`,
+`whenEq`, `fallbackTo`, `publicShowSetting`, and `withRenderer`. EP-20 audits these five
+additive exports as part of the final public surface; EP-21 consumes them without changing
+the private `Config` representation or resolver behavior.
+
 Adapter error renderer contract (EP-17, EP-16, EP-18, EP-21): EP-17 owns the naming and
 formatting convention (`render<Adapter>ErrorText` style, one line per problem, never a raw
 value, matching settei/src/Settei/Render.hs tone). EP-16 and EP-18 consume it; EP-21
@@ -171,8 +177,8 @@ a new ADR), EP-20's public-surface and dependency decision (amendment to docs/ad
 - [x] EP-17: examples and guides stop using Show for adapter errors
 - [x] EP-18: validated Bindings construction; envSource total; default label
 - [x] EP-18: examples and environment guide updated
-- [ ] EP-19: selective conditional helpers and rendered-default ergonomics with tests
-- [ ] EP-19: examples and getting-started guide use the sugar
+- [x] EP-19: selective conditional helpers and rendered-default ergonomics with tests
+- [x] EP-19: examples and getting-started guide use the sugar
 - [ ] EP-20: Settei.Prelude exposure and lens footprint decided, implemented, ADR 0001 amended
 - [ ] EP-20: PVP surface statement in compatibility matrix
 - [ ] EP-21: SetteiOptions gains check/describe modes; warnings rendered in examples
@@ -209,6 +215,11 @@ a new ADR), EP-20's public-surface and dependency decision (amendment to docs/ad
   declared `[EnvBinding]`. EP-18's repository-wide API scan migrated both. EP-20 and
   EP-21 should treat the tree as fully converted to the opaque `Bindings` surface rather
   than reserving either cleanup for the final sweep.
+- EP-19 confirmed that `whenConfig`, `whenEq`, and `fallbackTo` need no new `Config` GADT
+  node or resolver branch machinery: schema and runtime reports are identical to their
+  raw-`select` encodings. EP-20 should audit the five additive exports (`whenConfig`,
+  `whenEq`, `fallbackTo`, `publicShowSetting`, `withRenderer`), and EP-21 can adopt them
+  without coordinating an internal representation change.
 
 
 ## Decision Log
@@ -250,6 +261,16 @@ a new ADR), EP-20's public-surface and dependency decision (amendment to docs/ad
   contract, including the rejection of an unsafe constructor, is recorded in
   docs/adr/0010-validate-environment-bindings-at-construction.md and is the interface
   EP-20 audits and EP-21 documents.
+  Date: 2026-07-19
+
+- Decision: Conditional declaration sugar remains definitionally expressible through the
+  existing `Functor` and `Selective` operations; EP-19 adds no private `Config` syntax
+  node or resolver special case.
+  Rationale: Direct schema and runtime-report equivalence tests prove that the public
+  helpers preserve complete inspection and branch tracing. This keeps EP-20's work to a
+  public-surface audit and lets EP-21 adopt the helpers without internal reconciliation.
+  The durable no-new-syntax rule is recorded in the 2026-07-19 amendment to
+  docs/adr/0002-inspectable-configuration-algebra.md.
   Date: 2026-07-19
 
 

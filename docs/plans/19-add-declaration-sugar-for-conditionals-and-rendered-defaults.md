@@ -79,7 +79,7 @@ This section must always reflect the actual current state of the work.
 - [x] (2026-07-19) Milestone 3: `nix develop -c cabal test all --test-show-details=direct` passes.
 - [x] (2026-07-19) Milestone 4: docs/guides/kubernetes-service.md conditional section teaches `whenEq`; docs/guides/getting-started.md gains a short conditional-declaration and rendered-default passage; README.md checked and required no edit.
 - [x] (2026-07-19) Milestone 4: settei/CHANGELOG.md entry added; dated amendment appended to docs/adr/0002-inspectable-configuration-algebra.md.
-- [ ] Milestone 5: final full validation, MasterPlan registry/progress updated, this plan's living sections completed, ADR distillation pass done.
+- [x] (2026-07-19) Milestone 5: final full validation passed (102 core tests and every workspace suite); MasterPlan registry/progress updated, this plan's living sections completed, and ADR distillation finished in docs/adr/0002-inspectable-configuration-algebra.md.
 
 
 ## Surprises & Discoveries
@@ -172,6 +172,14 @@ Record every decision made while working on the plan.
   each child plan to keep example diffs small to avoid conflicts.
   Date: 2026-07-19
 
+- Decision: Keep the raw `select` desugaring in the `Settei.Config` module Haddock even
+  though Concrete Step 5's stale-teaching grep says to expect no matching raw condition.
+  Rationale: Milestone 1 and the acceptance criteria explicitly require `whenEq` to be
+  taught first while retaining direct `select` documentation for arbitrary branch
+  shapes. The guide-facing boilerplate is gone; the remaining raw form is the documented
+  definition of the sugar, not the recommended entry point.
+  Date: 2026-07-19
+
 
 ## Outcomes & Retrospective
 
@@ -180,7 +188,22 @@ Compare the result against the original purpose. Before marking the plan complet
 distill durable project context from the Decision Log, Surprises & Discoveries, and
 this section into docs/adr/. Keep task-local execution details here.
 
-(To be filled during and after implementation.)
+EP-19 is complete. `Settei.Config` now exports `whenConfig`, `whenEq`, and `fallbackTo`,
+all implemented as plain `fmap` plus `select`; `Settei.Setting` exports
+`publicShowSetting` and `withRenderer`. Schema, pure interpreter, resolution-report, and
+redaction tests cover both branch directions and typed-default display, bringing the core
+suite to 102 passing tests.
+
+Both reference applications adopted the new surface without changing behavior, and every
+workspace test suite passed twice: once after example adoption and again during closure.
+The Kubernetes and getting-started guides teach the new APIs, the changelog lists them,
+and README.md required no edit.
+
+The ADR distillation pass amended
+docs/adr/0002-inspectable-configuration-algebra.md with the durable no-new-syntax rule for
+future sugar. ADR 0003's sensitivity-first rendering contract and ADR 0007's reference-app
+boundary were rechecked and remain accurate without amendment. Nothing remains in EP-19;
+EP-20 can audit the five new exports, and EP-21 can use them in the final ergonomics sweep.
 
 
 ## Context and Orientation
