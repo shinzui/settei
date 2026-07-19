@@ -2,7 +2,8 @@
 -- Module: Settei.Env
 -- Description: Explicit, pure environment-variable sources for Settei.
 module Settei.Env
-  ( EnvName (..),
+  ( Bindings,
+    EnvName (..),
     EnvSnapshot (..),
     EnvBinding,
     EnvError (..),
@@ -11,11 +12,15 @@ module Settei.Env
     bindingAnnotations,
     bindingKey,
     bindingName,
+    bindings,
+    bindingsList,
     envSnapshot,
     envSource,
+    environmentSource,
     fromKubernetesObject,
     prefixedBindings,
     readEnvSource,
+    readEnvironmentSource,
     renderEnvErrorText,
     renderEnvErrorsText,
   )
@@ -30,7 +35,7 @@ import Settei
 import Settei.Prelude
 import System.Environment qualified as Environment
 
--- | An environment-variable name. 'envSource' validates its portable spelling.
+-- | An environment-variable name. 'bindings' validates its portable spelling.
 newtype EnvName = EnvName Text
   deriving stock (Generic, Eq, Ord, Show)
 
@@ -55,6 +60,16 @@ data EnvError
   | PrefixedNameCollision !EnvName !(NonEmpty Key)
   deriving stock (Generic, Eq, Show)
 
+-- | A collection of bindings proven valid at construction.
+--
+-- The constructor is private: 'bindings' and 'prefixedBindings' are the only ways to
+-- obtain a value, so every 'Bindings' is free of invalid names, duplicate names,
+-- duplicate target keys, and prefix-overlapping target keys. Binding lists are static
+-- program data; resolve 'bindings' once at startup (or force it in a unit test) so an
+-- invalid list is a fail-fast programming-error report, not a runtime branch.
+newtype Bindings = Bindings [EnvBinding]
+  deriving stock (Eq)
+
 -- | Construct one explicit binding with no caller annotations.
 binding :: EnvName -> Key -> EnvBinding
 binding name key = EnvBinding {name, key, annotations = Map.empty}
@@ -77,6 +92,18 @@ bindingKey value = value ^. #key
 -- | Return trusted annotations supplied by the caller.
 bindingAnnotations :: EnvBinding -> Map Text Text
 bindingAnnotations value = value ^. #annotations
+
+-- | Validate a static binding list once, yielding a collection usable with the total
+-- source builders.
+bindings :: [EnvBinding] -> Either (NonEmpty EnvError) Bindings
+bindings values =
+  case NonEmpty.nonEmpty (bindingErrors values) of
+    Just errors -> Left errors
+    Nothing -> Right (Bindings values)
+
+-- | Inspect the validated bindings, for example to count or display them.
+bindingsList :: Bindings -> [EnvBinding]
+bindingsList (Bindings values) = values
 
 -- | Render one binding-validation failure as a single operator-readable sentence.
 --
@@ -113,22 +140,16 @@ envSnapshot values =
 
 -- | Translate explicitly bound variables from one snapshot into a Settei source.
 --
+-- Total: a 'Bindings' value is valid by construction, so no error branch exists.
 -- Missing variables are absent leaves. Values remain 'RawText'; target decoding and
 -- sensitivity handling stay in the core declaration and resolver.
-envSource :: Text -> [EnvBinding] -> EnvSnapshot -> Either (NonEmpty EnvError) Source
-envSource sourceLabel bindings (EnvSnapshot snapshot) =
-  case NonEmpty.nonEmpty (bindingErrors bindings) of
-    Just errors -> Left errors
-    Nothing ->
-      Right
-        ( annotateSourceAt
-            annotationsFor
-            (source sourceLabel EnvironmentSource root)
-        )
+envSource :: Text -> Bindings -> EnvSnapshot -> Source
+envSource sourceLabel (Bindings values) (EnvSnapshot snapshot) =
+  annotateSourceAt annotationsFor (source sourceLabel EnvironmentSource root)
   where
     presentBindings =
       [ (bindingValue, rawValue)
-      | bindingValue <- bindings,
+      | bindingValue <- values,
         Just value <- [Map.lookup (bindingValue ^. #name) snapshot],
         let rawValue = RawText value
       ]
@@ -147,35 +168,37 @@ envSource sourceLabel bindings (EnvSnapshot snapshot) =
         ]
     annotationsFor key = Map.findWithDefault Map.empty key perKeyAnnotations
 
+-- | 'envSource' with the conventional source label @"environment"@.
+environmentSource :: Bindings -> EnvSnapshot -> Source
+environmentSource = envSource "environment"
+
 -- | Snapshot the process environment once and pass it through the pure translator.
-readEnvSource :: Text -> [EnvBinding] -> IO (Either (NonEmpty EnvError) Source)
-readEnvSource sourceLabel bindings = do
-  values <- Environment.getEnvironment
+readEnvSource :: Text -> Bindings -> IO Source
+readEnvSource sourceLabel validated = do
+  boundValues <- Environment.getEnvironment
   pure
     ( envSource
         sourceLabel
-        bindings
-        (envSnapshot [(Text.pack name, Text.pack value) | (name, value) <- values])
+        validated
+        (envSnapshot [(Text.pack name, Text.pack value) | (name, value) <- boundValues])
     )
+
+-- | 'readEnvSource' with the conventional source label @"environment"@.
+readEnvironmentSource :: Bindings -> IO Source
+readEnvironmentSource = readEnvSource "environment"
 
 -- | Derive explicit bindings using @PREFIX_KEY_SEGMENTS@ names.
 --
 -- Non-alphanumeric characters become underscores and letters become uppercase. Any
 -- collision introduced by that normalization is returned instead of being guessed away.
-prefixedBindings :: Text -> [Key] -> Either (NonEmpty EnvError) [EnvBinding]
+-- The successful result is already validated: pass it straight to 'envSource'.
+prefixedBindings :: Text -> [Key] -> Either (NonEmpty EnvError) Bindings
 prefixedBindings prefix keys =
   case NonEmpty.nonEmpty errors of
     Just found -> Left found
-    Nothing -> Right generated
+    Nothing -> Right (Bindings generated)
   where
     generated = fmap (\key -> binding (prefixedName prefix key) key) keys
-    invalidErrors =
-      [ InvalidEnvironmentName name
-      | bindingValue <- generated,
-        let name = bindingValue ^. #name,
-        not (validEnvName name)
-      ]
-    duplicateKeyErrors = fmap DuplicateTargetKey (duplicates keys)
     groupedByName =
       Map.fromListWith
         (<>)
@@ -187,7 +210,12 @@ prefixedBindings prefix keys =
       | (name, targetKeys) <- Map.toAscList groupedByName,
         NonEmpty.length targetKeys > 1
       ]
-    errors = invalidErrors <> duplicateKeyErrors <> collisionErrors <> overlapErrors keys
+    sharedErrors = filter (not . isDuplicateNameError) (bindingErrors generated)
+    errors = sharedErrors <> collisionErrors
+
+isDuplicateNameError :: EnvError -> Bool
+isDuplicateNameError (DuplicateEnvironmentName _) = True
+isDuplicateNameError _ = False
 
 -- | Attach a trusted Kubernetes object reference without querying a cluster.
 fromKubernetesObject :: KubernetesRef -> EnvBinding -> EnvBinding
@@ -195,15 +223,15 @@ fromKubernetesObject reference bindingValue =
   annotateBinding (kubernetesAnnotations reference) bindingValue
 
 bindingErrors :: [EnvBinding] -> [EnvError]
-bindingErrors bindings =
+bindingErrors values =
   [ InvalidEnvironmentName name
-  | bindingValue <- bindings,
+  | bindingValue <- values,
     let name = bindingValue ^. #name,
     not (validEnvName name)
   ]
-    <> fmap DuplicateEnvironmentName (duplicates (fmap (^. #name) bindings))
-    <> fmap DuplicateTargetKey (duplicates (fmap (^. #key) bindings))
-    <> overlapErrors (fmap (^. #key) bindings)
+    <> fmap DuplicateEnvironmentName (duplicates (fmap (^. #name) values))
+    <> fmap DuplicateTargetKey (duplicates (fmap (^. #key) values))
+    <> overlapErrors (fmap (^. #key) values)
 
 overlapErrors :: [Key] -> [EnvError]
 overlapErrors keys =
@@ -271,4 +299,7 @@ insertRawValue key value = go (NonEmpty.toList (keySegments key))
             . go rest
             . maybe (RawObject Map.empty) id
         )
+    -- 'Bindings' construction rejects prefix-overlapping target keys, so by the time this
+    -- fold runs, no path can descend through a previously written leaf. This branch is
+    -- unreachable by construction and exists only to satisfy exhaustiveness honestly.
     go _ _ = error "validated environment keys cannot overlap"

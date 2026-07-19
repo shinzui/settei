@@ -1,6 +1,8 @@
 module Settei.EnvTest (tests) where
 
+import Data.Either (isLeft, isRight)
 import Data.Generics.Labels ()
+import Data.List qualified as List
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text qualified as Text
 import Settei
@@ -26,6 +28,8 @@ tests =
         case lookupSource optionalValue input of
           Right Nothing -> pure ()
           _ -> fail "expected the optional variable to remain absent",
+      testCase "invalid names are rejected at construction" $
+        assertLeftContains isInvalidName (bindings [binding (EnvName "1BAD") runtimeEnvironment]),
       testCase "duplicate bindings are rejected" $ do
         let sameName =
               [ binding (EnvName "VALUE") runtimeEnvironment,
@@ -35,20 +39,49 @@ tests =
               [ binding (EnvName "ONE") runtimeEnvironment,
                 binding (EnvName "TWO") runtimeEnvironment
               ]
-        assertLeftContains isDuplicateName (envSource "environment" sameName (envSnapshot []))
-        assertLeftContains isDuplicateKey (envSource "environment" sameKey (envSnapshot [])),
+        assertLeftContains isDuplicateName (bindings sameName)
+        assertLeftContains isDuplicateKey (bindings sameKey),
       testCase "prefix collisions are rejected" $ do
         let keys = [validKey "service.http-port", validKey "service.http_port"]
         case prefixedBindings "MYAPP" keys of
           Left errors ->
             assertBool "expected a normalized-name collision" (any isPrefixCollision (NonEmpty.toList errors))
           Right _ -> fail "expected the prefix helper to reject a collision",
+      testCase "prefixed bindings preserve their derived names" $ do
+        let keys = [validKey "service.host", validKey "service.port"]
+        validated <- either (fail . show) pure (prefixedBindings "MYAPP" keys)
+        fmap bindingName (bindingsList validated)
+          @?= [EnvName "MYAPP_SERVICE_HOST", EnvName "MYAPP_SERVICE_PORT"],
       testCase "overlapping target keys are rejected" $ do
-        let bindings =
+        let overlapping =
               [ binding (EnvName "SERVICE") (validKey "service"),
                 binding (EnvName "PORT") (validKey "service.port")
               ]
-        assertLeftContains isConflict (envSource "environment" bindings (envSnapshot [])),
+        assertLeftContains isConflict (bindings overlapping),
+      testCase "constructed bindings never fail during source building" $ do
+        let pool =
+              [ binding (EnvName "POOL_A") (validKey "a"),
+                binding (EnvName "POOL_AB") (validKey "a.b"),
+                binding (EnvName "POOL_AC") (validKey "a.c"),
+                binding (EnvName "POOL_B") (validKey "b"),
+                binding (EnvName "POOL_BCD") (validKey "b.c.d"),
+                binding (EnvName "POOL_C") (validKey "c")
+              ]
+            snapshot =
+              envSnapshot [(name, "value") | EnvName name <- fmap bindingName pool]
+            outcomes =
+              [ (subset, bindings subset)
+              | subset <- List.subsequences pool
+              ]
+        assertBool "expected some subsets to fail construction" (any (isLeft . snd) outcomes)
+        assertBool "expected some subsets to construct" (any (isRight . snd) outcomes)
+        sequence_
+          [ case lookupSource (bindingKey bound) (envSource "environment" validated snapshot) of
+              Right (Just _) -> pure ()
+              _ -> fail "expected every bound key to be served by the total source"
+          | (subset, Right validated) <- outcomes,
+            bound <- subset
+          ],
       testCase "Secret annotation remains redacted" $ do
         let reference = kubernetesRef SecretObject (Just "payments") "payments-database" (Just "password")
             passwordBinding = fromKubernetesObject reference (binding (EnvName "DATABASE_PASSWORD") databasePassword)
@@ -101,13 +134,15 @@ errorRenderingTests =
     ]
 
 expectSource :: [EnvBinding] -> [(Text, Text)] -> IO Source
-expectSource bindings values = expectSourceWith bindings values
+expectSource values snapshot = expectSourceWith values snapshot
+
+expectBindings :: [EnvBinding] -> IO Bindings
+expectBindings values = either (fail . show) pure (bindings values)
 
 expectSourceWith :: [EnvBinding] -> [(Text, Text)] -> IO Source
-expectSourceWith bindings values =
-  case envSource "environment" bindings (envSnapshot values) of
-    Left _ -> fail "expected a valid environment source"
-    Right value -> pure value
+expectSourceWith values snapshot = do
+  validated <- expectBindings values
+  pure (envSource "environment" validated (envSnapshot snapshot))
 
 expectResolution :: ResolveResult a -> IO a
 expectResolution result = case result ^. #answer of
@@ -122,6 +157,10 @@ assertLeftContains predicate = \case
 isDuplicateName :: EnvError -> Bool
 isDuplicateName (DuplicateEnvironmentName _) = True
 isDuplicateName _ = False
+
+isInvalidName :: EnvError -> Bool
+isInvalidName (InvalidEnvironmentName _) = True
+isInvalidName _ = False
 
 isDuplicateKey :: EnvError -> Bool
 isDuplicateKey (DuplicateTargetKey _) = True
