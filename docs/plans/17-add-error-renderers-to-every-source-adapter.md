@@ -66,8 +66,11 @@ This section must always reflect the actual current state of the work.
 - [x] (2026-07-19T20:22:20Z) Milestone 1: renderer unit tests in settei-yaml/test/Settei/YamlTest.hs
       cover all nine `YamlErrorCategory` values plus no-path and no-position omission;
       all 45 `settei-yaml-tests` pass.
-- [ ] Milestone 2: add `renderKdlErrorText`/`renderKdlErrorsText` to settei-kdl/src/Settei/Kdl.hs with haddock and export-list entries.
-- [ ] Milestone 2: renderer unit tests in settei-kdl/test/Settei/KdlTest.hs covering all eight `KdlErrorCategory` values plus related-span and omission behavior; `settei-kdl-tests` green.
+- [x] (2026-07-19T20:25:41Z) Milestone 2: add `renderKdlErrorText`/`renderKdlErrorsText` to
+      settei-kdl/src/Settei/Kdl.hs with haddock and export-list entries.
+- [x] (2026-07-19T20:25:41Z) Milestone 2: renderer unit tests in
+      settei-kdl/test/Settei/KdlTest.hs cover all eight `KdlErrorCategory` values plus
+      related-span and omission behavior; all 34 `settei-kdl-tests` pass.
 - [ ] Milestone 3: add `renderDhallErrorText`/`renderDhallErrorsText` to settei-dhall/src/Settei/Dhall.hs with haddock and export-list entries, using position fields if EP-13 added them.
 - [ ] Milestone 3: renderer unit tests in settei-dhall/test/Settei/DhallTest.hs covering all eight `DhallErrorCategory` values plus no-path omission; `settei-dhall-tests` green.
 - [ ] Milestone 4: add `renderEnvErrorText`/`renderEnvErrorsText` to settei-env/src/Settei/Env.hs with haddock and export-list entries.

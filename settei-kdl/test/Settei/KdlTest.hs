@@ -15,7 +15,8 @@ tests :: TestTree
 tests =
   testGroup
     "Settei.Kdl"
-    [ testCase "nested nodes become segmented keys with exact spans" $ do
+    [ errorRenderingTests,
+      testCase "nested nodes become segmented keys with exact spans" $ do
         input <- expectSource "runtime {\n  environment \"production\"\n}\nservice {\n  http {\n    host \"0.0.0.0\"\n    port 8080\n  }\n}\n"
         host <- expectCandidate serviceHttpHost input
         assertBool "host did not remain text" (candidateValue host == RawText "0.0.0.0")
@@ -106,6 +107,78 @@ tests =
         host ^? to candidateOrigin . #location . _Just . #path @?= Just (Text.pack fixturePath)
     ]
 
+errorRenderingTests :: TestTree
+errorRenderingTests =
+  testGroup
+    "error rendering"
+    [ rendererCase
+        "syntax"
+        KdlSyntaxError
+        "service { broken [\n"
+        "application (application.kdl:1:18) at $: invalid KDL v2 syntax",
+      testCase "IO errors render a stable located prefix" $ do
+        result <- readKdlSource (kdlSourceOptions "missing") "test/fixtures/does-not-exist.kdl"
+        case result of
+          Left errors -> do
+            let problem = NonEmpty.head errors
+            kdlErrorCategory problem @?= KdlIoError
+            assertBool
+              "IO renderer omitted its stable prefix"
+              ( "missing (test/fixtures/does-not-exist.kdl) at $: "
+                  `Text.isPrefixOf` renderKdlErrorText problem
+              )
+          Right _ -> fail "expected missing KDL file to fail",
+      rendererCase
+        "duplicate property"
+        KdlDuplicateProperty
+        "service port=8000 port=9000\n"
+        "application (application.kdl:1:19) at $.service.port: duplicate property; also at 1:9",
+      rendererCase
+        "invalid name"
+        KdlInvalidName
+        "\"service.port\" 8080\n"
+        "application (application.kdl:1:1) at $.service.port: KDL names must be non-empty Settei key segments without dots",
+      rendererCase
+        "unsupported annotation"
+        KdlUnsupportedAnnotation
+        "(record)service { port 8080 }\n"
+        "application (application.kdl:1:1) at $.service: KDL node type annotations are not supported",
+      rendererCase
+        "unsupported value"
+        KdlUnsupportedValue
+        "ratio #inf\n"
+        "application (application.kdl:1:7) at $.ratio: non-finite KDL numbers are not supported",
+      rendererCase
+        "mixed node shape"
+        KdlMixedNodeShape
+        "service \"api\" port=8080\n"
+        "application (application.kdl:1:1) at $.service: positional arguments cannot be combined with properties or children",
+      rendererCase
+        "property-child collision"
+        KdlPropertyChildCollision
+        "service port=7000 {\n  port 8000\n}\n"
+        "application (application.kdl:1:9) at $.service.port: a property and child use the same field name; also at 2:3",
+      testCase "a missing path omits it while retaining the primary span" $ do
+        problem <-
+          expectErrorWith
+            (kdlSourceOptions "memory")
+            "service \"api\" port=8080\n"
+        assertBool
+          "position-only KDL renderer omitted its location"
+          ("memory (1:1)" `Text.isPrefixOf` renderKdlErrorText problem),
+      testCase "plural rendering is singular rendering plus a newline" $ do
+        problem <- expectError "service \"api\" port=8080\n"
+        renderKdlErrorsText (NonEmpty.singleton problem)
+          @?= renderKdlErrorText problem <> "\n"
+    ]
+
+rendererCase :: String -> KdlErrorCategory -> Text -> Text -> TestTree
+rendererCase label expectedCategory input expected =
+  testCase label $ do
+    problem <- expectError input
+    kdlErrorCategory problem @?= expectedCategory
+    renderKdlErrorText problem @?= expected
+
 sourceOptions :: KdlSourceOptions
 sourceOptions = withKdlSourcePath "application.kdl" (kdlSourceOptions "application")
 
@@ -122,7 +195,10 @@ expectSourceWith options input = case decodeKdlSource options input of
   Right sourceValue -> pure sourceValue
 
 expectError :: Text -> IO KdlSourceError
-expectError input = case decodeKdlSource sourceOptions input of
+expectError = expectErrorWith sourceOptions
+
+expectErrorWith :: KdlSourceOptions -> Text -> IO KdlSourceError
+expectErrorWith options input = case decodeKdlSource options input of
   Left errors -> pure (NonEmpty.head errors)
   Right _ -> fail "expected KDL decoding to fail"
 

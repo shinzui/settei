@@ -27,6 +27,8 @@ module Settei.Kdl
     kdlSpanEndLine,
     kdlSpanLine,
     readKdlSource,
+    renderKdlErrorText,
+    renderKdlErrorsText,
     withKdlSourcePath,
   )
 where
@@ -164,6 +166,49 @@ kdlSpanEndLine value = value ^. #endLine
 -- | Return a span's one-based inclusive end column.
 kdlSpanEndColumn :: KdlSpan -> Int
 kdlSpanEndColumn value = value ^. #endColumn
+
+-- | Render one KDL input failure as a single operator-readable line.
+--
+-- The line leads with the stable source name, then a parenthetical of the
+-- colon-joined available pieces (path, primary span start line, start column),
+-- then the structural context and fixed message. When a second trustworthy span
+-- exists it is appended as @; also at LINE:COLUMN@. No raw configuration value
+-- can appear because 'KdlSourceError' retains none.
+renderKdlErrorText :: KdlSourceError -> Text
+renderKdlErrorText problem =
+  problem ^. #name
+    <> locationText
+    <> " at "
+    <> problem ^. #context
+    <> ": "
+    <> problem ^. #message
+    <> relatedText
+  where
+    locationText = case locationPieces of
+      [] -> ""
+      pieces -> " (" <> Text.intercalate ":" pieces <> ")"
+    locationPieces =
+      maybe [] (pure . Text.pack) (problem ^. #path)
+        <> maybe [] spanPieces (problem ^. #location)
+    spanPieces spanValue =
+      [ Text.pack (show (spanValue ^. #line)),
+        Text.pack (show (spanValue ^. #column))
+      ]
+    relatedText =
+      maybe
+        ""
+        ( \spanValue ->
+            "; also at "
+              <> Text.pack (show (spanValue ^. #line))
+              <> ":"
+              <> Text.pack (show (spanValue ^. #column))
+        )
+        (problem ^. #relatedLocation)
+
+-- | Render every KDL input failure, one line per problem, matching
+-- 'Settei.Render.renderErrorsText' in shape and trailing newline.
+renderKdlErrorsText :: NonEmpty KdlSourceError -> Text
+renderKdlErrorsText = Text.unlines . fmap renderKdlErrorText . NonEmpty.toList
 
 -- | Decode one KDL v2 document into a Settei file source.
 --
