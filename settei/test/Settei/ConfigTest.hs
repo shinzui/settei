@@ -4,12 +4,13 @@ import Control.Selective (select)
 import Data.Bifunctor (first)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
+import Data.Text qualified as Text
 import Settei
 import Settei.Internal.Config (Request (..), runConfig)
 import Settei.Prelude
 import Settei.Prototype.Free (freeNecessaryKeys, freePossibleKeys)
 import Test.Tasty (TestTree, testGroup)
-import Test.Tasty.HUnit (testCase, (@?=))
+import Test.Tasty.HUnit (assertBool, testCase, (@?=))
 
 tests :: TestTree
 tests =
@@ -41,7 +42,21 @@ tests =
           @?= Right Nothing,
       testCase "production requests its secret" $
         runConfig (interpret productionValues) productionOnly
-          @?= Left (Missing passwordKey)
+          @?= Left (Missing passwordKey),
+      testCase "duplicate sensitivity is secret-biased in either applicative order" $ do
+        schemaSettingSensitivity (schemaEntry passwordKey (describe secretThenPublic))
+          @?= Secret
+        schemaSettingSensitivity (schemaEntry passwordKey (describe publicThenSecret))
+          @?= Secret
+        let rendered = renderSchemaText (describe publicThenSecret)
+        assertBool "schema did not mark the duplicate key secret" ("secret" `Text.isInfixOf` rendered)
+        assertBool "schema marked the duplicate key public" (not ("public" `Text.isInfixOf` rendered)),
+      testCase "duplicate sensitivity is secret-biased through a selective branch" $
+        schemaSettingSensitivity (schemaEntry passwordKey (describe selectiveDuplicate))
+          @?= Secret,
+      testCase "duplicate sensitivity is secret-biased through a default dependency" $
+        schemaSettingSensitivity (schemaEntry passwordKey (describe defaultDuplicate))
+          @?= Secret
     ]
 
 data RuntimeError
@@ -56,6 +71,31 @@ productionOnly = select selector productionBranch
       (\environment -> if environment == "production" then Left () else Right Nothing)
         <$> required environmentSetting
     productionBranch = (\password _ -> Just password) <$> required passwordSetting
+
+secretThenPublic :: Config (Text, Text)
+secretThenPublic =
+  (,) <$> required passwordSetting <*> required publicPasswordSetting
+
+publicThenSecret :: Config (Text, Text)
+publicThenSecret =
+  (,) <$> required publicPasswordSetting <*> required passwordSetting
+
+selectiveDuplicate :: Config Text
+selectiveDuplicate =
+  select
+    (Left <$> required passwordSetting)
+    (const <$> required publicPasswordSetting)
+
+defaultDuplicate :: Config Text
+defaultDuplicate =
+  withDefault
+    passwordSetting
+    ( derivedDefault
+        (RuleName "password-from-public-duplicate")
+        "Exercise duplicate sensitivity in a default dependency"
+        (required publicPasswordSetting)
+        id
+    )
 
 interpret :: Map Key RawValue -> Request a -> Either RuntimeError a
 interpret values = \case
@@ -82,6 +122,10 @@ passwordSetting :: Setting Text
 passwordSetting =
   secretSetting passwordKey "Database password" textDecoder
 
+publicPasswordSetting :: Setting Text
+publicPasswordSetting =
+  publicSetting passwordKey "Metrics password label" textDecoder
+
 environmentKey :: Key
 environmentKey = validKey "runtime.environment"
 
@@ -93,3 +137,9 @@ validKey value = either (error . show) id (parseKey value)
 
 keySet :: [SchemaSetting] -> Set Key
 keySet = Set.fromList . fmap schemaSettingKey
+
+schemaEntry :: Key -> Schema -> SchemaSetting
+schemaEntry key schema =
+  case filter ((== key) . schemaSettingKey) (schemaPossible schema) of
+    [entry] -> entry
+    entries -> error ("expected one schema entry, found " <> show (length entries))

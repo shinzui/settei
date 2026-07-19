@@ -44,10 +44,10 @@ only the core `settei` package plus documentation; no adapter package changes.
 
 ## Progress
 
-- [ ] M1: `SchemaSetting` tracks every declared sensitivity and `mergeSetting` in
+- [x] (2026-07-19 09:29 -0700) M1: `SchemaSetting` tracks every declared sensitivity and `mergeSetting` in
       settei/src/Settei/Internal/Schema.hs merges sensitivity most-restrictively
       (`Secret` wins).
-- [ ] M1: schema-merge tests pass for both declaration orders, for a duplicate inside a
+- [x] (2026-07-19 09:29 -0700) M1: schema-merge tests pass for both declaration orders, for a duplicate inside a
       selective branch, and for a duplicate inside a default dependency.
 - [ ] M2: `SensitivityConflictProblem` record and `SensitivityConflict` constructor added
       to settei/src/Settei/Error.hs.

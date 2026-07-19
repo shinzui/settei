@@ -7,6 +7,7 @@ module Settei.Internal.Schema
     combineSchema,
     conditionalSchema,
     emptySchema,
+    mergeSensitivity,
     requestSchema,
   )
 where
@@ -17,7 +18,7 @@ import Data.Set qualified as Set
 import Settei.Key (Key)
 import Settei.Prelude
 import Settei.Setting
-  ( Sensitivity,
+  ( Sensitivity (..),
     Setting,
     settingDescription,
     settingKey,
@@ -37,6 +38,7 @@ data SchemaSetting = SchemaSetting
   { key :: !Key,
     description :: !Text,
     sensitivity :: !Sensitivity,
+    declaredSensitivities :: !(Set Sensitivity),
     requirement :: !Requirement,
     presence :: !Presence
   }
@@ -72,6 +74,7 @@ requestSchema requirement settingSpec =
         { key,
           description = settingDescription settingSpec,
           sensitivity = settingSensitivity settingSpec,
+          declaredSensitivities = Set.singleton (settingSensitivity settingSpec),
           requirement,
           presence = Necessary
         }
@@ -102,10 +105,20 @@ conditionalSchema selector branch =
 mergeSetting :: SchemaSetting -> SchemaSetting -> SchemaSetting
 mergeSetting left right =
   left
+    & #sensitivity
+    .~ mergeSensitivity (left ^. #sensitivity) (right ^. #sensitivity)
+    & #declaredSensitivities
+    .~ Set.union (left ^. #declaredSensitivities) (right ^. #declaredSensitivities)
     & #requirement
     .~ mergeRequirement (left ^. #requirement) (right ^. #requirement)
     & #presence
     .~ mergePresence (left ^. #presence) (right ^. #presence)
+
+-- | Secret wins: a key declared secret anywhere is secret everywhere.
+mergeSensitivity :: Sensitivity -> Sensitivity -> Sensitivity
+mergeSensitivity Secret _ = Secret
+mergeSensitivity _ Secret = Secret
+mergeSensitivity Public Public = Public
 
 mergeRequirement :: Requirement -> Requirement -> Requirement
 mergeRequirement Required _ = Required
