@@ -1,6 +1,6 @@
 # Release checklist
 
-This checklist prepares the six publishable Settei packages for an initial 0.1.0.0
+This checklist prepares the seven publishable Settei packages for an initial 0.1.0.0
 release. The three packages beneath `examples/` are internal validation artifacts and must
 not be uploaded. Completing this document does not authorize publication, tag creation,
 signing, or credential use. The checked automated evidence was re-validated on 2026-07-19
@@ -9,7 +9,7 @@ after the fleet-adoption correctness-hardening pass.
 
 ## Scope and metadata
 
-- [x] All six publishable packages use version `0.1.0.0`.
+- [x] All seven publishable packages use version `0.1.0.0`.
 - [x] Synopsis, description, homepage, bug tracker, BSD-3-Clause license, maintainer, and
   source repository metadata pass `cabal check`.
 - [x] `tested-with` and the compatibility matrix match the validated GHC.

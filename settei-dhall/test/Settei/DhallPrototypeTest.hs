@@ -3,6 +3,7 @@
 module Settei.DhallPrototypeTest (tests) where
 
 import Control.Exception (SomeException, try)
+import Control.Lens qualified as Lens
 import Control.Monad (foldM, unless, when)
 import Control.Monad.IO.Class (liftIO)
 import Control.Monad.Trans.Except (ExceptT, runExceptT, throwE)
@@ -17,7 +18,6 @@ import Data.Text.IO qualified as TextIO
 import Dhall.Core qualified as Dhall
 import Dhall.Import qualified as DhallImport
 import Dhall.Parser qualified as DhallParser
-import Lens.Micro qualified as Lens
 import System.Directory qualified as Directory
 import System.FilePath qualified as FilePath
 import System.IO.Temp (withSystemTempDirectory)

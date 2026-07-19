@@ -50,47 +50,65 @@ and by reading the new "Versioning policy" section in docs/compatibility.md.
 
 ## Progress
 
-- [ ] Milestone 1: Re-read ADR 0001 in full and confirm the current mandate (exposed
+- [x] Milestone 1: Re-read ADR 0001 in full and confirm the current mandate (exposed
       `Settei.Prelude`, lens + generic-lens across the family).
-- [ ] Milestone 1: Run the lens-type signature audit over every exposed module of every
+- [x] Milestone 1: Run the lens-type signature audit over every exposed module of every
       publishable package and record the result in Surprises & Discoveries.
-- [ ] Milestone 1: Check which of EP-15 through EP-19 have landed (masterplan registry
+- [x] Milestone 1: Check which of EP-15 through EP-19 have landed (masterplan registry
       table plus on-disk evidence) and record the surface actually being audited,
       including whether the settei-formats package from EP-16 exists.
-- [ ] Milestone 1: If Option 2 is under serious consideration, run the sublibrary spike
-      (temporary `visibility: public` sublibrary, then `nix flake check` and the sdist
-      round-trip) and record pass/fail evidence.
-- [ ] Milestone 1: Confirm the option choice with the owner, or in their absence adopt
+- [x] Milestone 1: Option 2 was not under serious consideration after the audit, so no
+      sublibrary spike was run; Option 1 is the prescribed low-risk default.
+- [x] Milestone 1: Confirm the option choice with the owner, or in their absence adopt
       the recommended default (Option 1); record the decision in the Decision Log.
-- [ ] Milestone 2: Implement the decided option (for Option 1: rewrite the
+- [x] Milestone 2: Implement the decided option (for Option 1: rewrite the
       `Settei.Prelude` Haddock header; for Option 2: restructure into the
       `settei:internal-prelude` sublibrary and update every sibling package's
       build-depends; Option 3 only on explicit owner override).
-- [ ] Milestone 2: Audit every publishable package's `exposed-modules` against
+- [x] Milestone 2: Audit every publishable package's `exposed-modules` against
       docs/compatibility.md's "Public modules" list and reconcile both directions,
       including settei-formats if it has landed.
-- [ ] Milestone 2: Audit dependency bounds across the family for consistency
+- [x] Milestone 2: Audit dependency bounds across the family for consistency
       (base, containers, text, generic-lens, tasty, tasty-hunit, and intra-family pins)
       and reconcile or record deliberate exceptions.
-- [ ] Milestone 2: Update settei/CHANGELOG.md, and the changelog of any other package
+- [x] Milestone 2: Update settei/CHANGELOG.md, and the changelog of any other package
       whose cabal metadata changed.
-- [ ] Milestone 2: Amend docs/adr/0001-haskell-project-conventions.md with a dated note
+- [x] Milestone 2: Amend docs/adr/0001-haskell-project-conventions.md with a dated note
       recording the chosen option and the rejected alternatives.
-- [ ] Milestone 3: Write the "Versioning policy" (PVP) section in docs/compatibility.md
+- [x] Milestone 3: Write the "Versioning policy" (PVP) section in docs/compatibility.md
       and remove `Settei.Prelude` from the supported-module list (Option 1/2) or adjust
       per the decided option.
-- [ ] Milestone 3: Rebuild Haddocks and visually confirm the `Settei.Prelude` warning
+- [x] Milestone 3: Rebuild Haddocks and visually confirm the `Settei.Prelude` warning
       and that the compatibility-matrix module list matches the generated documentation.
-- [ ] Milestone 3: Run the full validation suite (`cabal build all`, `cabal haddock all`,
+- [x] Milestone 3: Run the full validation suite (`cabal build all`, `cabal haddock all`,
       `cabal test all --test-show-details=direct`, `nix flake check`, plus the sdist
       round-trip if Option 2 was chosen) and record the transcripts.
-- [ ] Completion: ADR distillation pass; update masterplan Progress rows for EP-20;
+- [x] Completion: ADR distillation pass; update masterplan Progress rows for EP-20;
       Outcomes & Retrospective written.
 
 
 ## Surprises & Discoveries
 
-(None yet.)
+- 2026-07-19 signature audit: PASS. The source vocabulary scan over all exposed-package
+  source trees found no lens type outside `Settei.Prelude`; the Template Haskell and
+  lens-class-instance scans found no hits; and the explicit export lists for the fifteen
+  core modules, five adapters, and two `settei-formats` modules expose no lens types.
+  `Settei.Prelude` is intentionally the sole exception because it re-exports
+  `Control.Lens` for intra-family use.
+- EP-15 through EP-19 are all complete, and `settei-formats` exists with the exposed
+  `Settei.Formats` and `Settei.Formats.Optparse` modules. The compatibility matrix
+  already listed that package, but its release checklist still said six publishable
+  packages; it was corrected to seven in this plan.
+- The only dependency-bound outlier relevant to the family convention was the
+  `microlens` dependency in both Dhall test suites. The prototype uses only `anyOf`,
+  which `Control.Lens` supplies, so both components now use the core's existing
+  `lens >=5.3 && <5.4` range. The current Hackage `lens` release is 5.3.6, within that
+  range; no bound was widened.
+- Validation on 2026-07-19: `nix develop -c cabal build all`,
+  `nix develop -c cabal test all --test-show-details=direct`, and
+  `nix develop -c cabal haddock all` all passed. Haddock rendered the bold internal-API
+  warning in `Settei-Prelude.html`. `nix flake check` initially reported only an import
+  ordering change in the modified prototype test; after `nix fmt`, it passed.
 
 
 ## Decision Log
@@ -134,15 +152,28 @@ and by reading the new "Versioning policy" section in docs/compatibility.md.
   the plan must therefore not hard-code the pre-EP-15 module list as the final answer.
   Date: 2026-07-19
 
-- Decision: The option choice itself. (OPEN — to be resolved in milestone 1 and recorded
-  here with rationale, date, and whether the owner confirmed or the default was applied.)
-  Rationale: Pending milestone 1 evidence.
-  Date: (pending)
+- Decision: Apply Option 1, keeping `Settei.Prelude` exposed for package-family imports
+  while excluding it from the documented PVP-stable adoption surface.
+  Rationale: The audit found no lens types in the actual public signatures, and all
+  sibling packages continue to require the module across Cabal package boundaries. The
+  requested implementation arrived without an owner override for the two higher-risk
+  alternatives, so the plan's prescribed default applies. Option 2 adds public-
+  sublibrary tooling risk without removing the lens dependency from family consumers;
+  Option 3 contradicts ADR 0001's convention and entails unrequested fleet-wide churn.
+  Date: 2026-07-19
 
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+Option 1 delivered the required stable-adoption contract without a Cabal sublibrary
+restructure. `Settei.Prelude` remains available to the package family but now tells
+readers that it is internal and outside PVP guarantees; `docs/compatibility.md` names
+the stable surface and deprecation policy explicitly. The audit also removed the last
+test-only `microlens` exception in favor of the family's existing `lens` range.
+
+ADR distillation found that ADR 0001 already owns the lens, prelude, and dependency
+conventions, so its dated amendment captures all durable decisions. No new ADR is
+needed. Full Cabal, Haddock, test, formatting, and flake validation passed.
 
 
 ## Context and Orientation
@@ -890,3 +921,7 @@ plan's scope except where the family-wide dependencies above appear alongside th
 compatibility matrix's "Libraries and adapters" table remains their authority. External
 services: none. Toolchain: GHC 9.12.4 via `nix develop`, Cabal CLI 3.16.1.0, as
 recorded in docs/compatibility.md's Toolchain table.
+
+Revision note (2026-07-19): Implemented Option 1 after the execution-time audit,
+reconciled the Dhall test optics dependency, recorded the stable PVP surface, and added
+validation evidence and outcomes.

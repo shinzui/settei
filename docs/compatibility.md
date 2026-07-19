@@ -58,8 +58,8 @@ The supported adoption surface is:
 
 - Core umbrella: `Settei`.
 - Core focused modules: `Settei.Config`, `Settei.Default`, `Settei.Error`, `Settei.Key`,
-  `Settei.Origin`, `Settei.Prelude`, `Settei.Provenance`, `Settei.Render`, `Settei.Report`,
-  `Settei.Resolve`, `Settei.Schema`, `Settei.Setting`, `Settei.Source`, and `Settei.Value`.
+  `Settei.Origin`, `Settei.Provenance`, `Settei.Render`, `Settei.Report`, `Settei.Resolve`,
+  `Settei.Schema`, `Settei.Setting`, `Settei.Source`, and `Settei.Value`.
 - Adapters: `Settei.Env`, `Settei.Optparse`, `Settei.Yaml`, `Settei.Kdl`, and
   `Settei.Dhall`.
 - Multi-format umbrella: `Settei.Formats` and `Settei.Formats.Optparse`.
@@ -67,3 +67,19 @@ The supported adoption surface is:
 Modules beneath `Settei.Internal` and all packages beneath `examples/` are not public API.
 Version 0.1.0.0 is experimental and does not promise semantic stability beyond these
 documented modules and their release notes.
+
+### Versioning policy
+
+The packages in this family follow the Haskell Package Versioning Policy (PVP). The
+surface adopters may depend on and pin against is exactly the modules listed above, in
+the packages listed above, at the versions this matrix validates. `Settei.Prelude` is
+internal to the settei package family: it exists so the sibling packages share one
+import baseline, its re-exports track the `lens` package, and it may change in any
+release without a corresponding major version bump — do not import it from adopting
+code. Modules beneath `Settei.Internal` and all packages beneath `examples/` remain
+non-public. No lens type appears in any public signature (verified by the EP-20
+signature audit); adopting code never needs `lens` in its own build-depends. The family
+releases in lockstep from one repository, and adapter packages pin the core exactly
+(`settei ==X.Y.Z.W`); mixed-version family installs are unsupported. Deprecations are
+announced with a `DEPRECATED` pragma and a changelog entry at least one major release
+before removal.

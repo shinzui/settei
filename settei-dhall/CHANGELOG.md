@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Use the family-standard `lens` package in test suites instead of the leftover
+  `microlens` prototype dependency.
 - Add `renderDhallErrorText` and `renderDhallErrorsText` for stable, operator-readable,
   secret-safe adapter diagnostics with optional source positions.
 

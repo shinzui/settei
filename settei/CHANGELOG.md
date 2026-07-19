@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- `Settei.Prelude` is now documented as internal to the settei package family and is
+  excluded from the PVP-stable public surface; adopters should import the documented
+  public modules instead. Its exports track the `lens` package and may change in any
+  release.
 - Add a `Functor` instance for `Decoder`; a newtype-wrapping decoder is now
   `SecretText <$> textDecoder`.
 - Add decoder combinators `listDecoder`, `nonEmptyDecoder`, `parsedDecoder`,

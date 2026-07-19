@@ -4,7 +4,7 @@ Status: Accepted
 
 Date: 2026-07-16
 
-Amended: 2026-07-17, 2026-07-18
+Amended: 2026-07-17, 2026-07-18, 2026-07-19
 
 
 ## Context
@@ -109,6 +109,15 @@ does not rename the package, its exposed modules, or its public API. Active plan
 configuration must use the sibling roots; completed plan history may retain an old path
 only when a revision note identifies the later migration.
 
+Amendment (2026-07-19, EP-20): `Settei.Prelude` remains an exposed module because the
+sibling packages import it across Cabal package boundaries, but it is documented as
+internal to the settei package family and excluded from the PVP-stable public surface in
+`docs/compatibility.md`. Its re-exports track the `lens` package and may change in any
+release. The `lens` and `generic-lens` conventions remain unchanged. The Dhall test
+suites now use the same `lens >=5.3 && <5.4` range as the core instead of a leftover
+`microlens` prototype dependency. Exact intra-family pins remain intentional while the
+family is released in lockstep from this repository.
+
 
 ## Consequences
 
@@ -171,3 +180,8 @@ other multi-package Haskell workspaces. Moving only the adapters to top-level si
 also rejected because the root package would remain the same exception. Putting
 non-published reference applications beside publishable packages was rejected because it
 would blur package-family and example ownership; `examples/` remains the explicit boundary.
+Moving `Settei.Prelude` to a Cabal public sublibrary was rejected for now: documentation
+demotion gives adopters a clear PVP contract without adding Haddock, Nix, and source-
+distribution tooling risk. Replacing `lens` with microlens and generic-lens-lite was
+rejected because the canonical convention corpus mandates `lens` and `generic-lens`, and
+the fleet-wide dependency-closure reduction does not justify the unrequested churn.

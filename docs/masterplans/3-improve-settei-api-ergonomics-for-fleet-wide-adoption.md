@@ -91,7 +91,7 @@ authority).
 | 17 | Add error renderers to every source adapter | docs/plans/17-add-error-renderers-to-every-source-adapter.md | None | None | Complete |
 | 18 | Make environment bindings total and validated | docs/plans/18-make-environment-bindings-total-and-validated.md | None | EP-17 | Complete |
 | 19 | Add declaration sugar for conditionals and rendered defaults | docs/plans/19-add-declaration-sugar-for-conditionals-and-rendered-defaults.md | None | None | Complete |
-| 20 | Tighten the public surface and dependency hygiene | docs/plans/20-tighten-the-public-surface-and-dependency-hygiene.md | None | EP-15, EP-16, EP-17, EP-18, EP-19 | Not Started |
+| 20 | Tighten the public surface and dependency hygiene | docs/plans/20-tighten-the-public-surface-and-dependency-hygiene.md | None | EP-15, EP-16, EP-17, EP-18, EP-19 | Complete |
 | 21 | Extend reusable CLI options and complete the ergonomics docs sweep | docs/plans/21-extend-reusable-cli-options-and-complete-the-ergonomics-docs-sweep.md | EP-15, EP-16, EP-17, EP-18, EP-19 | EP-20 | Not Started |
 
 Status values: Not Started, In Progress, Complete, Cancelled.
@@ -179,8 +179,8 @@ a new ADR), EP-20's public-surface and dependency decision (amendment to docs/ad
 - [x] EP-18: examples and environment guide updated
 - [x] EP-19: selective conditional helpers and rendered-default ergonomics with tests
 - [x] EP-19: examples and getting-started guide use the sugar
-- [ ] EP-20: Settei.Prelude exposure and lens footprint decided, implemented, ADR 0001 amended
-- [ ] EP-20: PVP surface statement in compatibility matrix
+- [x] EP-20: Settei.Prelude exposure and lens footprint decided, implemented, ADR 0001 amended
+- [x] EP-20: PVP surface statement in compatibility matrix
 - [ ] EP-21: SetteiOptions gains check/describe modes; warnings rendered in examples
 - [ ] EP-21: full docs-and-examples sweep, null-semantics documentation, changelogs, validation green
 
@@ -220,6 +220,12 @@ a new ADR), EP-20's public-surface and dependency decision (amendment to docs/ad
   raw-`select` encodings. EP-20 should audit the five additive exports (`whenConfig`,
   `whenEq`, `fallbackTo`, `publicShowSetting`, `withRenderer`), and EP-21 can adopt them
   without coordinating an internal representation change.
+- EP-20 selected the documented keep-but-demote option: `Settei.Prelude` remains exposed
+  solely for intra-family imports, while the compatibility matrix makes it explicitly
+  non-PVP-stable. The audit found no lens type in any supported public signature. The
+  only relevant dependency inconsistency was test-only `microlens` in settei-dhall; it
+  now uses the family's existing `lens >=5.3 && <5.4` range. This leaves EP-21 with no
+  public-surface cleanup beyond using the compatibility policy's settled wording.
 
 
 ## Decision Log
@@ -271,6 +277,14 @@ a new ADR), EP-20's public-surface and dependency decision (amendment to docs/ad
   public-surface audit and lets EP-21 adopt the helpers without internal reconciliation.
   The durable no-new-syntax rule is recorded in the 2026-07-19 amendment to
   docs/adr/0002-inspectable-configuration-algebra.md.
+  Date: 2026-07-19
+
+- Decision: Keep `Settei.Prelude` exposed for package-family compilation but document it
+  as internal and exclude it from the PVP-stable adoption surface.
+  Rationale: The explicit signature audit found no lens type in the supported public
+  surface; a Cabal public-sublibrary move adds toolchain risk without reducing the
+  family's lens closure, while replacing lens conflicts with the existing convention.
+  ADR 0001 records the durable decision and the Dhall test-dependency reconciliation.
   Date: 2026-07-19
 
 
