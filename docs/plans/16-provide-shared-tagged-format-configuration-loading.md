@@ -58,9 +58,9 @@ that one deliberate pass rewrites the conformance-boundary examples.
       `nix develop -c cabal build settei-formats` succeeds.
 - [x] (2026-07-19T20:08:00Z) Milestone 2: `Settei.Formats.Optparse` implemented (`configInputReader`,
       `configInputOption`, `configInputOptions`).
-- [ ] Milestone 3: test suite `settei-formats-tests` with fixtures written and green via
+- [x] (2026-07-19T20:15:00Z) Milestone 3: test suite `settei-formats-tests` with fixtures written and green via
       `nix develop -c cabal test settei-formats-tests --test-show-details=direct`.
-- [ ] Milestone 3: full workspace validation green (`nix develop -c cabal test all`,
+- [x] (2026-07-19T20:15:00Z) Milestone 3: full workspace validation green (`nix develop -c cabal test all`,
       `nix flake check`).
 - [ ] Milestone 4: `docs/guides/formats.md` written; pointer edits in
       `docs/guides/README.md`, `docs/guides/cli-application.md`,
@@ -87,6 +87,13 @@ that one deliberate pass rewrites the conformance-boundary examples.
   Evidence: the first `nix build .#settei-formats` failed with `path .../settei-formats
   does not exist`; after `git add settei-formats`, the same command built
   `settei-formats-0.1.0.0` successfully.
+  Date: 2026-07-19
+
+- Observation: the plan's test sketch predated the correctness initiative's final
+  resolver result shape.
+  Evidence: `resolve` now returns `ResolveResult`, whose typed success or accumulated
+  errors are in `result ^. #answer`; the new three-adapter tests use that accessor and
+  all 14 package tests pass.
   Date: 2026-07-19
 
 
@@ -212,6 +219,13 @@ that one deliberate pass rewrites the conformance-boundary examples.
   workspace's audited versions except containers 0.8; widening containers for one
   package would create family inconsistency, while EP-20 is explicitly responsible for
   the fleet-wide bounds audit.
+  Date: 2026-07-19
+
+- Decision: Assert adapter dispatch through the current `ResolveResult.answer` field in
+  the end-to-end tests.
+  Rationale: The correctness MasterPlan deliberately made reports and warnings
+  available on both success and failure. Matching the current public API keeps this
+  plan's behavioral test meaningful without reverting or bypassing that result shape.
   Date: 2026-07-19
 
 
@@ -900,11 +914,11 @@ tasty-hunit cases:
    endpointKey = either (error . show) id (parseKey "service.endpoint")
    ```
 
-   Then `resolve defaultResolveOptions [loadedSource] endpointConfig` must be `Right`
-   with value `"https://example.test"` for all three formats. (These helpers —
+   Then `resolve defaultResolveOptions [loadedSource] endpointConfig` must have
+   `result ^. #answer == Right "https://example.test"` for all three formats. (These helpers —
    `Config`, `required`, `publicSetting`, `textDecoder`, `parseKey`, `resolve`,
    `defaultResolveOptions` — are all exported by the core `Settei` module; the
-   `ResolveResult` value is read with `result ^. #value`, as the examples do.)
+   `ResolveResult` value is read through `result ^. #answer`, as the examples do.)
 4. Kubernetes annotation pass-through: load `app.yaml` with
    `fromKubernetesMountedFile (kubernetesRef ConfigMapObject Nothing "settei-formats-test" (Just "app.yaml")) defaultLoadOptions`,
    and assert that `sourceAnnotations` of the produced source contains

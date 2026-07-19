@@ -17,6 +17,10 @@ category:        Configuration
 build-type:      Simple
 tested-with:     GHC ==9.12.4
 extra-doc-files: CHANGELOG.md
+data-files:
+  test/fixtures/*.dhall
+  test/fixtures/*.kdl
+  test/fixtures/*.yaml
 
 source-repository head
   type:     git
@@ -50,3 +54,27 @@ library
     , settei-optparse-applicative  ==0.1.0.0
     , settei-yaml                  ==0.1.0.0
     , text                         >=2.1     && <2.2
+
+test-suite settei-formats-tests
+  import:          common
+  type:            exitcode-stdio-1.0
+  hs-source-dirs:  test
+  main-is:         Main.hs
+  other-modules:
+    Paths_settei_formats
+    Settei.FormatsOptparseTest
+    Settei.FormatsTest
+
+  autogen-modules: Paths_settei_formats
+  build-depends:
+    , base                  >=4.21    && <5
+    , containers            >=0.6.8   && <0.8
+    , generic-lens          >=2.2     && <2.4
+    , optparse-applicative  >=0.19    && <0.20
+    , settei                ==0.1.0.0
+    , settei-dhall          ==0.1.0.0
+    , settei-formats        ==0.1.0.0
+    , settei-yaml           ==0.1.0.0
+    , tasty                 >=1.5     && <1.6
+    , tasty-hunit           >=0.10.2  && <0.11
+    , text                  >=2.1     && <2.2
