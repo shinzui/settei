@@ -86,7 +86,7 @@ authority).
 
 | # | Title | Path | Hard Deps | Soft Deps | Status |
 |---|-------|------|-----------|-----------|--------|
-| 15 | Add a Decoder functor and combinator kit | docs/plans/15-add-a-decoder-functor-and-combinator-kit.md | None | None | Not Started |
+| 15 | Add a Decoder functor and combinator kit | docs/plans/15-add-a-decoder-functor-and-combinator-kit.md | None | None | In Progress |
 | 16 | Provide shared tagged-format configuration loading | docs/plans/16-provide-shared-tagged-format-configuration-loading.md | None | EP-17 | Not Started |
 | 17 | Add error renderers to every source adapter | docs/plans/17-add-error-renderers-to-every-source-adapter.md | None | None | Not Started |
 | 18 | Make environment bindings total and validated | docs/plans/18-make-environment-bindings-total-and-validated.md | None | EP-17 | Not Started |

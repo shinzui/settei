@@ -52,15 +52,15 @@ minimal and additive.
 
 ## Progress
 
-- [ ] Milestone 1: Add `instance Functor Decoder` with a lawfulness haddock to
+- [x] (2026-07-19T19:05:14Z) Milestone 1: Add `instance Functor Decoder` with a lawfulness haddock to
       `settei/src/Settei/Value.hs`.
-- [ ] Milestone 1: Add `listDecoder`, `nonEmptyDecoder`, `parsedDecoder`,
+- [x] (2026-07-19T19:05:14Z) Milestone 1: Add `listDecoder`, `nonEmptyDecoder`, `parsedDecoder`,
       `rationalDecoder`, `doubleDecoder`, and the private `numberValue` helper, each with
       haddock, and add the five new names to the module export list.
-- [ ] Milestone 1: Improve `boundedIntegralDecoder`'s failure expectation to state the
+- [x] (2026-07-19T19:05:14Z) Milestone 1: Improve `boundedIntegralDecoder`'s failure expectation to state the
       actual accepted range; document `enumDecoder`'s exact-match case sensitivity and its
       asymmetry with `boolDecoder` in haddock.
-- [ ] Milestone 1: `nix develop -c cabal build settei` succeeds with no warnings.
+- [x] (2026-07-19T19:05:14Z) Milestone 1: `nix develop -c cabal build settei` succeeds with no warnings.
 - [ ] Milestone 2: Add test cases to `settei/test/Settei/ValueTest.hs` covering the
       Functor instance (success and failure paths), every new combinator, the improved
       range message, and secret-sentinel safety for `listDecoder` and `parsedDecoder`.
@@ -89,7 +89,13 @@ minimal and additive.
 
 ## Surprises & Discoveries
 
-(None yet.)
+- The authored implementation named the element-decoder argument `element`, but
+  `Settei.Prelude` re-exports lens's `element`, so GHC 9.12.4 reported
+  `-Wname-shadowing` in both combinators. Renaming the local binder to
+  `elementDecoder` made the required `cabal build settei` run warning-free without
+  changing the public API or behavior.
+  Evidence: the first build emitted two `GHC-63397` warnings; the rerun at
+  2026-07-19T19:05:14Z completed with no warnings.
 
 
 ## Decision Log
