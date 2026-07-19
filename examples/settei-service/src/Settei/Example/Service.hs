@@ -29,7 +29,6 @@ module Settei.Example.Service
 where
 
 import Control.Applicative qualified as Applicative
-import Control.Selective (select)
 import Data.Generics.Labels ()
 import Data.Text qualified as Text
 import Options.Applicative (Parser, ParserInfo)
@@ -205,12 +204,8 @@ databaseConfig =
     <*> productionPassword
 
 productionPassword :: Config (Maybe SecretText)
-productionPassword = select selector branch
-  where
-    selector =
-      (\environment -> if environment == Production then Left () else Right Nothing)
-        <$> required environmentSetting
-    branch = (\password _ -> Just password) <$> required databasePasswordSetting
+productionPassword =
+  whenEq (required environmentSetting) Production (required databasePasswordSetting)
 
 httpPortDefault :: Default Int
 httpPortDefault =
@@ -369,16 +364,17 @@ httpHostSetting :: Setting Text
 httpHostSetting = publicSetting httpHostKey "HTTP bind host" textDecoder
 
 httpPortSetting :: Setting Int
-httpPortSetting = publicInteger httpPortKey "HTTP bind port"
+httpPortSetting = publicShowSetting httpPortKey "HTTP bind port" boundedIntegralDecoder
 
 databaseHostSetting :: Setting Text
 databaseHostSetting = publicSetting databaseHostKey "Database host" textDecoder
 
 databasePortSetting :: Setting Int
-databasePortSetting = publicInteger databasePortKey "Database port"
+databasePortSetting = publicShowSetting databasePortKey "Database port" boundedIntegralDecoder
 
 databasePoolSizeSetting :: Setting Int
-databasePoolSizeSetting = publicInteger databasePoolSizeKey "Database pool size"
+databasePoolSizeSetting =
+  publicShowSetting databasePoolSizeKey "Database pool size" boundedIntegralDecoder
 
 databasePasswordSetting :: Setting SecretText
 databasePasswordSetting =
@@ -387,10 +383,6 @@ databasePasswordSetting =
 serviceTagsSetting :: Setting [Text]
 serviceTagsSetting =
   publicSetting serviceTagsKey "Conformance service tags" (listDecoder textDecoder)
-
-publicInteger :: Key -> Text -> Setting Int
-publicInteger key description =
-  publicSettingWithRenderer key description boundedIntegralDecoder (Text.pack . show)
 
 renderEnvironment :: RuntimeEnvironment -> Text
 renderEnvironment Development = "development"

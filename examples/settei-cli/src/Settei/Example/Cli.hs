@@ -326,7 +326,7 @@ endpointSetting = publicSetting serviceEndpointKey "Service endpoint" textDecode
 
 timeoutSetting :: Setting Int
 timeoutSetting =
-  publicSettingWithRenderer serviceTimeoutKey "Request timeout in seconds" boundedIntegralDecoder (Text.pack . show)
+  publicShowSetting serviceTimeoutKey "Request timeout in seconds" boundedIntegralDecoder
 
 outputFormatSetting :: Setting OutputFormat
 outputFormatSetting =
