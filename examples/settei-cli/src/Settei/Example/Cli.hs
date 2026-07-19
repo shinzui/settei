@@ -37,7 +37,7 @@ import Settei
 import Settei.Dhall qualified as Dhall
 import Settei.Env
 import Settei.Kdl qualified as Kdl
-import Settei.Optparse
+import Settei.Optparse hiding (DiagnosticMode (..))
 import Settei.Prelude
 import Settei.Yaml qualified as Yaml
 

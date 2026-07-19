@@ -3,7 +3,7 @@
 -- Description: optparse-applicative parsers that produce ordered Settei sources.
 module Settei.Optparse
   ( CliOverride,
-    ExplainMode (..),
+    DiagnosticMode (..),
     SetteiOptions (..),
     cliOverride,
     cliOverrideKey,
@@ -12,11 +12,12 @@ module Settei.Optparse
     cliSources,
     configPathOptions,
     configPathOptionsWith,
-    explainModeOptions,
-    explainModeOptionsWith,
+    diagnosticModeOptions,
     namedOption,
     overrideOptions,
     overrideOptionsWith,
+    resolutionDiagnostic,
+    schemaDiagnostic,
     setteiOptions,
   )
 where
@@ -26,7 +27,7 @@ import Data.Generics.Labels ()
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as Text
-import Options.Applicative (FlagFields, Mod, OptionFields, Parser)
+import Options.Applicative (Mod, OptionFields, Parser)
 import Options.Applicative qualified as Options
 import Settei
 import Settei.Prelude
@@ -42,15 +43,21 @@ data CliOverride = CliOverride
   }
   deriving stock (Generic, Eq)
 
--- | Whether an application should print a configuration explanation.
-data ExplainMode = NoExplain | ExplainText | ExplainJson
+-- | Which configuration diagnostic, if any, an application should perform.
+data DiagnosticMode
+  = NoDiagnostic
+  | ExplainText
+  | ExplainJson
+  | CheckConfig
+  | DescribeConfigText
+  | DescribeConfigJson
   deriving stock (Generic, Eq, Ord, Show)
 
 -- | Reusable configuration and diagnostic command-line options.
 data SetteiOptions = SetteiOptions
   { configPaths :: ![FilePath],
     overrides :: ![CliOverride],
-    explainMode :: !ExplainMode
+    diagnosticMode :: !DiagnosticMode
   }
   deriving stock (Generic, Eq)
 
@@ -61,7 +68,7 @@ data ConfigurationOptions = ConfigurationOptions
   deriving stock (Generic, Eq)
 
 newtype DiagnosticOptions = DiagnosticOptions
-  { explainMode :: ExplainMode
+  { diagnosticMode :: DiagnosticMode
   }
   deriving stock (Generic, Eq)
 
@@ -128,19 +135,30 @@ configPathOptions =
 configPathOptionsWith :: Mod OptionFields FilePath -> Parser [FilePath]
 configPathOptionsWith modifiers = Applicative.many (Options.strOption modifiers)
 
--- | Parse the default mutually exclusive explanation flags.
-explainModeOptions :: Parser ExplainMode
-explainModeOptions =
-  explainModeOptionsWith
-    (Options.long "explain-config" <> Options.help "Explain the resolved configuration as text")
-    (Options.long "explain-config-json" <> Options.help "Explain the resolved configuration as JSON")
+-- | Parse the default mutually exclusive configuration diagnostic flags.
+diagnosticModeOptions :: Parser DiagnosticMode
+diagnosticModeOptions =
+  Options.flag' ExplainText (Options.long "explain-config" <> Options.help "Explain the resolved configuration as text")
+    Applicative.<|> Options.flag' ExplainJson (Options.long "explain-config-json" <> Options.help "Explain the resolved configuration as JSON")
+    Applicative.<|> Options.flag' CheckConfig (Options.long "check-config" <> Options.help "Validate configuration and exit")
+    Applicative.<|> Options.flag' DescribeConfigText (Options.long "describe-config" <> Options.help "Print the static configuration schema")
+    Applicative.<|> Options.flag' DescribeConfigJson (Options.long "describe-config-json" <> Options.help "Print the static configuration schema as JSON")
+    Applicative.<|> pure NoDiagnostic
 
--- | Parse caller-named mutually exclusive text and JSON explanation flags.
-explainModeOptionsWith :: Mod FlagFields ExplainMode -> Mod FlagFields ExplainMode -> Parser ExplainMode
-explainModeOptionsWith textModifiers jsonModifiers =
-  Options.flag' ExplainText textModifiers
-    Applicative.<|> Options.flag' ExplainJson jsonModifiers
-    Applicative.<|> pure NoExplain
+-- | Render a diagnostic that must not load configuration sources.
+schemaDiagnostic :: DiagnosticMode -> Schema -> Maybe Text
+schemaDiagnostic mode schema = case mode of
+  DescribeConfigText -> Just (renderSchemaText schema)
+  DescribeConfigJson -> Just (renderSchemaJson schema <> "\n")
+  _ -> Nothing
+
+-- | Render a diagnostic available after resolution.
+resolutionDiagnostic :: DiagnosticMode -> ResolveResult a -> Maybe Text
+resolutionDiagnostic mode result = case mode of
+  ExplainText -> Just (renderResolutionText (result ^. #report))
+  ExplainJson -> Just (renderResolutionJson (result ^. #report) <> "\n")
+  CheckConfig -> Just "configuration valid\n"
+  _ -> Nothing
 
 -- | Parse the reusable Configuration and Diagnostics option groups.
 setteiOptions :: Parser SetteiOptions
@@ -150,7 +168,7 @@ setteiOptions = assemble <$> configurationOptions <*> diagnosticOptions
       SetteiOptions
         { configPaths = configuration ^. #configPaths,
           overrides = configuration ^. #overrides,
-          explainMode = diagnostics ^. #explainMode
+          diagnosticMode = diagnostics ^. #diagnosticMode
         }
 
 configurationOptions :: Parser ConfigurationOptions
@@ -163,7 +181,7 @@ diagnosticOptions :: Parser DiagnosticOptions
 diagnosticOptions =
   Options.parserOptionGroup
     "Diagnostics"
-    (DiagnosticOptions <$> explainModeOptions)
+    (DiagnosticOptions <$> diagnosticModeOptions)
 
 overrideReader :: Options.ReadM CliOverride
 overrideReader = Options.eitherReader $ \input ->

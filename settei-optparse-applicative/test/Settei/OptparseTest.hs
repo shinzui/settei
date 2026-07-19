@@ -81,10 +81,19 @@ tests =
             ]
         parsed ^. #configPaths @?= ["base.yaml", "local.yaml"]
         length (parsed ^. #overrides) @?= 1
-        parsed ^. #explainMode @?= ExplainJson,
-      testCase "explanation modes are mutually exclusive" $ do
-        let parsed = parse explainModeOptions ["--explain-config", "--explain-config-json"]
-        assertBool "both explanation modes unexpectedly parsed" (Options.getParseResult parsed == Nothing),
+        parsed ^. #diagnosticMode @?= ExplainJson,
+      testCase "diagnostic modes default and are mutually exclusive" $ do
+        defaulted <- expectParse diagnosticModeOptions []
+        defaulted @?= NoDiagnostic
+        let parsed = parse diagnosticModeOptions ["--explain-config", "--explain-config-json"]
+        assertBool "both diagnostic modes unexpectedly parsed" (Options.getParseResult parsed == Nothing),
+      testCase "diagnostic helpers render the requested outputs" $ do
+        let schema = describe (required portSetting)
+            result = resolve defaultResolveOptions [portSource "test" BuiltInSource 8080] (required portSetting)
+        assertBool "text schema diagnostic missing" (schemaDiagnostic DescribeConfigText schema /= Nothing)
+        assertBool "JSON schema diagnostic missing" (schemaDiagnostic DescribeConfigJson schema /= Nothing)
+        resolutionDiagnostic CheckConfig result @?= Just "configuration valid\n"
+        resolutionDiagnostic NoDiagnostic result @?= Nothing,
       testCase "help groups configuration and diagnostics by intent" $ do
         let parserInfo = Options.info (setteiOptions Options.<**> Options.helper) Options.fullDesc
         case Options.execParserPure Options.defaultPrefs parserInfo ["--help"] of

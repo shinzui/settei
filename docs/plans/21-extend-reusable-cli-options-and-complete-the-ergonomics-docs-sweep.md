@@ -54,11 +54,11 @@ resolver warnings rendered on stderr, and by running the full test suite green.
 
 ## Progress
 
-- [ ] M1: Read the completed EP-15..EP-20 plan documents and the shipped modules; record the reconciled API names (decoder kit, settei-formats types, renderer names, Bindings constructor, sugar helpers, post-EP-12 resolve shape) in this plan's Context section.
-- [ ] M1: Replace `ExplainMode` with `DiagnosticMode` in settei-optparse-applicative/src/Settei/Optparse.hs (six constructors, `diagnosticModeOptions`, updated `SetteiOptions` and `setteiOptions`).
-- [ ] M1: Add the diagnostic interpretation helpers (`schemaDiagnostic`, `resolutionDiagnostic`) reconciled against the post-EP-12 `ResolveResult` shape.
-- [ ] M1: Update settei-optparse-applicative/test/Settei/OptparseTest.hs for the new mode set, mutual exclusion, defaulting, and helper outputs.
-- [ ] M1: `cabal build settei-optparse-applicative && cabal test settei-optparse-applicative` green; commit.
+- [x] M1: Read the completed EP-15..EP-20 plan documents and the shipped modules; record the reconciled API names (decoder kit, settei-formats types, renderer names, Bindings constructor, sugar helpers, post-EP-12 resolve shape) in this plan's Context section.
+- [x] M1: Replace `ExplainMode` with `DiagnosticMode` in settei-optparse-applicative/src/Settei/Optparse.hs (six constructors, `diagnosticModeOptions`, updated `SetteiOptions` and `setteiOptions`).
+- [x] M1: Add the diagnostic interpretation helpers (`schemaDiagnostic`, `resolutionDiagnostic`) reconciled against the post-EP-12 `ResolveResult` shape.
+- [x] M1: Update settei-optparse-applicative/test/Settei/OptparseTest.hs for the new mode set, mutual exclusion, defaulting, and helper outputs.
+- [x] M1: `cabal build settei-optparse-applicative && cabal test settei-optparse-applicative` green; commit.
 - [ ] M2: Rewrite examples/settei-cli/src/Settei/Example/Cli.hs on the new APIs (settei-formats inputs and loader, shared DiagnosticMode, renderers, validated bindings, decoder kit, warnings to stderr, DescribeConfigJson).
 - [ ] M2: Rewrite examples/settei-service/src/Settei/Example/Service.hs on the new APIs (single tagged input via settei-formats, shared DiagnosticMode, renderers, validated bindings, whenEq sugar, show-renderer sugar, list decoder from the kit, warnings to stderr).
 - [ ] M2: Update both example cabal files to depend on settei-formats and drop now-unused direct adapter dependencies where the loader replaces them.
@@ -84,7 +84,11 @@ resolver warnings rendered on stderr, and by running the full test suite green.
 
 ## Surprises & Discoveries
 
-(None yet.)
+- EP-12 shipped `ResolveResult` with an always-present report and warnings, while its
+  typed outcome lives in `answer`; `resolutionDiagnostic` therefore accepts
+  `ResolveResult a` directly. EP-15/16/18/19 shipped as `listDecoder`,
+  `ConfigInput`/`loadConfigInput`, opaque `Bindings`/`bindings`, and `whenEq` plus
+  `publicShowSetting`, respectively.
 
 
 ## Decision Log
