@@ -16,9 +16,7 @@ build-depends:
 ```haskell
 import Data.Bifunctor (first)
 import Data.List.NonEmpty (NonEmpty)
-import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text (Text)
-import Data.Text qualified as Text
 import Settei
 import Settei.Dhall
 ```
@@ -143,7 +141,7 @@ resolveDhallFile
 resolveDhallFile allowedRoot path = do
   loaded <- loadApplicationDhall allowedRoot path
   pure $ do
-    dhallSource <- first renderDhallErrors loaded
+    dhallSource <- first renderDhallErrorsText loaded
     pure (resolve defaultResolveOptions [dhallSource] serviceConfig)
 ```
 
@@ -258,24 +256,17 @@ winning candidate is an error and does not fall back to the Dhall value.
 ## Render Dhall errors
 
 ```haskell
-renderDhallErrors :: NonEmpty DhallSourceError -> Text
-renderDhallErrors =
-  Text.intercalate "\n"
-    . fmap renderDhallError
-    . NonEmpty.toList
-
-renderDhallError :: DhallSourceError -> Text
-renderDhallError problem =
-  Text.pack (show (dhallErrorCategory problem))
-    <> ": "
-    <> dhallErrorMessage problem
+renderDhallErrorText :: DhallSourceError -> Text
+renderDhallErrorsText :: NonEmpty DhallSourceError -> Text
 ```
 
-`DhallErrorCategory` distinguishes IO, parse, policy, import, type, conversion, invalid
-key, and top-level type failures. Use `dhallErrorName`, `dhallErrorPath`,
-`dhallErrorLine`, and `dhallErrorColumn` to add safe context. Line and column are optional,
-one-based positions populated for parse failures. Errors do not retain expression
-snippets, imported values, or upstream exception text.
+The singular renderer produces one line in the form
+`NAME (PATH:LINE:COLUMN): MESSAGE`; missing location pieces are omitted. The plural
+renderer emits one line per problem and includes a trailing newline. `DhallErrorCategory`
+distinguishes IO, parse, policy, import, type, conversion, invalid-key, and top-level-type
+failures. The individual accessors remain available for other structured presentations.
+Line and column are optional one-based positions populated for parse failures. Errors do
+not retain expression snippets, imported values, or upstream exception text.
 
 ## Attach Kubernetes metadata
 

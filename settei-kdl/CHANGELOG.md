@@ -1,5 +1,10 @@
 # Changelog for settei-kdl
 
+## Unreleased
+
+- Add `renderKdlErrorText` and `renderKdlErrorsText` for stable, operator-readable,
+  secret-safe adapter diagnostics, including related spans when present.
+
 ## 0.1.0.0 — 2026-07-19
 
 - Initial experimental release.

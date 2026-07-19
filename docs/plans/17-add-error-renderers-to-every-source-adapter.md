@@ -89,9 +89,13 @@ This section must always reflect the actual current state of the work.
       settei-formats/src/Settei/Formats.hs delegation stub.
 - [x] (2026-07-19T20:31:59Z) Milestone 5: `cabal build all` and `cabal test all` pass;
       the strengthened `settei-formats-tests` delegation coverage also passes all 15 tests.
-- [ ] Milestone 6: update the error-rendering snippets in docs/guides/yaml.md, docs/guides/kdl.md, docs/guides/dhall.md, and docs/guides/environment-and-cli.md.
-- [ ] Milestone 6: add an Unreleased changelog entry to settei-yaml/CHANGELOG.md, settei-kdl/CHANGELOG.md, settei-dhall/CHANGELOG.md, and settei-env/CHANGELOG.md.
-- [ ] Milestone 6: write the adapter-error-rendering-contract ADR (expected docs/adr/0009-adapter-error-rendering-contract.md; verify the number is free).
+- [x] (2026-07-19T20:34:14Z) Milestone 6: update the error-rendering snippets in
+      docs/guides/yaml.md, docs/guides/kdl.md, docs/guides/dhall.md, and
+      docs/guides/environment-and-cli.md to use the exported renderers.
+- [x] (2026-07-19T20:34:14Z) Milestone 6: add an Unreleased renderer entry to the YAML,
+      KDL, Dhall, and environment adapter changelogs.
+- [x] (2026-07-19T20:34:14Z) Milestone 6: record the durable cross-adapter contract in
+      docs/adr/0009-adapter-error-rendering-contract.md.
 - [ ] Final: update the MasterPlan's Progress rows for EP-17, run the full validation commands, write Outcomes & Retrospective, and perform the ADR distillation pass.
 
 

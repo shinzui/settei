@@ -18,9 +18,7 @@ build-depends:
 import Data.Bifunctor (first)
 import Data.ByteString (ByteString)
 import Data.List.NonEmpty (NonEmpty)
-import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text (Text)
-import Data.Text qualified as Text
 import Settei
 import Settei.Yaml
 ```
@@ -126,7 +124,7 @@ resolveYamlFile
 resolveYamlFile path = do
   loaded <- loadYaml path
   pure $ do
-    yamlSource <- first renderYamlErrors loaded
+    yamlSource <- first renderYamlErrorsText loaded
     pure (resolve defaultResolveOptions [yamlSource] serviceConfig)
 ```
 
@@ -229,28 +227,19 @@ process environment.
 
 ## Render YAML errors
 
-`YamlSourceError` exposes stable fields for application diagnostics:
+Use the adapter's exported renderers for operator-facing diagnostics:
 
 ```haskell
-renderYamlErrors :: NonEmpty YamlSourceError -> Text
-renderYamlErrors =
-  Text.intercalate "\n"
-    . fmap renderYamlError
-    . NonEmpty.toList
-
-renderYamlError :: YamlSourceError -> Text
-renderYamlError problem =
-  Text.intercalate
-    ": "
-    [ Text.pack (show (yamlErrorCategory problem)),
-      yamlErrorContext problem,
-      yamlErrorMessage problem
-    ]
+renderYamlErrorText :: YamlSourceError -> Text
+renderYamlErrorsText :: NonEmpty YamlSourceError -> Text
 ```
 
-Use `yamlErrorPath`, `yamlErrorLine`, and `yamlErrorColumn` to add a location when present.
-Lines and columns are one-based. `yamlErrorContext` names a structural path such as
-`$.service.names[0]`.
+The singular renderer produces one line in the form
+`NAME (PATH:LINE:COLUMN) at CONTEXT: MESSAGE`. Missing path and position pieces are
+omitted; the plural renderer emits one such line per problem and ends each with a
+newline. The individual accessors remain available when an application needs a different
+structured presentation. Lines and columns are one-based, and `yamlErrorContext` names a
+path such as `$.service.names[0]`.
 
 Successful scalar and array leaves also retain a one-based start location for resolution
 reports. Adapter errors intentionally do not expose raw source excerpts or scalar values,
@@ -288,7 +277,8 @@ from a Secret.
 - Document the low-to-high order when more than one file is accepted.
 - Quote numeric-looking values and the words `true` or `false` when they must remain text.
 - Treat null as explicit input and test the chosen decoder behavior.
-- Render structured adapter fields instead of echoing the original YAML.
+- Render adapter failures with `renderYamlErrorText` or `renderYamlErrorsText` instead of
+  echoing the original YAML.
 - Reject or report unknown keys according to the application's rollout policy.
 - Use `fromKubernetesMountedFile` only for metadata the deployment actually guarantees.
 

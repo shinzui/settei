@@ -16,9 +16,7 @@ build-depends:
 ```haskell
 import Data.Bifunctor (first)
 import Data.List.NonEmpty (NonEmpty)
-import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text (Text)
-import Data.Text qualified as Text
 import Settei
 import Settei.Kdl
 ```
@@ -116,7 +114,7 @@ resolveKdlFile
 resolveKdlFile path = do
   loaded <- loadKdl path
   pure $ do
-    kdlSource <- first renderKdlErrors loaded
+    kdlSource <- first renderKdlErrorsText loaded
     pure (resolve defaultResolveOptions [kdlSource] serviceConfig)
 ```
 
@@ -231,26 +229,17 @@ orderedSources = kdlSources <> [environmentSource] <> commandLineSources
 ## Render KDL errors and locations
 
 ```haskell
-renderKdlErrors :: NonEmpty KdlSourceError -> Text
-renderKdlErrors =
-  Text.intercalate "\n"
-    . fmap renderKdlError
-    . NonEmpty.toList
-
-renderKdlError :: KdlSourceError -> Text
-renderKdlError problem =
-  Text.intercalate
-    ": "
-    [ Text.pack (show (kdlErrorCategory problem)),
-      kdlErrorContext problem,
-      kdlErrorMessage problem
-    ]
+renderKdlErrorText :: KdlSourceError -> Text
+renderKdlErrorsText :: NonEmpty KdlSourceError -> Text
 ```
 
-Use `kdlErrorPath` and `kdlErrorSpan` to display a location. `KdlSpan` exposes one-based
-start and inclusive end positions through `kdlSpanLine`, `kdlSpanColumn`,
-`kdlSpanEndLine`, and `kdlSpanEndColumn`. Collision errors may also provide
-`kdlErrorRelatedSpan` for the first conflicting item.
+The singular renderer produces one line in the form
+`NAME (PATH:LINE:COLUMN) at CONTEXT: MESSAGE`; missing location pieces are omitted.
+When a second trustworthy span exists, it appends `; also at LINE:COLUMN`. The plural
+renderer emits one line per problem and includes a trailing newline. Use the individual
+accessors when an application needs a different structured presentation. `KdlSpan`
+positions are one-based; collision errors may provide `kdlErrorRelatedSpan` for the first
+conflicting item.
 
 Successful leaves retain their source span in origin metadata. Repeated sibling arrays
 span from the first repeated node through the last. Error values contain structural

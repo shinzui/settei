@@ -1,5 +1,10 @@
 # Changelog for settei-dhall
 
+## Unreleased
+
+- Add `renderDhallErrorText` and `renderDhallErrorsText` for stable, operator-readable,
+  secret-safe adapter diagnostics with optional source positions.
+
 ## 0.1.0.0 — 2026-07-19
 
 - Initial experimental release.

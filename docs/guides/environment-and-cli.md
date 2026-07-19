@@ -19,6 +19,7 @@ build-depends:
 The main modules are:
 
 ```haskell
+import Data.Bifunctor (first)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -149,6 +150,18 @@ testEnvironment =
 names, repeated target keys, and overlapping targets such as `database` together with
 `database.host`. The resulting `EnvError` values contain names and keys, never environment
 values.
+
+Render validation failures with the exported operator-facing renderer:
+
+```haskell
+loadEnvironmentText :: IO (Either Text Source)
+loadEnvironmentText =
+  fmap (first renderEnvErrorsText) loadEnvironment
+```
+
+`renderEnvErrorText` renders one sentence and `renderEnvErrorsText` renders a non-empty
+batch with one problem per line and a trailing newline. Both functions can mention only
+variable names and structural keys because `EnvError` never retains environment values.
 
 ### Generate conventional bindings
 
