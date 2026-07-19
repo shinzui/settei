@@ -66,12 +66,15 @@ below also names a small observable behavior you can check directly.
 - [x] (2026-07-19T18:07:01Z) M1: appended a dated amendment note to docs/adr/0003-resolution-provenance-and-default-semantics.md.
 - [x] (2026-07-19T18:07:57Z) M1 validation: `nix develop -c cabal test settei-tests
       --test-show-details=direct` passed all 67 tests.
-- [ ] M2: add `SourceConstructionError` and `sourceFromPairs` to settei/src/Settei/Source.hs
+- [x] (2026-07-19T18:10:59Z) M2: added `SourceConstructionError` and `sourceFromPairs` to settei/src/Settei/Source.hs
       and export both (they flow through the `Settei` re-export automatically).
-- [ ] M2: add `sourceUnaddressableLeaves` and haddock warnings on `source` and
+- [x] (2026-07-19T18:10:59Z) M2: added `sourceUnaddressableLeaves` and haddock warnings on `source` and
       `sourceLeaves` naming `source` as the unvalidated escape hatch.
-- [ ] M2: add construction, duplicate-rejection, overlap-rejection, dotted-key
+- [x] (2026-07-19T18:10:59Z) M2: added construction, duplicate-rejection, overlap-rejection, dotted-key
       characterization, and unaddressable-leaf tests to settei/test/Settei/SourceTest.hs.
+- [x] (2026-07-19T18:10:59Z) M2 validation: `nix develop -c cabal test settei-tests
+      --test-show-details=direct` passed all 71 tests, and `nix develop -c cabal build all`
+      compiled every workspace package and component.
 - [ ] M3: tighten the exception catch in `decodeMarkedEvents` in
       settei-yaml/src/Settei/Yaml.hs to synchronous `SomeException` with async rethrow and
       a fixed secret-free fallback message.

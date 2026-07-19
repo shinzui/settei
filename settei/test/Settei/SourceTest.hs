@@ -64,6 +64,52 @@ tests =
             candidateOrigin found ^. #annotations
               @?= Map.fromList [("a", "1"), ("b", "2")]
           _ -> fail "expected the annotated source candidate",
+      testCase "validated source pairs build addressable sibling leaves" $ do
+        let serviceHost = validKey "service.host"
+            result =
+              sourceFromPairs
+                "custom"
+                BuiltInSource
+                [ (servicePort, RawNumber 8080),
+                  (serviceHost, RawText "db")
+                ]
+        case result of
+          Left errors -> fail ("expected a valid source, got " <> show errors)
+          Right built -> do
+            fmap (renderKey . fst) (sourceLeaves built)
+              @?= ["service.host", "service.port"]
+            sourceUnaddressableLeaves built @?= []
+            case (lookupSource servicePort built, lookupSource serviceHost built) of
+              (Right (Just port), Right (Just host)) -> do
+                assertBool "expected the inserted port" (candidateValue port == RawNumber 8080)
+                assertBool "expected the inserted host" (candidateValue host == RawText "db")
+              _ -> fail "expected both inserted candidates to be addressable",
+      testCase "validated source pairs reject duplicate keys" $
+        ( sourceFromPairs
+            "custom"
+            BuiltInSource
+            [(servicePort, RawNumber 8080), (servicePort, RawNumber 9090)]
+            & either id (const (error "expected duplicate rejection"))
+        )
+          @?= DuplicateSourceKey servicePort :| [],
+      testCase "validated source pairs reject prefix overlaps" $
+        let service = validKey "service"
+         in ( sourceFromPairs
+                "custom"
+                BuiltInSource
+                [(service, RawText "scalar"), (servicePort, RawNumber 8080)]
+                & either id (const (error "expected overlap rejection"))
+            )
+              @?= OverlappingSourceKeys service servicePort :| [],
+      testCase "unvalidated dotted leaves are visible to inspection" $
+        let built =
+              source
+                "custom"
+                BuiltInSource
+                (RawObject (Map.singleton "a.b" (RawText "hidden")))
+         in do
+              assertBool "expected no addressable leaves" (null (sourceLeaves built))
+              sourceUnaddressableLeaves built @?= [["a.b"]],
       testCase "per-key annotations reach only their matching origins" $ do
         let annotated =
               annotateSourceAt
