@@ -25,7 +25,8 @@ tests :: TestTree
 tests =
   testGroup
     "Settei.Dhall"
-    [ testCase "a typed record becomes a nested source" $ do
+    [ errorRenderingTests,
+      testCase "a typed record becomes a nested source" $ do
         loaded <-
           expectDetailed
             noImportOptions
@@ -246,6 +247,75 @@ tests =
         assertBool "secret reached JSON report" (not (secretSentinel `Text.isInfixOf` jsonOutput))
         assertBool "Dhall provenance was redacted with the value" ("secret root" `Text.isInfixOf` textOutput)
     ]
+
+errorRenderingTests :: TestTree
+errorRenderingTests =
+  testGroup
+    "error rendering"
+    [ testCase "IO" $ do
+        problem <- expectError noImportOptions (DhallFile "test/fixtures/does-not-exist.dhall")
+        dhallErrorCategory problem @?= DhallIoError
+        assertBool
+          "IO renderer omitted its stable located prefix"
+          ("application Dhall (" `Text.isPrefixOf` renderDhallErrorText problem)
+        assertBool
+          "IO renderer omitted its fixed message"
+          (": cannot read Dhall root file" `Text.isSuffixOf` renderDhallErrorText problem),
+      rendererCase
+        "parse"
+        DhallParseError
+        (dhallExpression "broken" "{ port =")
+        "application Dhall (1:9): invalid Dhall syntax",
+      rendererCase
+        "import policy"
+        DhallImportPolicyError
+        (dhallExpression "disabled import" "env:HOME as Text")
+        "application Dhall: imports are disabled",
+      testCase "import resolution" $
+        withSystemTempDirectory "settei-dhall-render-cycle" $ \root -> do
+          TextIO.writeFile (root FilePath.</> "a.dhall") "./b.dhall"
+          TextIO.writeFile (root FilePath.</> "b.dhall") "./a.dhall"
+          problem <- expectError (localOptions root) (dhallExpression "cycle" "./a.dhall")
+          dhallErrorCategory problem @?= DhallImportError
+          renderDhallErrorText problem @?= "application Dhall: Dhall import resolution failed",
+      rendererCase
+        "type"
+        DhallTypeError
+        (dhallExpression "type" "{ broken = if True then True else 1 }")
+        "application Dhall: Dhall expression does not type-check",
+      rendererCase
+        "conversion"
+        DhallConversionError
+        (dhallExpression "conversion" "{ bytes = 0x\"00\" }")
+        "application Dhall: Dhall value is not JSON-compatible",
+      rendererCase
+        "invalid key"
+        DhallInvalidKey
+        (dhallExpression "key" "{ `service.port` = 8080 }")
+        "application Dhall: Dhall record field is not a valid Settei key segment",
+      rendererCase
+        "top-level type"
+        DhallTopLevelType
+        (dhallExpression "top-level" "[ 1, 2 ]")
+        "application Dhall: top-level Dhall value must be a record",
+      testCase "a missing path and position omit the location parenthetical" $ do
+        problem <- expectError noImportOptions (dhallExpression "type" "1 + True")
+        dhallErrorCategory problem @?= DhallTypeError
+        assertBool
+          "position-free Dhall renderer invented a location"
+          (not ("application Dhall (" `Text.isPrefixOf` renderDhallErrorText problem)),
+      testCase "plural rendering is singular rendering plus a newline" $ do
+        problem <- expectError noImportOptions (dhallExpression "broken" "{ port =")
+        renderDhallErrorsText (NonEmpty.singleton problem)
+          @?= renderDhallErrorText problem <> "\n"
+    ]
+
+rendererCase :: String -> DhallErrorCategory -> DhallRoot -> Text -> TestTree
+rendererCase label expectedCategory root expected =
+  testCase label $ do
+    problem <- expectError noImportOptions root
+    dhallErrorCategory problem @?= expectedCategory
+    renderDhallErrorText problem @?= expected
 
 noImportOptions :: DhallSourceOptions
 noImportOptions = dhallSourceOptions "application Dhall" NoImports

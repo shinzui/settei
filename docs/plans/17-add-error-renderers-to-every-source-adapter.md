@@ -71,8 +71,12 @@ This section must always reflect the actual current state of the work.
 - [x] (2026-07-19T20:25:41Z) Milestone 2: renderer unit tests in
       settei-kdl/test/Settei/KdlTest.hs cover all eight `KdlErrorCategory` values plus
       related-span and omission behavior; all 34 `settei-kdl-tests` pass.
-- [ ] Milestone 3: add `renderDhallErrorText`/`renderDhallErrorsText` to settei-dhall/src/Settei/Dhall.hs with haddock and export-list entries, using position fields if EP-13 added them.
-- [ ] Milestone 3: renderer unit tests in settei-dhall/test/Settei/DhallTest.hs covering all eight `DhallErrorCategory` values plus no-path omission; `settei-dhall-tests` green.
+- [x] (2026-07-19T20:27:27Z) Milestone 3: add
+      `renderDhallErrorText`/`renderDhallErrorsText` to settei-dhall/src/Settei/Dhall.hs
+      with haddock and export-list entries, including EP-13's optional positions.
+- [x] (2026-07-19T20:27:27Z) Milestone 3: renderer unit tests in
+      settei-dhall/test/Settei/DhallTest.hs cover all eight `DhallErrorCategory` values
+      plus no-path omission; all 26 `settei-dhall-tests` pass.
 - [ ] Milestone 4: add `renderEnvErrorText`/`renderEnvErrorsText` to settei-env/src/Settei/Env.hs with haddock and export-list entries.
 - [ ] Milestone 4: renderer unit tests in settei-env/test/Settei/EnvTest.hs pinning exact strings for all five `EnvError` constructors; `settei-env-tests` green.
 - [ ] Milestone 5: replace `Text.pack . show` with the renderers in examples/settei-cli/src/Settei/Example/Cli.hs and examples/settei-service/src/Settei/Example/Service.hs (minimal diff; Service.hs line 281 only if EP-18 has not landed).
@@ -148,7 +152,7 @@ Record every decision made while working on the plan.
   or source excerpt"). `KdlSourceError` holds category, name, optional path, optional
   spans, context, fixed message (docs/adr/0005: the parser's rendered excerpt is
   discarded "because parsing precedes sensitivity classification"). `DhallSourceError`
-  holds only category, name, optional safe path, fixed message (docs/adr/0006: "without
+  holds only category, name, optional safe path and position, fixed message (docs/adr/0006: "without
   source snippets or retained upstream exceptions"). `EnvError` constructors hold only
   `EnvName` and `Key` values, never environment values. Renderers must not introduce any
   new data source, and the tests reuse the existing secret-sentinel discipline where

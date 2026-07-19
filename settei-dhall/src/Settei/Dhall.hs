@@ -31,6 +31,8 @@ module Settei.Dhall
     dhallSourceOptions,
     loadDhallSource,
     loadDhallSourceDetailed,
+    renderDhallErrorText,
+    renderDhallErrorsText,
   )
 where
 
@@ -206,6 +208,32 @@ dhallErrorColumn problem = problem ^. #column
 -- | Return a fixed secret-safe error message.
 dhallErrorMessage :: DhallSourceError -> Text
 dhallErrorMessage problem = problem ^. #message
+
+-- | Render one Dhall input failure as a single operator-readable line.
+--
+-- The line leads with the stable source name, then a parenthetical containing
+-- the colon-joined available path, line, and column, followed by the fixed
+-- message. The parenthetical is omitted when no location is known. No raw
+-- configuration value can appear because 'DhallSourceError' retains none.
+renderDhallErrorText :: DhallSourceError -> Text
+renderDhallErrorText problem =
+  problem ^. #name
+    <> locationText
+    <> ": "
+    <> problem ^. #message
+  where
+    locationText = case locationPieces of
+      [] -> ""
+      pieces -> " (" <> Text.intercalate ":" pieces <> ")"
+    locationPieces =
+      maybe [] (pure . Text.pack) (problem ^. #path)
+        <> maybe [] (pure . Text.pack . show) (problem ^. #line)
+        <> maybe [] (pure . Text.pack . show) (problem ^. #column)
+
+-- | Render every Dhall input failure, one line per problem, matching
+-- 'Settei.Render.renderErrorsText' in shape and trailing newline.
+renderDhallErrorsText :: NonEmpty DhallSourceError -> Text
+renderDhallErrorsText = Text.unlines . fmap renderDhallErrorText . NonEmpty.toList
 
 -- | Return a local import's canonical path.
 dhallImportPath :: DhallImport -> FilePath
