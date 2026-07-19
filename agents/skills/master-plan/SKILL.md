@@ -204,7 +204,14 @@ The skeleton is owned by `init-masterplan.ts`; the script writes it into every n
 
 ## Intention Tracking
 
-When starting work in **create** or **implement** mode, use the `AskUserQuestion` tool to ask the user if they want to associate this work with an intention. Provide two options:
+Before asking any intention-related question, perform this mandatory preflight:
+
+- In **create** mode, no target plan exists yet, so use the `AskUserQuestion` tool to ask the user if they want to associate this initiative with an intention.
+- In **implement** mode, read the target MasterPlan's YAML frontmatter before doing anything else. If it contains a non-empty `intention` field, that value is authoritative: use it as the active Intention ID for the session. **Do not call `AskUserQuestion`, do not ask the user to confirm or replace it, and do not offer the Skip option.**
+- Every child ExecPlan implemented under that MasterPlan inherits the active Intention ID. If a child lacks the `intention` field, add the inherited ID to its YAML frontmatter; **do not prompt again when selecting or switching child plans.**
+- Ask only when the target MasterPlan has no non-empty Intention ID.
+
+When prompting, provide two options:
 
 - **Yes** — "I have an Intention ID to associate with this initiative"
 - **Skip** — "Proceed without linking an intention"
@@ -225,5 +232,5 @@ If the user provides an Intention ID, store it for the duration of the session a
     Intention: INTENT-42
     ```
 
-Ask once at the start of a session. Do not ask again on subsequent operations within the same session. If the user skips or declines, proceed without the trailer.
+Existing plan frontmatter takes precedence over the general instruction to ask at the start of create or implement work. Ask at most once per session and only after the mandatory preflight proves that the active MasterPlan provides no Intention ID. Do not ask again on subsequent operations or child ExecPlans within the same session. If the user skips or declines, proceed without the trailer.
 # --- /seihou:master-plan ---
