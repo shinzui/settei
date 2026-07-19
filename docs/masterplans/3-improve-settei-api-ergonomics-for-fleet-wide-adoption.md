@@ -92,7 +92,7 @@ authority).
 | 18 | Make environment bindings total and validated | docs/plans/18-make-environment-bindings-total-and-validated.md | None | EP-17 | Complete |
 | 19 | Add declaration sugar for conditionals and rendered defaults | docs/plans/19-add-declaration-sugar-for-conditionals-and-rendered-defaults.md | None | None | Complete |
 | 20 | Tighten the public surface and dependency hygiene | docs/plans/20-tighten-the-public-surface-and-dependency-hygiene.md | None | EP-15, EP-16, EP-17, EP-18, EP-19 | Complete |
-| 21 | Extend reusable CLI options and complete the ergonomics docs sweep | docs/plans/21-extend-reusable-cli-options-and-complete-the-ergonomics-docs-sweep.md | EP-15, EP-16, EP-17, EP-18, EP-19 | EP-20 | In Progress |
+| 21 | Extend reusable CLI options and complete the ergonomics docs sweep | docs/plans/21-extend-reusable-cli-options-and-complete-the-ergonomics-docs-sweep.md | EP-15, EP-16, EP-17, EP-18, EP-19 | EP-20 | Complete |
 
 Status values: Not Started, In Progress, Complete, Cancelled.
 Hard Deps and Soft Deps reference other rows by their # prefix (e.g., EP-15).
@@ -181,8 +181,8 @@ a new ADR), EP-20's public-surface and dependency decision (amendment to docs/ad
 - [x] EP-19: examples and getting-started guide use the sugar
 - [x] EP-20: Settei.Prelude exposure and lens footprint decided, implemented, ADR 0001 amended
 - [x] EP-20: PVP surface statement in compatibility matrix
-- [ ] EP-21: SetteiOptions gains check/describe modes; warnings rendered in examples
-- [ ] EP-21: full docs-and-examples sweep, null-semantics documentation, changelogs, validation green
+- [x] EP-21: SetteiOptions gains check/describe modes; warnings rendered in examples
+- [x] EP-21: full docs-and-examples sweep, null-semantics documentation, changelogs, validation green
 
 
 ## Surprises & Discoveries
@@ -290,4 +290,30 @@ a new ADR), EP-20's public-surface and dependency decision (amendment to docs/ad
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+All seven ExecPlans are complete. The final public API now removes each recurring
+adopter-side boilerplate identified in the review: decoders compose through `Functor`
+and combinators; multi-format inputs use the `settei-formats` umbrella; every source
+adapter has a secret-safe text renderer; environment bindings are validated before
+source assembly; declaration sugar stays within the inspectable Selective algebra; and
+the supported public surface has an explicit PVP policy.
+
+EP-21 turned those library APIs into conformance evidence. The reference CLI and service
+use the final interfaces, emit advisory resolver warnings on successful runs, and retain
+the documented usage/source/resolution exit codes. The guides, compatibility matrix,
+README, and changelogs describe the same APIs, including explicit-null precedence.
+Validation from a clean build state passed every package, example, and conformance suite;
+manual CLI transcripts proved source-free descriptions, JSON descriptions, check-only
+validation, advisory warnings, and typed failure behavior.
+
+The initiative produced four durable decisions: the `settei-formats` boundary (ADR
+0008), uniform adapter renderers (ADR 0009), validated opaque environment bindings (ADR
+0010), and the PVP/public-surface policy (ADR 0001). EP-21's diagnostic-mode and
+advisory-warning contract is now recorded in ADR 0007. No further ADR changes were
+needed after the final coherence review.
+
+
+## Revision Notes
+
+2026-07-19: Completed EP-21 and closed the MasterPlan after a clean full-suite run and
+manual CLI diagnostics smoke tests. ADR 0007 now records the reusable diagnostic and
+warning-rendering contract.

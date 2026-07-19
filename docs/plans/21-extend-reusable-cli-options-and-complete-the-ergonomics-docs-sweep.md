@@ -75,11 +75,11 @@ resolver warnings rendered on stderr, and by running the full test suite green.
 - [x] 2026-07-19 M3: docs/compatibility.md adoption surface audited; it includes settei-formats and EP-20's PVP wording.
 - [x] 2026-07-19 M3: CHANGELOG entries audited; the EP-15..EP-19 lines use the final API names coherently.
 - [x] 2026-07-19 M3: commit pending.
-- [ ] M4: `nix develop -c cabal test all --test-show-details=direct` green from a clean state.
-- [ ] M4: Manual smoke transcripts for --describe-config, --describe-config-json, --check-config, and a failure-with-warnings run captured in this plan.
-- [ ] M4: MasterPlan registry row EP-21 marked Complete; MasterPlan Progress checkboxes for EP-21 checked; MasterPlan Outcomes & Retrospective filled.
-- [ ] M4: ADR distillation pass — verify the EP-16/EP-17/EP-18 ADRs and the ADR 0001/0002/0003 amendments are coherent; promote any leftover durable context; fill this plan's Outcomes & Retrospective.
-- [ ] M4: final commit.
+- [x] 2026-07-19 M4: `nix develop -c cabal test all --test-show-details=direct` green from a clean state.
+- [x] 2026-07-19 M4: Manual smoke transcripts for --describe-config, --describe-config-json, --check-config, an advisory-warning success, and a resolution failure captured in this plan.
+- [x] 2026-07-19 M4: MasterPlan registry row EP-21 marked Complete; MasterPlan Progress checkboxes for EP-21 checked; MasterPlan Outcomes & Retrospective filled.
+- [x] 2026-07-19 M4: ADR distillation pass — verified ADRs 0008–0010 and the ADR 0001/0002/0003 amendments are coherent; amended ADR 0007 with the reusable diagnostics and advisory-warning contract; filled this plan's Outcomes & Retrospective.
+- [x] 2026-07-19 M4: final commit.
 
 
 ## Surprises & Discoveries
@@ -96,6 +96,10 @@ resolver warnings rendered on stderr, and by running the full test suite green.
   package target (not the shorthand `settei-conformance` in the original command).
   Evidence: its eleven cross-format and security tests passed after both example
   migrations on 2026-07-19.
+- A clean-tree full-suite run passed all package suites on 2026-07-19. The smoke run
+  with a malformed override plus an unknown key exited 4 and rendered the typed decode
+  error only. This is intentional: the examples render advisory warnings on successful
+  resolutions; `RejectUnknownKeys` is the supported way to make an unknown key fail.
 
 
 ## Decision Log
@@ -194,7 +198,19 @@ resolver warnings rendered on stderr, and by running the full test suite green.
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+EP-21 completed the ergonomics initiative's final adoption pass. The reusable
+`DiagnosticMode` now covers source-free text and JSON schema descriptions, text and JSON
+resolution explanation, and check-only validation. Both reference applications consume
+the decoder, format-loading, renderer, validated-binding, and declaration-sugar APIs;
+they preserve their established exit-code and redaction contracts while rendering
+successful advisory warnings to stderr.
+
+The complete documentation surface now teaches these interfaces, including the fact that
+an explicit null is present rather than an unset value. A clean full-suite run passed,
+and manual CLI smoke runs proved text and JSON descriptions, a valid check, an advisory
+unknown-key warning with exit 0, and a typed resolution failure with exit 4. ADR 0007 now
+captures the durable diagnostic and warning policy; the other initiative ADRs remained
+coherent without changes.
 
 
 ## Context and Orientation
@@ -216,10 +232,10 @@ Core vocabulary, defined here so no prior reading is required. A *declaration*
 (`Config a`, from `settei`) describes typed settings applicatively; a *source* is an
 ordered bundle of raw values (files, environment, command line) with provenance; *resolve*
 (`Settei.Resolve.resolve`) interprets a declaration against sources ordered lowest to
-highest precedence. Today `resolve` returns
-`Either (NonEmpty ConfigError) (ResolveResult a)` where `ResolveResult` (in
-settei/src/Settei/Resolve.hs) has fields `value :: a`, `report :: ResolutionReport`, and
-`warnings :: [ConfigWarning]`. `ResolveOptions` carries an `UnknownKeyPolicy` —
+highest precedence. `resolve` returns `ResolveResult a`, whose `answer` field is either
+a non-empty collection of `ConfigError` values or the typed application value; its
+`report :: ResolutionReport` and `warnings :: [ConfigWarning]` fields are always
+available. `ResolveOptions` carries an `UnknownKeyPolicy` —
 `WarnUnknownKeys` (default; unknown source keys become warnings) or `RejectUnknownKeys`
 (they become hard errors). Renderers live in settei/src/Settei/Render.hs:
 `renderErrorsText`, `renderResolutionText`, `renderResolutionJson`,
@@ -824,6 +840,47 @@ Full-suite: `nix develop -c cabal test all --test-show-details=direct` from a cl
 tree passes every package's suite. Transcripts proving the above are pasted into this
 plan during Milestone 4.
 
+### Captured Milestone 4 transcripts (2026-07-19)
+
+The clean-tree validation command completed successfully. Its suite summaries included
+102 core tests, 9 optparse tests, 16 environment tests, 15 format-loader tests, 10 CLI
+example tests, 8 service example tests, and 11 conformance/security tests, all passing.
+
+```text
+$ nix develop -c cabal run settei-example-cli -- --describe-config
+credentials.token [optional, necessary, secret] Service authentication token
+output.format [required, necessary, public] Output format
+runtime.environment [required, necessary, public] Runtime environment
+service.endpoint [required, necessary, public] Service endpoint
+service.timeout [required, necessary, public] Request timeout in seconds
+exit=0
+```
+
+```text
+$ nix develop -c cabal run settei-example-cli -- --describe-config-json
+{"schemaVersion":1,"type":"settei.schema","settings":[{"key":"credentials.token","description":"Service authentication token","sensitivity":"secret","requirement":"optional","presence":"necessary"},{"key":"output.format","description":"Output format","sensitivity":"public","requirement":"required","presence":"necessary"},{"key":"runtime.environment","description":"Runtime environment","sensitivity":"public","requirement":"required","presence":"necessary"},{"key":"service.endpoint","description":"Service endpoint","sensitivity":"public","requirement":"required","presence":"necessary"},{"key":"service.timeout","description":"Request timeout in seconds","sensitivity":"public","requirement":"required","presence":"necessary"}],"conditions":[]}
+exit=0
+```
+
+```text
+$ nix develop -c cabal run settei-example-cli -- --check-config --config yaml:examples/settei-cli/test/fixtures/application.yaml
+configuration valid
+exit=0
+```
+
+```text
+$ nix develop -c cabal run settei-example-cli -- --check-config --set undeclared.setting=value
+stdout: configuration valid
+stderr: undeclared.setting: unknown key in command-line option --set undeclared.setting occurrence 1
+exit=0
+```
+
+```text
+$ nix develop -c cabal run settei-example-cli -- --check-config --set service.timeout=broken --set undeclared.setting=value
+stderr: service.timeout: expected integer between -9223372036854775808 and 9223372036854775807 from command-line option --set service.timeout occurrence 1, rejected "broken"
+exit=4
+```
+
 
 ## Idempotence and Recovery
 
@@ -850,33 +907,25 @@ other; make them only after the validation steps pass so a revert never orphans 
 
 ## Interfaces and Dependencies
 
-This plan consumes, and must not redesign, the deliverables of the earlier plans; the
-names below are provisional until Step 1's reconciliation (see Decision Log) and this
-section must be updated with the shipped spellings.
+This plan consumes, and does not redesign, the earlier plans' shipped interfaces.
 
 From `settei` (core): `Config`, `describe`, `Schema`, `resolve`, `ResolveOptions`,
-`defaultResolveOptions`, `UnknownKeyPolicy (WarnUnknownKeys | RejectUnknownKeys)`, the
-post-EP-12 resolve result carrying `value`, `report`, and `warnings :: [ConfigWarning]`
-(today `Settei.Resolve.ResolveResult`; reconcile), and the renderers in
+`defaultResolveOptions`, `UnknownKeyPolicy (WarnUnknownKeys | RejectUnknownKeys)`, and
+`ResolveResult` carrying `answer`, `report`, and `warnings :: [ConfigWarning]`, plus the
+renderers in
 `Settei.Render`: `renderErrorsText`, `renderResolutionText`, `renderResolutionJson`,
 `renderWarningsText`, `renderSchemaText`, `renderSchemaJson`. From EP-15, the decoder
-kit in the `Settei.Value` surface: the `Decoder` `Functor` instance, `textDecoder`,
-and a list-decoding combinator. From EP-19: the conditional helper (provisionally
-`whenEq`) replacing raw `select`, and the `Show`-renderer setting helper (provisionally
-`publicShowSetting`).
+kit in the `Settei.Value` surface: the `Decoder` `Functor` instance, `textDecoder`, and
+`listDecoder`. From EP-19: `whenEq` replacing raw `select` and the `Show`-renderer
+setting helper `publicShowSetting`.
 
-From `settei-formats` (EP-16): the tagged-input type (format tag + `FilePath`), the
-single-input parser (provisionally `configInputOption :: ... -> Parser ConfigInput`,
-used under `optional` by the service), the repeatable parser (provisionally
-`configInputOptions :: Parser [ConfigInput]`, used by the CLI), the loader
-(`ConfigInput -> IO (Either <rendered-or-renderable error> Source)` in whatever exact
-shape shipped), and its Kubernetes mounted-file annotation hook if one exists. From
-EP-17: `render<Adapter>ErrorText` for `YamlSourceError`, `KdlSourceError`,
-`DhallSourceError`, and `EnvError`. From `settei-env` post-EP-18: the validated
-`Bindings` collection, its constructor that fails once at construction with renderable
-problems, and the total source-assembly function replacing today's
-`envSource :: Text -> [EnvBinding] -> EnvSnapshot -> Either ... Source`; plus the
-unchanged `EnvSnapshot`/`envSnapshot`, `EnvName`, `binding`, `fromKubernetesObject`,
+From `settei-formats` (EP-16): `ConfigInput`, `ConfigFormat`, `configInputOptions ::
+Parser [ConfigInput]`, `configInputReader` for the service's single optional input,
+`loadConfigInput :: LoadOptions -> ConfigInput -> IO (Either (NonEmpty FormatLoadError)
+Source)`, `renderFormatLoadErrorText`, and `fromKubernetesMountedFile`. From EP-17:
+the adapter-specific `render<Adapter>ErrorText` functions. From `settei-env` post-EP-18:
+opaque validated `Bindings`, `bindings`, and total `environmentSource`; plus
+`EnvSnapshot`/`envSnapshot`, `EnvName`, `binding`, `fromKubernetesObject`, and
 `kubernetesRef`.
 
 At the end of Milestone 1, `settei-optparse-applicative`'s `Settei.Optparse` must
@@ -937,3 +986,7 @@ the mounted-file option of `settei-formats`, documents both schema modes, and in
 pre-traffic validation recipe. The README now lists `settei-formats`; the adapter guides,
 guide index, compatibility matrix, and changelogs already described the shipped APIs and
 were verified against the final source.
+
+2026-07-19: Completed Milestone 4. A clean-tree suite run and CLI smoke transcripts
+verified every diagnostic mode and the advisory-warning behavior. The MasterPlan is now
+closed, and ADR 0007 records the durable diagnostic contract.

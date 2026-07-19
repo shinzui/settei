@@ -91,3 +91,20 @@ failure path. Cross-format comparison still normalizes only shared semantics; it
 invent a common adapter error type or erase format-specific provenance.
 
 (`docs/plans/14-revalidate-correctness-and-update-release-collateral.md`)
+
+
+## Amendment 2026-07-19: shared diagnostics and advisory warning behavior
+
+The reference CLI and service use `Settei.Optparse.DiagnosticMode` rather than
+application-local diagnostic parsers. `--describe-config` and
+`--describe-config-json` are source-free schema operations: they must complete without
+opening configuration files or reading environment variables. `--check-config` resolves
+normally, prints `configuration valid` on success, and otherwise preserves the existing
+usage (2), source (3), and resolution (4) exit-code discipline. Text and JSON explain
+modes render the resolution report only after resolution.
+
+On a successful resolution, applications render non-empty resolver warnings to stderr
+and still exit 0. Warnings are advisory; applications that require unknown keys to fail
+must select the resolver's `RejectUnknownKeys` policy, which turns them into structured
+resolution errors. Reference applications do not add a second CLI-level strictness flag
+or combine advisory warning output with an already failing diagnostic.
