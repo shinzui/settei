@@ -4,6 +4,8 @@ Status: Accepted
 
 Date: 2026-07-17
 
+Amended: 2026-07-19
+
 
 ## Context
 
@@ -81,3 +83,17 @@ with the existing BSD-licensed parser family; adding a second parser and its dif
 schema semantics would not improve the version-one contract. Silently applying aliases,
 merge keys, or last-key-wins semantics was rejected because it hides configuration
 ambiguity and weakens provenance.
+
+
+## Amendment 2026-07-19: bounded numeric scalar exponents
+
+Exact `Rational` conversion is now bounded: a numeric scalar whose parsed base-10
+exponent has an absolute value greater than 4096 fails with `YamlInvalidScalar` and the
+fixed message "numeric scalar exponent is out of the supported range". The guard covers
+the float-tagged, integer-tagged, and untagged numeric paths, because `toRational`
+materializes `10 ^ exponent` as an exact `Integer` and an unbounded exponent lets a
+fourteen-character scalar hang or out-of-memory a process at load time. The bound is
+per-scalar and adapter-local; core `RawNumber` remains an unbounded exact `Rational`, and
+literal coefficients of any written length remain accepted because their cost is
+proportional to input size.
+(`docs/plans/10-bound-numeric-scalar-conversion-in-the-yaml-and-kdl-adapters.md`)

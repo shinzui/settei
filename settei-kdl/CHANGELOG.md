@@ -5,3 +5,5 @@
 - Initial experimental release.
 - Add the canonical KDL v2 mapping with exact spans, deterministic cardinality, explicit
   ambiguity errors, and mounted-file Kubernetes annotations.
+- Reject numeric values whose base-10 exponent magnitude exceeds 4096 instead of
+  attempting an unbounded exact conversion at load time.

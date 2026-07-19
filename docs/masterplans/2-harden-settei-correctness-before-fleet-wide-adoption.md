@@ -86,7 +86,7 @@ authority). docs/adr/0001-haskell-project-conventions.md governs code style in e
 | # | Title | Path | Hard Deps | Soft Deps | Status |
 |---|-------|------|-----------|-----------|--------|
 | 9 | Close the shared-key sensitivity redaction hole | docs/plans/9-close-the-shared-key-sensitivity-redaction-hole.md | None | None | Complete |
-| 10 | Bound numeric scalar conversion in the YAML and KDL adapters | docs/plans/10-bound-numeric-scalar-conversion-in-the-yaml-and-kdl-adapters.md | None | None | In Progress |
+| 10 | Bound numeric scalar conversion in the YAML and KDL adapters | docs/plans/10-bound-numeric-scalar-conversion-in-the-yaml-and-kdl-adapters.md | None | None | Complete |
 | 11 | Adopt YAML 1.2 core-schema boolean scalars | docs/plans/11-adopt-yaml-1-2-core-schema-boolean-scalars.md | None | EP-10 | Not Started |
 | 12 | Report resolution provenance and warnings on failure | docs/plans/12-report-resolution-provenance-and-warnings-on-failure.md | None | EP-9 | Not Started |
 | 13 | Harden source construction and adapter diagnostics | docs/plans/13-harden-source-construction-and-adapter-diagnostics.md | None | EP-10, EP-11, EP-12 | Not Started |
@@ -161,8 +161,8 @@ EP-12's always-available report semantics (amend docs/adr/0003).
 - [x] EP-9: sensitivity conflicts detected and redaction enforced most-restrictively in
       core
 - [x] EP-9: adversarial secret-sentinel tests, docs, and security model updated
-- [ ] EP-10: exponent-bounded numeric conversion in settei-yaml and settei-kdl with tests
-- [ ] EP-10: ADR 0004/0005 amendments, guides, and changelogs updated
+- [x] EP-10: exponent-bounded numeric conversion in settei-yaml and settei-kdl with tests
+- [x] EP-10: ADR 0004/0005 amendments, guides, and changelogs updated
 - [ ] EP-11: YAML untagged booleans restricted to true/false with characterization tests
 - [ ] EP-11: ADR 0004 amendment, YAML guide, and conformance fixtures updated
 - [ ] EP-12: resolve returns report and warnings on failure; renderers and core tests updated
@@ -179,6 +179,10 @@ EP-12's always-available report semantics (amend docs/adr/0003).
   `scientific` dependency even though kdl-hs hands it `Scientific` values; EP-10 adds
   `scientific >=0.3.7 && <0.4` (matching settei-yaml) and EP-14's compatibility-matrix
   reconciliation must reflect the new bound.
+- During EP-10 implementation (2026-07-19), Hackage and the authoritative upstream tags
+  both identified `scientific` 0.3.8.1 as current, confirming that the added
+  `>=0.3.7 && <0.4` range covers the released package line. EP-14 can record that range
+  without a compatibility workaround or narrower pin.
 - EP-14 research found the conformance package already contains a secret-sentinel scan
   (`never-render-this-conformance-secret` in its Security test group), so EP-9's
   adversarial coverage extends an existing mechanism rather than inventing one.

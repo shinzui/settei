@@ -141,7 +141,10 @@ optional
 ```
 
 KDL strings and raw strings become `RawText`; booleans become `RawBool`; `#null` and an
-empty node become `RawNull`; finite numbers become exact `RawNumber` values.
+empty node become `RawNull`; finite numbers become exact `RawNumber` values. A number
+whose base-10 exponent magnitude exceeds 4096 is rejected as `KdlUnsupportedValue`,
+preventing one value from exhausting memory at load time while comfortably covering
+practical configuration values.
 
 Argument count determines scalar versus array. Consequently, argument-style arrays cannot
 represent exactly one element. Repeated sibling nodes work for collections that always

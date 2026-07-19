@@ -184,7 +184,10 @@ featureLabel: "on"
 Quoted and block scalars always remain text. Plain decimal and exponent numbers, `0x`
 hexadecimal integers, and `0o` octal integers become exact rational values. Large
 integers do not pass through a machine `Int`; the eventual decoder decides whether a
-number fits its application type. `.inf`, `-.inf`, and `.nan` are rejected.
+number fits its application type. A number whose base-10 exponent magnitude exceeds 4096
+is rejected as `YamlInvalidScalar`, preventing one scalar from exhausting memory at load
+time while comfortably covering practical configuration values. `.inf`, `-.inf`, and
+`.nan` are rejected.
 
 An explicit null is present input. It shadows lower-precedence candidates and reaches the
 setting decoder as `RawNull`. It does not behave like an omitted key. Use a custom decoder

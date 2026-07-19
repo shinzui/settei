@@ -6,6 +6,8 @@ Date: 2026-07-17
 
 Amended: 2026-07-18
 
+Amended: 2026-07-19
+
 
 ## Context
 
@@ -104,3 +106,16 @@ strings into a public message, and attaching synthetic spans were rejected as lo
 unsafe. Treating Mori's 1.0.1 checkout as a release ceiling was rejected because corpus
 freshness is independent of upstream releases. Using the locked nixpkgs 1.1.0 package was
 also rejected because Hackage already publishes the audited 1.1.1 patch release.
+
+
+## Amendment 2026-07-19: bounded numeric value exponents
+
+Finite `Scientific` values still convert exactly to `Rational` when their parsed base-10
+exponent has an absolute value of at most 4096. A value outside that inclusive range fails
+with `KdlUnsupportedValue` and the fixed message "numeric value exponent is out of the
+supported range" before `toRational` can materialize `10 ^ exponent` as an exact
+`Integer`. This prevents a short KDL value from amplifying into unbounded startup work.
+The bound is per-value and adapter-local; core `RawNumber` remains an unbounded exact
+`Rational`, and literal coefficients of any written length remain accepted because their
+cost is proportional to input size.
+(`docs/plans/10-bound-numeric-scalar-conversion-in-the-yaml-and-kdl-adapters.md`)

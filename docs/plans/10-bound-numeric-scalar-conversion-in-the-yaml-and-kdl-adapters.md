@@ -58,12 +58,12 @@ This section must always reflect the actual current state of the work.
 - [x] (2026-07-19 10:04 PDT) Milestone 2: add `maximumScalarExponent` and the guarded `KDL.Number` branch in `translateValue` in `settei-kdl/src/Settei/Kdl.hs`
 - [x] (2026-07-19 10:04 PDT) Milestone 2: add KDL characterization tests (same matrix as YAML, minus YAML-specific tags; KDL hex literal exactness)
 - [x] (2026-07-19 10:04 PDT) Milestone 2: `nix develop -c cabal test settei-kdl-tests --test-show-details=direct` green (24 tests passed in 0.01s); commit
-- [ ] Milestone 3: append dated 2026-07-19 amendment notes to `docs/adr/0004-yaml-input-semantics.md` and `docs/adr/0005-canonical-kdl-v2-input-semantics.md`
-- [ ] Milestone 3: update the number sections of `docs/guides/yaml.md` and `docs/guides/kdl.md`
-- [ ] Milestone 3: update `settei-yaml/CHANGELOG.md` and `settei-kdl/CHANGELOG.md`
-- [ ] Milestone 3: run `nix develop -c cabal test all --test-show-details=direct` from the repo root; commit
-- [ ] Update the MasterPlan registry status and Progress checkboxes for EP-10
-- [ ] Final: living sections of this plan updated; Outcomes & Retrospective written; ADR distillation pass confirmed complete
+- [x] (2026-07-19 10:07 PDT) Milestone 3: append dated 2026-07-19 amendment notes to `docs/adr/0004-yaml-input-semantics.md` and `docs/adr/0005-canonical-kdl-v2-input-semantics.md`
+- [x] (2026-07-19 10:07 PDT) Milestone 3: update the number sections of `docs/guides/yaml.md` and `docs/guides/kdl.md`
+- [x] (2026-07-19 10:07 PDT) Milestone 3: update `settei-yaml/CHANGELOG.md` and `settei-kdl/CHANGELOG.md`
+- [x] (2026-07-19 10:07 PDT) Milestone 3: run `nix develop -c cabal test all --test-show-details=direct` from the repo root (10 suites and 162 named tests passed); commit
+- [x] (2026-07-19 10:07 PDT) Update the MasterPlan registry status and Progress checkboxes for EP-10
+- [x] (2026-07-19 10:07 PDT) Final: living sections of this plan updated; Outcomes & Retrospective written; ADR distillation pass confirmed complete
 
 
 ## Surprises & Discoveries
@@ -168,7 +168,24 @@ Compare the result against the original purpose. Before marking the plan complet
 distill durable project context from the Decision Log, Surprises & Discoveries, and
 this section into docs/adr/. Keep task-local execution details here.
 
-(To be filled during and after implementation.)
+Completed on 2026-07-19. Both file adapters now inspect a parsed `Scientific` exponent
+before any exact conversion and reject values outside the inclusive -4096 through 4096
+range with their established structured, secret-safe error categories. YAML covers the
+float-tagged, integer-tagged, and untagged paths; KDL declares its new direct `scientific`
+dependency and guards its sole finite-number translation path. Ordinary decimals, hex,
+octal, large written coefficients, and both boundary exponents retain exact behavior.
+
+The focused YAML suite passed all 28 tests, the focused KDL suite passed all 24 tests, and
+the final `cabal test all` run passed 10 suites containing 162 named tests. No reference
+application, conformance fixture, golden file, or unrelated adapter required a change.
+The intended release collateral is current in both adapter guides and 0.1.0.0 changelogs.
+
+The implementation reinforced two lessons. Dependency bounds need an authoritative
+release check even after Mori locates the relevant corpus source, and a numeric range
+guard on a fixed-width signed type is safest as direct lower/upper comparisons rather
+than `abs`. The ADR distillation pass is complete: ADR 0004 and ADR 0005 now hold the
+durable per-adapter exponent-bound semantics and denial-of-service rationale. The range
+comparison detail and release-verification transcript remain task-local in this plan.
 
 
 ## Context and Orientation
