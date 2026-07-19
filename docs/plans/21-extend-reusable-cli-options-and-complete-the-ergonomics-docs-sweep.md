@@ -59,12 +59,12 @@ resolver warnings rendered on stderr, and by running the full test suite green.
 - [x] M1: Add the diagnostic interpretation helpers (`schemaDiagnostic`, `resolutionDiagnostic`) reconciled against the post-EP-12 `ResolveResult` shape.
 - [x] M1: Update settei-optparse-applicative/test/Settei/OptparseTest.hs for the new mode set, mutual exclusion, defaulting, and helper outputs.
 - [x] M1: `cabal build settei-optparse-applicative && cabal test settei-optparse-applicative` green; commit.
-- [ ] M2: Rewrite examples/settei-cli/src/Settei/Example/Cli.hs on the new APIs (settei-formats inputs and loader, shared DiagnosticMode, renderers, validated bindings, decoder kit, warnings to stderr, DescribeConfigJson).
-- [ ] M2: Rewrite examples/settei-service/src/Settei/Example/Service.hs on the new APIs (single tagged input via settei-formats, shared DiagnosticMode, renderers, validated bindings, whenEq sugar, show-renderer sugar, list decoder from the kit, warnings to stderr).
-- [ ] M2: Update both example cabal files to depend on settei-formats and drop now-unused direct adapter dependencies where the loader replaces them.
-- [ ] M2: Update examples/settei-cli/test/Settei/Example/CliTest.hs and examples/settei-service/test/Settei/Example/ServiceTest.hs; add warning-rendering and describe-json test cases; verify examples/settei-conformance still passes unchanged.
-- [ ] M2: Assert no `Text.pack . show`, `error (show`, or raw `show` on adapter errors remains under examples/ (grep transcript recorded in this plan).
-- [ ] M2: `cabal test all` green; commit.
+- [x] 2026-07-19 M2: Rewrite examples/settei-cli/src/Settei/Example/Cli.hs on the new APIs (settei-formats inputs and loader, shared DiagnosticMode, renderers, validated bindings, decoder kit, warnings to stderr, DescribeConfigJson).
+- [x] 2026-07-19 M2: Rewrite examples/settei-service/src/Settei/Example/Service.hs on the new APIs (single tagged input via settei-formats, shared DiagnosticMode, renderers, validated bindings, whenEq sugar, show-renderer sugar, list decoder from the kit, warnings to stderr).
+- [x] 2026-07-19 M2: Update both example cabal files to depend on settei-formats and drop now-unused direct adapter dependencies where the loader replaces them.
+- [x] 2026-07-19 M2: Update examples/settei-cli/test/Settei/Example/CliTest.hs and examples/settei-service/test/Settei/Example/ServiceTest.hs; add warning-rendering and describe-json test cases; verify examples/settei-conformance still passes unchanged.
+- [x] 2026-07-19 M2: Assert no `Text.pack . show`, `error (show`, or raw `show` on adapter errors remains under examples/ (grep returned no matches).
+- [x] 2026-07-19 M2: `nix develop -c cabal test all --test-show-details=direct` green; commit pending.
 - [ ] M3: docs/guides/getting-started.md — decoder kit, sugar, a warnings subsection, and the new "null is not unset" subsection with the YAML example.
 - [ ] M3: docs/guides/environment-and-cli.md — validated Bindings construction, new DiagnosticMode flags and helpers.
 - [ ] M3: docs/guides/yaml.md, kdl.md, dhall.md — error-handling snippets use the EP-17 renderers.
@@ -89,6 +89,13 @@ resolver warnings rendered on stderr, and by running the full test suite green.
   `ResolveResult a` directly. EP-15/16/18/19 shipped as `listDecoder`,
   `ConfigInput`/`loadConfigInput`, opaque `Bindings`/`bindings`, and `whenEq` plus
   `publicShowSetting`, respectively.
+- The reusable single-input building block in `Settei.Formats.Optparse` is the public
+  `configInputReader`, while `configInputOption` deliberately parses a repeatable list.
+  The service therefore wraps the shared reader in `Options.optional` to preserve its
+  exactly-one-mounted-file contract. `settei-example-conformance` is the actual Cabal
+  package target (not the shorthand `settei-conformance` in the original command).
+  Evidence: its eleven cross-format and security tests passed after both example
+  migrations on 2026-07-19.
 
 
 ## Decision Log
@@ -908,3 +915,13 @@ External libraries: optparse-applicative `>=0.19 && <0.20` (for
 `Options.parserOptionGroup` and `Options.flag'`), tasty/tasty-hunit for tests, and the
 already-pinned adapter dependencies — no new external dependency is introduced by this
 plan. Toolchain: GHC 9.12.4 and Cabal via `nix develop`, per docs/compatibility.md.
+
+
+## Revision Notes
+
+2026-07-19: Completed Milestone 2. Both reference applications now consume the shared
+tagged loader and diagnostic mode, preserve mounted-file provenance in the service, and
+render non-fatal resolver warnings on stderr. Tests cover source-free JSON schema output
+and warning rendering; the full test suite is green. The service's one-file parser uses
+the shipped shared reader because the shipped `configInputOption` is intentionally
+repeatable.

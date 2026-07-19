@@ -2,3 +2,5 @@ http:
   host: 0.0.0.0
 database:
   host: postgres.internal
+undeclared:
+  setting: true

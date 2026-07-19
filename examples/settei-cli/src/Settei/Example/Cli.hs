@@ -27,19 +27,19 @@ module Settei.Example.Cli
   )
 where
 
-import Control.Applicative qualified as Applicative
 import Data.Generics.Labels ()
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as Text
 import Options.Applicative (Parser, ParserInfo)
 import Options.Applicative qualified as Options
 import Settei
-import Settei.Dhall qualified as Dhall
 import Settei.Env
-import Settei.Kdl qualified as Kdl
-import Settei.Optparse hiding (DiagnosticMode (..))
+import Settei.Formats
+import Settei.Formats.Optparse
+import Settei.Optparse
 import Settei.Prelude
-import Settei.Yaml qualified as Yaml
+import Text.Printf (printf)
 
 -- | Deployment environment accepted by the example declaration.
 data RuntimeEnvironment = Development | Test | Production
@@ -61,26 +61,6 @@ data CliConfig = CliConfig
     token :: !(Maybe SecretText)
   }
   deriving stock (Generic, Eq)
-
--- | Explicit format tag required for each input file.
-data ConfigFormat = YamlFormat | KdlFormat | DhallFormat
-  deriving stock (Generic, Eq, Ord, Show)
-
--- | One ordered, explicitly tagged configuration file.
-data ConfigInput = ConfigInput
-  { format :: !ConfigFormat,
-    path :: !FilePath
-  }
-  deriving stock (Generic, Eq, Show)
-
--- | Source-free schema inspection or one post-resolution action.
-data DiagnosticMode
-  = RunExample
-  | DescribeConfiguration
-  | ExplainConfigurationText
-  | ExplainConfigurationJson
-  | CheckConfiguration
-  deriving stock (Generic, Eq, Ord, Show)
 
 -- | Parsed command line before sources are loaded.
 data CliOptions = CliOptions
@@ -121,14 +101,6 @@ cliStandardOutput value = value ^. #standardOutput
 cliStandardError :: CliRun -> Text
 cliStandardError value = value ^. #standardError
 
--- | Return an input's explicit adapter tag.
-configInputFormat :: ConfigInput -> ConfigFormat
-configInputFormat value = value ^. #format
-
--- | Return an input's filesystem path.
-configInputPath :: ConfigInput -> FilePath
-configInputPath value = value ^. #path
-
 -- | Complete parser metadata, help, and usage-error policy.
 cliParserInfo :: ParserInfo CliOptions
 cliParserInfo =
@@ -143,39 +115,9 @@ cliParserInfo =
 cliOptionsParser :: Parser CliOptions
 cliOptionsParser =
   CliOptions
-    <$> Options.parserOptionGroup "Configuration" configurationOptions
+    <$> Options.parserOptionGroup "Configuration" configInputOptions
     <*> Options.parserOptionGroup "Configuration" overrideOptions
-    <*> Options.parserOptionGroup "Diagnostics" diagnosticOptions
-  where
-    configurationOptions =
-      Applicative.many
-        ( Options.option
-            configInputReader
-            ( Options.long "config"
-                <> Options.metavar "FORMAT:PATH"
-                <> Options.help "Load yaml:PATH, kdl:PATH, or dhall:PATH in occurrence order"
-            )
-        )
-
-diagnosticOptions :: Parser DiagnosticMode
-diagnosticOptions =
-  Options.flag' DescribeConfiguration (Options.long "describe-config" <> Options.help "Print the static configuration schema")
-    Applicative.<|> Options.flag' ExplainConfigurationText (Options.long "explain-config" <> Options.help "Print the resolved configuration explanation")
-    Applicative.<|> Options.flag' ExplainConfigurationJson (Options.long "explain-config-json" <> Options.help "Print the versioned JSON explanation")
-    Applicative.<|> Options.flag' CheckConfiguration (Options.long "check-config" <> Options.help "Validate configuration without running the example action")
-    Applicative.<|> pure RunExample
-
-configInputReader :: Options.ReadM ConfigInput
-configInputReader = Options.eitherReader $ \input ->
-  let (formatName, separatorAndPath) = break (== ':') input
-      filePath = drop 1 separatorAndPath
-   in if null separatorAndPath || null filePath
-        then Left "expected FORMAT:PATH"
-        else case formatName of
-          "yaml" -> Right (ConfigInput YamlFormat filePath)
-          "kdl" -> Right (ConfigInput KdlFormat filePath)
-          "dhall" -> Right (ConfigInput DhallFormat filePath)
-          _ -> Left "FORMAT must be yaml, kdl, or dhall"
+    <*> Options.parserOptionGroup "Diagnostics" diagnosticModeOptions
 
 -- | Inspectable declaration shared by the executable and tests.
 cliConfig :: Config CliConfig
@@ -210,9 +152,9 @@ environmentBindings =
 -- | Load, resolve, and render one capturable run against an injected snapshot.
 runCliWithSnapshot :: EnvSnapshot -> CliOptions -> IO CliRun
 runCliWithSnapshot snapshot options =
-  case options ^. #diagnosticMode of
-    DescribeConfiguration -> pure (successfulRun (renderSchemaText (describe cliConfig)))
-    _ -> do
+  case schemaDiagnostic (options ^. #diagnosticMode) (describe cliConfig) of
+    Just output -> pure (successfulRun output "")
+    Nothing -> do
       resolved <- resolveCliOptions snapshot options
       pure $ case resolved of
         Left (InputFailure message) -> failedRun sourceExitCode message
@@ -221,12 +163,15 @@ runCliWithSnapshot snapshot options =
             failedRun
               resolutionExitCode
               (renderErrorsText problems <> failureReport options result)
-          Right config -> successfulRun (renderSuccess options config result)
+          Right config ->
+            successfulRun
+              (maybe (renderSuccess config) id (resolutionDiagnostic (options ^. #diagnosticMode) result))
+              (renderWarningsText (result ^. #warnings))
 
 -- | Resolve ordered built-ins, files, environment, and command-line sources.
 resolveCliOptions :: EnvSnapshot -> CliOptions -> IO (Either CliFailure (ResolveResult CliConfig))
 resolveCliOptions snapshot options = do
-  loaded <- traverse loadConfigInput (options ^. #configInputs)
+  loaded <- traverse (loadConfigInput defaultLoadOptions) (options ^. #configInputs)
   pure $ do
     fileSources <- firstInputFailure loaded
     Right
@@ -243,51 +188,31 @@ resolveCliOptions snapshot options = do
 data CliFailure
   = InputFailure !Text
 
-firstInputFailure :: [Either Text Source] -> Either CliFailure [Source]
-firstInputFailure = traverse (either (Left . InputFailure) Right)
+firstInputFailure :: [Either (NonEmpty FormatLoadError) Source] -> Either CliFailure [Source]
+firstInputFailure = traverse (either (Left . InputFailure . renderFormatLoadErrorsText) Right)
 
-loadConfigInput :: ConfigInput -> IO (Either Text Source)
-loadConfigInput input =
-  let sourceLabel = Text.pack (input ^. #path)
-   in case input ^. #format of
-        YamlFormat ->
-          fmap
-            (either (Left . Yaml.renderYamlErrorsText) Right)
-            (Yaml.readYamlSource (Yaml.yamlSourceOptions sourceLabel) (input ^. #path))
-        KdlFormat ->
-          fmap
-            (either (Left . Kdl.renderKdlErrorsText) Right)
-            (Kdl.readKdlSource (Kdl.kdlSourceOptions sourceLabel) (input ^. #path))
-        DhallFormat ->
-          fmap
-            (either (Left . Dhall.renderDhallErrorsText) Right)
-            (Dhall.loadDhallSource (Dhall.dhallSourceOptions sourceLabel Dhall.NoImports) (Dhall.DhallFile (input ^. #path)))
+renderFormatLoadErrorsText :: NonEmpty FormatLoadError -> Text
+renderFormatLoadErrorsText = Text.concat . fmap renderFormatLoadErrorText . NonEmpty.toList
 
 -- | Append provenance to a resolution failure only in an explicit explain mode.
 failureReport :: CliOptions -> ResolveResult CliConfig -> Text
 failureReport options result =
   case options ^. #diagnosticMode of
-    ExplainConfigurationText -> renderResolutionText (result ^. #report)
-    ExplainConfigurationJson -> renderResolutionJson (result ^. #report) <> "\n"
+    ExplainText -> renderResolutionText (result ^. #report)
+    ExplainJson -> renderResolutionJson (result ^. #report) <> "\n"
     _ -> ""
 
-renderSuccess :: CliOptions -> CliConfig -> ResolveResult CliConfig -> Text
-renderSuccess options config result =
-  case options ^. #diagnosticMode of
-    ExplainConfigurationText -> renderResolutionText (result ^. #report)
-    ExplainConfigurationJson -> renderResolutionJson (result ^. #report) <> "\n"
-    CheckConfiguration -> "configuration valid\n"
-    RunExample ->
-      Text.unlines
-        [ "settei example action",
-          "endpoint: " <> config ^. #endpoint,
-          "timeout: " <> Text.pack (show (config ^. #timeout)),
-          "output: " <> renderOutputFormat (config ^. #outputFormat)
-        ]
-    DescribeConfiguration -> renderSchemaText (describe cliConfig)
+renderSuccess :: CliConfig -> Text
+renderSuccess config =
+  Text.unlines
+    [ "settei example action",
+      "endpoint: " <> config ^. #endpoint,
+      "timeout: " <> renderInt (config ^. #timeout),
+      "output: " <> renderOutputFormat (config ^. #outputFormat)
+    ]
 
-successfulRun :: Text -> CliRun
-successfulRun output = CliRun {exitCode = 0, standardOutput = output, standardError = ""}
+successfulRun :: Text -> Text -> CliRun
+successfulRun output warnings = CliRun {exitCode = 0, standardOutput = output, standardError = warnings}
 
 failedRun :: Int -> Text -> CliRun
 failedRun code message = CliRun {exitCode = code, standardOutput = "", standardError = message}
@@ -348,6 +273,9 @@ renderRuntimeEnvironment Production = "production"
 renderOutputFormat :: OutputFormat -> Text
 renderOutputFormat TextOutput = "text"
 renderOutputFormat JsonOutput = "json"
+
+renderInt :: Int -> Text
+renderInt value = Text.pack (printf "%d" value)
 
 runtimeEnvironmentKey, serviceEndpointKey, serviceTimeoutKey, outputFormatKey, serviceTokenKey :: Key
 runtimeEnvironmentKey = validKey "runtime.environment"

@@ -66,6 +66,22 @@ tests =
         let summary = safeStartupSummary config
         assertBool "summary omitted HTTP address" ("0.0.0.0:8080" `Text.isInfixOf` summary)
         assertBool "summary leaked secret" (not (secretSentinel `Text.isInfixOf` summary)),
+      testCase "describe modes short-circuit before loading sources" $ do
+        textOptions <- expectOptions ["--config", "yaml:/definitely/missing.yaml", "--describe-config"]
+        textResult <- runServiceWithSnapshot (envSnapshot []) textOptions
+        serviceExitCode textResult @?= 0
+        assertBool "text schema omitted database host" ("database.host" `Text.isInfixOf` serviceStandardOutput textResult)
+        jsonOptions <- expectOptions ["--config", "yaml:/definitely/missing.yaml", "--describe-config-json"]
+        jsonResult <- runServiceWithSnapshot (envSnapshot []) jsonOptions
+        serviceExitCode jsonResult @?= 0
+        assertBool "schema JSON version missing" ("\"schemaVersion\":1" `Text.isInfixOf` serviceStandardOutput jsonResult),
+      testCase "successful resolution renders warnings to stderr" $ do
+        fixture <- Paths.getDataFileName "test/fixtures/application.yaml"
+        options <- expectOptions ["--config", "yaml:" <> fixture, "--check-config"]
+        result <- runServiceWithSnapshot (envSnapshot [("HASKELL_ENV", "development")]) options
+        serviceExitCode result @?= 0
+        serviceStandardOutput result @?= "configuration valid\n"
+        assertBool "unknown-key warning missing from stderr" ("undeclared.setting" `Text.isInfixOf` serviceStandardError result),
       testCase "production failure explains missing password without leaking" $ do
         fixture <- Paths.getDataFileName "test/fixtures/application.yaml"
         options <- expectOptions ["--config", "yaml:" <> fixture, "--explain-config"]

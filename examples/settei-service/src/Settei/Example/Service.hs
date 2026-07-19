@@ -7,8 +7,7 @@ module Settei.Example.Service
     RuntimeEnvironment (..),
     SecretText,
     ServiceConfig,
-    ServiceDiagnosticMode (..),
-    ServiceFileFormat (..),
+    DiagnosticMode (..),
     ServiceOptions,
     ServiceRun,
     environmentBindings,
@@ -28,17 +27,18 @@ module Settei.Example.Service
   )
 where
 
-import Control.Applicative qualified as Applicative
 import Data.Generics.Labels ()
+import Data.List.NonEmpty qualified as NonEmpty
 import Data.Text qualified as Text
 import Options.Applicative (Parser, ParserInfo)
 import Options.Applicative qualified as Options
 import Settei
-import Settei.Dhall qualified as Dhall
 import Settei.Env
-import Settei.Kdl qualified as Kdl
+import Settei.Formats
+import Settei.Formats.Optparse (configInputReader)
+import Settei.Optparse
 import Settei.Prelude
-import Settei.Yaml qualified as Yaml
+import Text.Printf (printf)
 
 -- | Runtime environment that selects the service's named defaults and secret branch.
 data RuntimeEnvironment = Development | Test | Production
@@ -72,28 +72,10 @@ data DatabaseConfig = DatabaseConfig
   }
   deriving stock (Generic, Eq)
 
--- | Explicit adapter tag accepted for a mounted file.
-data ServiceFileFormat = ServiceYaml | ServiceKdl | ServiceDhall
-  deriving stock (Generic, Eq, Ord, Show)
-
-data ServiceInput = ServiceInput
-  { format :: !ServiceFileFormat,
-    path :: !FilePath
-  }
-  deriving stock (Generic, Eq, Show)
-
--- | Normal startup or one validation/explanation action.
-data ServiceDiagnosticMode
-  = StartService
-  | CheckServiceConfiguration
-  | ExplainServiceConfigurationText
-  | ExplainServiceConfigurationJson
-  deriving stock (Generic, Eq, Ord, Show)
-
 -- | Parsed command line before the mounted file is loaded.
 data ServiceOptions = ServiceOptions
-  { configInput :: !(Maybe ServiceInput),
-    diagnosticMode :: !ServiceDiagnosticMode
+  { configInput :: !(Maybe ConfigInput),
+    diagnosticMode :: !DiagnosticMode
   }
   deriving stock (Generic, Eq, Show)
 
@@ -142,37 +124,18 @@ serviceOptionsParser :: Parser ServiceOptions
 serviceOptionsParser =
   ServiceOptions
     <$> Options.parserOptionGroup "Configuration" configInputParser
-    <*> Options.parserOptionGroup "Diagnostics" diagnosticModeParser
+    <*> Options.parserOptionGroup "Diagnostics" diagnosticModeOptions
 
-configInputParser :: Parser (Maybe ServiceInput)
+configInputParser :: Parser (Maybe ConfigInput)
 configInputParser =
-  Applicative.optional
+  Options.optional
     ( Options.option
-        serviceInputReader
+        configInputReader
         ( Options.long "config"
             <> Options.metavar "FORMAT:PATH"
             <> Options.help "Load one mounted yaml:PATH, kdl:PATH, or dhall:PATH"
         )
     )
-
-diagnosticModeParser :: Parser ServiceDiagnosticMode
-diagnosticModeParser =
-  Options.flag' CheckServiceConfiguration (Options.long "check-config" <> Options.help "Validate configuration and exit")
-    Applicative.<|> Options.flag' ExplainServiceConfigurationText (Options.long "explain-config" <> Options.help "Print a redacted text explanation")
-    Applicative.<|> Options.flag' ExplainServiceConfigurationJson (Options.long "explain-config-json" <> Options.help "Print a redacted JSON explanation")
-    Applicative.<|> pure StartService
-
-serviceInputReader :: Options.ReadM ServiceInput
-serviceInputReader = Options.eitherReader $ \input ->
-  let (formatName, separatorAndPath) = break (== ':') input
-      filePath = drop 1 separatorAndPath
-   in if null separatorAndPath || null filePath
-        then Left "expected FORMAT:PATH"
-        else case formatName of
-          "yaml" -> Right (ServiceInput ServiceYaml filePath)
-          "kdl" -> Right (ServiceInput ServiceKdl filePath)
-          "dhall" -> Right (ServiceInput ServiceDhall filePath)
-          _ -> Left "FORMAT must be yaml, kdl, or dhall"
 
 -- | Service declaration with named defaults and a Production-only password.
 serviceConfig :: Config ServiceConfig
@@ -257,24 +220,30 @@ environmentBindings =
 -- | Load, resolve, and render one capturable run against an injected snapshot.
 runServiceWithSnapshot :: EnvSnapshot -> ServiceOptions -> IO ServiceRun
 runServiceWithSnapshot snapshot options = do
-  resolved <- resolveServiceOptions snapshot options
-  pure $ case resolved of
-    Left (InputFailure message) -> failedRun sourceExitCode message
-    Right result -> case result ^. #answer of
-      Left problems ->
-        failedRun
-          resolutionExitCode
-          (renderErrorsText problems <> failureReport options result)
-      Right config -> successfulRun (renderServiceSuccess options config result)
+  case schemaDiagnostic (options ^. #diagnosticMode) (describe serviceConfig) of
+    Just output -> pure (successfulRun output "")
+    Nothing -> do
+      resolved <- resolveServiceOptions snapshot options
+      pure $ case resolved of
+        Left (InputFailure message) -> failedRun sourceExitCode message
+        Right result -> case result ^. #answer of
+          Left problems ->
+            failedRun
+              resolutionExitCode
+              (renderErrorsText problems <> failureReport options result)
+          Right config ->
+            successfulRun
+              (maybe (safeStartupSummary config) id (resolutionDiagnostic (options ^. #diagnosticMode) result))
+              (renderWarningsText (result ^. #warnings))
 
 -- | Resolve the parsed mounted-file option followed by the environment source.
 resolveServiceOptions :: EnvSnapshot -> ServiceOptions -> IO (Either ServiceFailure (ResolveResult ServiceConfig))
 resolveServiceOptions snapshot options = do
-  loaded <- traverse loadServiceInput (options ^. #configInput)
+  loaded <- traverse (loadConfigInput loadOptions) (options ^. #configInput)
   pure $ do
     fileSources <- case loaded of
       Nothing -> Right []
-      Just (Left message) -> Left (InputFailure message)
+      Just (Left problems) -> Left (InputFailure (renderFormatLoadErrorsText problems))
       Just (Right value) -> Right [value]
     Right (resolveServiceSources fileSources snapshot)
 
@@ -289,35 +258,14 @@ resolveServiceSources fileSources snapshot =
 data ServiceFailure
   = InputFailure !Text
 
-loadServiceInput :: ServiceInput -> IO (Either Text Source)
-loadServiceInput input =
-  let sourceLabel = Text.pack (input ^. #path)
-      mountedReference = kubernetesRef ConfigMapObject Nothing "settei-example-service" (Just "application.yaml")
-   in case input ^. #format of
-        ServiceYaml ->
-          fmap
-            (either (Left . Yaml.renderYamlErrorsText) Right)
-            ( Yaml.readYamlSource
-                (Yaml.fromKubernetesMountedFile mountedReference (Yaml.yamlSourceOptions sourceLabel))
-                (input ^. #path)
-            )
-        ServiceKdl ->
-          fmap
-            (either (Left . Kdl.renderKdlErrorsText) Right)
-            ( Kdl.readKdlSource
-                (Kdl.fromKubernetesMountedFile mountedReference (Kdl.kdlSourceOptions sourceLabel))
-                (input ^. #path)
-            )
-        ServiceDhall ->
-          fmap
-            (either (Left . Dhall.renderDhallErrorsText) Right)
-            ( Dhall.loadDhallSource
-                ( Dhall.annotateDhallSourceOptions
-                    (kubernetesAnnotations mountedReference)
-                    (Dhall.dhallSourceOptions sourceLabel Dhall.NoImports)
-                )
-                (Dhall.DhallFile (input ^. #path))
-            )
+loadOptions :: LoadOptions
+loadOptions =
+  fromKubernetesMountedFile
+    (kubernetesRef ConfigMapObject Nothing "settei-example-service" (Just "application.yaml"))
+    defaultLoadOptions
+
+renderFormatLoadErrorsText :: NonEmpty FormatLoadError -> Text
+renderFormatLoadErrorsText = Text.concat . fmap renderFormatLoadErrorText . NonEmpty.toList
 
 -- | Render only allowlisted non-secret startup fields.
 safeStartupSummary :: ServiceConfig -> Text
@@ -325,29 +273,21 @@ safeStartupSummary config =
   Text.unlines
     [ "settei example service ready",
       "environment: " <> renderEnvironment (config ^. #environment),
-      "http: " <> config ^. #http . #host <> ":" <> Text.pack (show (config ^. #http . #port)),
-      "database: " <> config ^. #database . #host <> ":" <> Text.pack (show (config ^. #database . #port)),
-      "database pool size: " <> Text.pack (show (config ^. #database . #poolSize))
+      "http: " <> config ^. #http . #host <> ":" <> renderInt (config ^. #http . #port),
+      "database: " <> config ^. #database . #host <> ":" <> renderInt (config ^. #database . #port),
+      "database pool size: " <> renderInt (config ^. #database . #poolSize)
     ]
 
 -- | Append provenance to a resolution failure only in an explicit explain mode.
 failureReport :: ServiceOptions -> ResolveResult ServiceConfig -> Text
 failureReport options result =
   case options ^. #diagnosticMode of
-    ExplainServiceConfigurationText -> renderResolutionText (result ^. #report)
-    ExplainServiceConfigurationJson -> renderResolutionJson (result ^. #report) <> "\n"
+    ExplainText -> renderResolutionText (result ^. #report)
+    ExplainJson -> renderResolutionJson (result ^. #report) <> "\n"
     _ -> ""
 
-renderServiceSuccess :: ServiceOptions -> ServiceConfig -> ResolveResult ServiceConfig -> Text
-renderServiceSuccess options config result =
-  case options ^. #diagnosticMode of
-    CheckServiceConfiguration -> "configuration valid\n"
-    ExplainServiceConfigurationText -> renderResolutionText (result ^. #report)
-    ExplainServiceConfigurationJson -> renderResolutionJson (result ^. #report) <> "\n"
-    StartService -> safeStartupSummary config
-
-successfulRun :: Text -> ServiceRun
-successfulRun output = ServiceRun {exitCode = 0, standardOutput = output, standardError = ""}
+successfulRun :: Text -> Text -> ServiceRun
+successfulRun output warnings = ServiceRun {exitCode = 0, standardOutput = output, standardError = warnings}
 
 failedRun :: Int -> Text -> ServiceRun
 failedRun code message = ServiceRun {exitCode = code, standardOutput = "", standardError = message}
@@ -388,6 +328,9 @@ renderEnvironment :: RuntimeEnvironment -> Text
 renderEnvironment Development = "development"
 renderEnvironment Test = "test"
 renderEnvironment Production = "production"
+
+renderInt :: Int -> Text
+renderInt value = Text.pack (printf "%d" value)
 
 runtimeEnvironmentKey, httpHostKey, httpPortKey, databaseHostKey, databasePortKey, databasePoolSizeKey, databasePasswordKey, serviceTagsKey :: Key
 runtimeEnvironmentKey = validKey "runtime.environment"

@@ -33,6 +33,17 @@ tests =
         result <- runCliWithSnapshot (envSnapshot []) options
         cliExitCode result @?= 0
         assertBool "schema omitted conditional token" ("credentials.token" `Text.isInfixOf` cliStandardOutput result),
+      testCase "describe JSON works without loading sources" $ do
+        options <- expectOptions ["--config", "yaml:/definitely/missing.yaml", "--describe-config-json"]
+        result <- runCliWithSnapshot (envSnapshot []) options
+        cliExitCode result @?= 0
+        assertBool "schema JSON version missing" ("\"schemaVersion\":1" `Text.isInfixOf` cliStandardOutput result),
+      testCase "successful resolution renders warnings to stderr" $ do
+        options <- expectOptions ["--set", "undeclared.setting=value", "--check-config"]
+        result <- runCliWithSnapshot (envSnapshot []) options
+        cliExitCode result @?= 0
+        cliStandardOutput result @?= "configuration valid\n"
+        assertBool "unknown-key warning missing from stderr" ("undeclared.setting" `Text.isInfixOf` cliStandardError result),
       testCase "help groups options by intent" $ do
         case Options.execParserPure Options.defaultPrefs cliParserInfo ["--help"] of
           Options.Failure failure -> do
