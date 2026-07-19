@@ -100,13 +100,14 @@ Hard Deps and Soft Deps reference other rows by their # prefix (e.g., EP-15).
 
 ## Dependency Graph
 
-EP-15, EP-16, and EP-17 are complete. EP-18 and EP-19 remain implementable immediately
-and in parallel; they touch disjoint modules (settei-env/src/Settei/Env.hs;
-settei/src/Settei/Config.hs and settei/src/Settei/Setting.hs respectively).
+EP-15 through EP-18 are complete. EP-19 is the first remaining implementable plan; it
+touches declaration modules in settei/src/Settei/Config.hs and
+settei/src/Settei/Setting.hs rather than EP-18's completed environment-adapter surface.
 
 EP-17 fulfilled EP-16's soft dependency by replacing the tagged-format loader's temporary
-`Show` fallback with adapter-owned renderers. It also provides the stable `EnvError`
-renderer that EP-18 can consume while reshaping environment binding construction.
+`Show` fallback with adapter-owned renderers. EP-18 consumed its stable `EnvError`
+renderer while reshaping environment binding construction, so no renderer fallback or
+tracked cleanup remains.
 
 EP-20 (surface hygiene) soft-depends on all API-adding plans because it audits and freezes
 the final exposed-module and dependency surface; running it earlier would audit a moving
