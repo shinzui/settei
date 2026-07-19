@@ -279,7 +279,7 @@ resolveServiceOptions snapshot options = do
 resolveServiceSources :: [Source] -> EnvSnapshot -> ResolveResult ServiceConfig
 resolveServiceSources fileSources snapshot =
   case envSource "environment" environmentBindings snapshot of
-    Left problems -> error (show problems)
+    Left problems -> error (Text.unpack (renderEnvErrorsText problems))
     Right environmentSource ->
       resolve defaultResolveOptions (fileSources <> [environmentSource]) serviceConfig
 
@@ -293,21 +293,21 @@ loadServiceInput input =
    in case input ^. #format of
         ServiceYaml ->
           fmap
-            (either (Left . Text.pack . show) Right)
+            (either (Left . Yaml.renderYamlErrorsText) Right)
             ( Yaml.readYamlSource
                 (Yaml.fromKubernetesMountedFile mountedReference (Yaml.yamlSourceOptions sourceLabel))
                 (input ^. #path)
             )
         ServiceKdl ->
           fmap
-            (either (Left . Text.pack . show) Right)
+            (either (Left . Kdl.renderKdlErrorsText) Right)
             ( Kdl.readKdlSource
                 (Kdl.fromKubernetesMountedFile mountedReference (Kdl.kdlSourceOptions sourceLabel))
                 (input ^. #path)
             )
         ServiceDhall ->
           fmap
-            (either (Left . Text.pack . show) Right)
+            (either (Left . Dhall.renderDhallErrorsText) Right)
             ( Dhall.loadDhallSource
                 ( Dhall.annotateDhallSourceOptions
                     (kubernetesAnnotations mountedReference)

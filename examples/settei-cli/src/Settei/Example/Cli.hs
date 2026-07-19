@@ -223,7 +223,7 @@ resolveCliOptions snapshot options = do
     fileSources <- firstInputFailure loaded
     environmentSource <-
       case envSource "environment" environmentBindings snapshot of
-        Left problems -> Left (InputFailure (Text.pack (show problems)))
+        Left problems -> Left (InputFailure (renderEnvErrorsText problems))
         Right value -> Right value
     Right
       ( resolve
@@ -248,15 +248,15 @@ loadConfigInput input =
    in case input ^. #format of
         YamlFormat ->
           fmap
-            (either (Left . Text.pack . show) Right)
+            (either (Left . Yaml.renderYamlErrorsText) Right)
             (Yaml.readYamlSource (Yaml.yamlSourceOptions sourceLabel) (input ^. #path))
         KdlFormat ->
           fmap
-            (either (Left . Text.pack . show) Right)
+            (either (Left . Kdl.renderKdlErrorsText) Right)
             (Kdl.readKdlSource (Kdl.kdlSourceOptions sourceLabel) (input ^. #path))
         DhallFormat ->
           fmap
-            (either (Left . Text.pack . show) Right)
+            (either (Left . Dhall.renderDhallErrorsText) Right)
             (Dhall.loadDhallSource (Dhall.dhallSourceOptions sourceLabel Dhall.NoImports) (Dhall.DhallFile (input ^. #path)))
 
 -- | Append provenance to a resolution failure only in an explicit explain mode.

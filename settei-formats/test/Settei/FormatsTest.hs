@@ -9,6 +9,7 @@ import Paths_settei_formats qualified as Paths
 import Settei
 import Settei.Dhall qualified as Dhall
 import Settei.Formats
+import Settei.Kdl qualified as Kdl
 import Settei.Prelude
 import Settei.Yaml qualified as Yaml
 import Test.Tasty (TestTree, testGroup)
@@ -98,7 +99,23 @@ tests =
               fmap Yaml.yamlErrorCategory (NonEmpty.toList problems)
                 @?= [Yaml.YamlIoError]
             _ -> fail "expected one YAML load error"
-          Right _ -> fail "expected a missing YAML file to fail"
+          Right _ -> fail "expected a missing YAML file to fail",
+      testCase "format load errors delegate to adapter renderers" $ do
+        yamlError <- expectLoadError YamlFormat "settei-formats-missing.yaml"
+        case yamlError of
+          YamlLoadError problems ->
+            renderFormatLoadErrorText yamlError @?= Yaml.renderYamlErrorsText problems
+          _ -> fail "expected a YAML load error"
+        kdlError <- expectLoadError KdlFormat "settei-formats-missing.kdl"
+        case kdlError of
+          KdlLoadError problems ->
+            renderFormatLoadErrorText kdlError @?= Kdl.renderKdlErrorsText problems
+          _ -> fail "expected a KDL load error"
+        dhallError <- expectLoadError DhallFormat "settei-formats-missing.dhall"
+        case dhallError of
+          DhallLoadError problems ->
+            renderFormatLoadErrorText dhallError @?= Dhall.renderDhallErrorsText problems
+          _ -> fail "expected a Dhall load error"
     ]
 
 assertParsed :: String -> ConfigFormat -> FilePath -> IO ()
@@ -120,6 +137,15 @@ expectLoaded options input = do
   case result of
     Left problems -> fail (show problems)
     Right loaded -> pure loaded
+
+expectLoadError :: ConfigFormat -> FilePath -> IO FormatLoadError
+expectLoadError format path = do
+  result <- loadConfigInput defaultLoadOptions (configInput format path)
+  case result of
+    Left problems -> case NonEmpty.toList problems of
+      [problem] -> pure problem
+      _ -> fail "expected one format load error"
+    Right _ -> fail "expected format loading to fail"
 
 assertResolvedEndpoint :: Source -> IO ()
 assertResolvedEndpoint input =

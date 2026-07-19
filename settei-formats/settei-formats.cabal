@@ -74,6 +74,7 @@ test-suite settei-formats-tests
     , settei                ==0.1.0.0
     , settei-dhall          ==0.1.0.0
     , settei-formats        ==0.1.0.0
+    , settei-kdl            ==0.1.0.0
     , settei-yaml           ==0.1.0.0
     , tasty                 >=1.5     && <1.6
     , tasty-hunit           >=0.10.2  && <0.11

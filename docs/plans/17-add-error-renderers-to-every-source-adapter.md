@@ -83,8 +83,12 @@ This section must always reflect the actual current state of the work.
 - [x] (2026-07-19T20:28:48Z) Milestone 4: renderer unit tests in
       settei-env/test/Settei/EnvTest.hs pin exact strings for all five `EnvError`
       constructors; all 13 `settei-env-tests` pass.
-- [ ] Milestone 5: replace `Text.pack . show` with the renderers in examples/settei-cli/src/Settei/Example/Cli.hs and examples/settei-service/src/Settei/Example/Service.hs (minimal diff; Service.hs line 281 only if EP-18 has not landed).
-- [ ] Milestone 5: `cabal test all` green, fixing any example or conformance assertion that matched the old `Show` text.
+- [x] (2026-07-19T20:31:59Z) Milestone 5: replace adapter-error `Show` rendering with
+      the exported renderers in examples/settei-cli/src/Settei/Example/Cli.hs,
+      examples/settei-service/src/Settei/Example/Service.hs, and EP-16's
+      settei-formats/src/Settei/Formats.hs delegation stub.
+- [x] (2026-07-19T20:31:59Z) Milestone 5: `cabal build all` and `cabal test all` pass;
+      the strengthened `settei-formats-tests` delegation coverage also passes all 15 tests.
 - [ ] Milestone 6: update the error-rendering snippets in docs/guides/yaml.md, docs/guides/kdl.md, docs/guides/dhall.md, and docs/guides/environment-and-cli.md.
 - [ ] Milestone 6: add an Unreleased changelog entry to settei-yaml/CHANGELOG.md, settei-kdl/CHANGELOG.md, settei-dhall/CHANGELOG.md, and settei-env/CHANGELOG.md.
 - [ ] Milestone 6: write the adapter-error-rendering-contract ADR (expected docs/adr/0009-adapter-error-rendering-contract.md; verify the number is free).
@@ -96,7 +100,13 @@ This section must always reflect the actual current state of the work.
 Document unexpected behaviors, bugs, optimizations, or insights discovered during
 implementation. Provide concise evidence.
 
-(None yet.)
+- Observation: EP-16 landed before this plan and left an explicit `TODO(EP-17)` in
+  `Settei.Formats.renderFormatLoadErrorText`; fleet adoption therefore included that
+  umbrella loader in addition to the two examples named by this plan. Directly testing
+  all three branches required adding `settei-kdl` to the settei-formats test component's
+  dependencies, matching its existing direct YAML and Dhall test dependencies.
+  Evidence: the first targeted build rejected the hidden `Settei.Kdl` module; after the
+  test-only dependency was added, all 15 `settei-formats-tests` passed.
 
 
 ## Decision Log

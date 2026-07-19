@@ -171,13 +171,9 @@ loadConfigInput options input =
            in wrap DhallLoadError
                 <$> Dhall.loadDhallSource dhallOptions (Dhall.DhallFile (input ^. #path))
 
--- TODO(EP-17): replace Show-based rendering with the per-adapter
--- render<Adapter>ErrorText renderers once
--- docs/plans/17-add-error-renderers-to-every-source-adapter.md lands.
-
 -- | Render one adapter load failure for operator-facing output.
 renderFormatLoadErrorText :: FormatLoadError -> Text
 renderFormatLoadErrorText = \case
-  YamlLoadError problems -> Text.pack (show (NonEmpty.toList problems))
-  KdlLoadError problems -> Text.pack (show (NonEmpty.toList problems))
-  DhallLoadError problems -> Text.pack (show (NonEmpty.toList problems))
+  YamlLoadError problems -> Yaml.renderYamlErrorsText problems
+  KdlLoadError problems -> Kdl.renderKdlErrorsText problems
+  DhallLoadError problems -> Dhall.renderDhallErrorsText problems
