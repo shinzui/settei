@@ -16,6 +16,8 @@ module Settei.Env
     fromKubernetesObject,
     prefixedBindings,
     readEnvSource,
+    renderEnvErrorText,
+    renderEnvErrorsText,
   )
 where
 
@@ -75,6 +77,31 @@ bindingKey value = value ^. #key
 -- | Return trusted annotations supplied by the caller.
 bindingAnnotations :: EnvBinding -> Map Text Text
 bindingAnnotations value = value ^. #annotations
+
+-- | Render one binding-validation failure as a single operator-readable sentence.
+--
+-- Only variable names and structural keys appear; environment values are never
+-- retained by 'EnvError' and therefore cannot leak.
+renderEnvErrorText :: EnvError -> Text
+renderEnvErrorText = \case
+  InvalidEnvironmentName name ->
+    "environment binding " <> renderEnvName name <> ": invalid variable name"
+  DuplicateEnvironmentName name ->
+    "environment binding " <> renderEnvName name <> ": variable bound more than once"
+  DuplicateTargetKey key ->
+    "bindings target the same key " <> renderKey key <> " twice"
+  ConflictingTargetKeys lower higher ->
+    "bindings target overlapping keys " <> renderKey lower <> " and " <> renderKey higher
+  PrefixedNameCollision name keys ->
+    "environment binding "
+      <> renderEnvName name
+      <> ": normalized name collides for keys "
+      <> Text.intercalate ", " (fmap renderKey (NonEmpty.toList keys))
+
+-- | Render every binding-validation failure, one line per problem, matching
+-- 'Settei.Render.renderErrorsText' in shape and trailing newline.
+renderEnvErrorsText :: NonEmpty EnvError -> Text
+renderEnvErrorsText = Text.unlines . fmap renderEnvErrorText . NonEmpty.toList
 
 -- | Build an injectable snapshot from textual name/value pairs.
 --

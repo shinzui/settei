@@ -77,8 +77,12 @@ This section must always reflect the actual current state of the work.
 - [x] (2026-07-19T20:27:27Z) Milestone 3: renderer unit tests in
       settei-dhall/test/Settei/DhallTest.hs cover all eight `DhallErrorCategory` values
       plus no-path omission; all 26 `settei-dhall-tests` pass.
-- [ ] Milestone 4: add `renderEnvErrorText`/`renderEnvErrorsText` to settei-env/src/Settei/Env.hs with haddock and export-list entries.
-- [ ] Milestone 4: renderer unit tests in settei-env/test/Settei/EnvTest.hs pinning exact strings for all five `EnvError` constructors; `settei-env-tests` green.
+- [x] (2026-07-19T20:28:48Z) Milestone 4: add
+      `renderEnvErrorText`/`renderEnvErrorsText` to settei-env/src/Settei/Env.hs with
+      haddock and export-list entries.
+- [x] (2026-07-19T20:28:48Z) Milestone 4: renderer unit tests in
+      settei-env/test/Settei/EnvTest.hs pin exact strings for all five `EnvError`
+      constructors; all 13 `settei-env-tests` pass.
 - [ ] Milestone 5: replace `Text.pack . show` with the renderers in examples/settei-cli/src/Settei/Example/Cli.hs and examples/settei-service/src/Settei/Example/Service.hs (minimal diff; Service.hs line 281 only if EP-18 has not landed).
 - [ ] Milestone 5: `cabal test all` green, fixing any example or conformance assertion that matched the old `Show` text.
 - [ ] Milestone 6: update the error-rendering snippets in docs/guides/yaml.md, docs/guides/kdl.md, docs/guides/dhall.md, and docs/guides/environment-and-cli.md.

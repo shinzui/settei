@@ -13,7 +13,8 @@ tests :: TestTree
 tests =
   testGroup
     "Settei.Env"
-    [ testCase "explicit binding records variable origin" $ do
+    [ errorRenderingTests,
+      testCase "explicit binding records variable origin" $ do
         input <- expectSource [binding (EnvName "HASKELL_ENV") runtimeEnvironment] [("HASKELL_ENV", "Production")]
         case lookupSource runtimeEnvironment input of
           Right (Just found) -> do
@@ -67,6 +68,36 @@ tests =
         let output = renderResolutionText (result ^. #report)
         assertBool "ConfigMap metadata was omitted" ("service-network" `Text.isInfixOf` output)
         assertBool "public value was omitted" ("api.internal" `Text.isInfixOf` output)
+    ]
+
+errorRenderingTests :: TestTree
+errorRenderingTests =
+  testGroup
+    "error rendering"
+    [ testCase "invalid environment name" $
+        renderEnvErrorText (InvalidEnvironmentName (EnvName "http port"))
+          @?= "environment binding http port: invalid variable name",
+      testCase "duplicate environment name" $
+        renderEnvErrorText (DuplicateEnvironmentName (EnvName "HTTP_PORT"))
+          @?= "environment binding HTTP_PORT: variable bound more than once",
+      testCase "duplicate target key" $
+        renderEnvErrorText (DuplicateTargetKey (validKey "http.port"))
+          @?= "bindings target the same key http.port twice",
+      testCase "conflicting target keys" $
+        renderEnvErrorText
+          (ConflictingTargetKeys (validKey "http") (validKey "http.port"))
+          @?= "bindings target overlapping keys http and http.port",
+      testCase "prefixed name collision" $
+        renderEnvErrorText
+          ( PrefixedNameCollision
+              (EnvName "MYAPP_SERVICE_HTTP_PORT")
+              (validKey "service.http-port" :| [validKey "service.http_port"])
+          )
+          @?= "environment binding MYAPP_SERVICE_HTTP_PORT: normalized name collides for keys service.http-port, service.http_port",
+      testCase "plural rendering is singular rendering plus a newline" $ do
+        let problem = InvalidEnvironmentName (EnvName "http port")
+        renderEnvErrorsText (NonEmpty.singleton problem)
+          @?= renderEnvErrorText problem <> "\n"
     ]
 
 expectSource :: [EnvBinding] -> [(Text, Text)] -> IO Source
