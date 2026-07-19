@@ -204,24 +204,29 @@ If any file fails, report a source-loading failure and do not resolve a partial 
 Map every supported variable explicitly:
 
 ```haskell
-environmentBindings :: [EnvBinding]
+environmentBindings :: Bindings
 environmentBindings =
-  [ binding (EnvName "HASKELL_ENV") (validKey "runtime.environment"),
-    binding (EnvName "SERVICE_ENDPOINT") (validKey "service.endpoint"),
-    binding (EnvName "SERVICE_TIMEOUT") (validKey "service.timeout"),
-    binding (EnvName "OUTPUT_FORMAT") (validKey "output.format"),
-    fromKubernetesObject
-      (kubernetesRef SecretObject Nothing "my-application" (Just "token"))
-      (binding (EnvName "SERVICE_TOKEN") (validKey "credentials.token"))
-  ]
+  either (error . Text.unpack . renderEnvErrorsText) id
+    ( bindings
+        [ binding (EnvName "HASKELL_ENV") (validKey "runtime.environment"),
+          binding (EnvName "SERVICE_ENDPOINT") (validKey "service.endpoint"),
+          binding (EnvName "SERVICE_TIMEOUT") (validKey "service.timeout"),
+          binding (EnvName "OUTPUT_FORMAT") (validKey "output.format"),
+          fromKubernetesObject
+            (kubernetesRef SecretObject Nothing "my-application" (Just "token"))
+            (binding (EnvName "SERVICE_TOKEN") (validKey "credentials.token"))
+        ]
+    )
 
 validKey :: Text -> Key
 validKey value = either (error . show) id (parseKey value)
 ```
 
-Call `readEnvSource` once after argument parsing. For a runner that accepts an injected
-snapshot, call the pure `envSource` instead and let `Main` create the snapshot. This keeps
-end-to-end tests independent of the developer's environment.
+Call `readEnvironmentSource` once after argument parsing. For a runner that accepts an
+injected snapshot, call the pure `environmentSource` instead and let `Main` create the
+snapshot. Use the labeled `readEnvSource` and `envSource` variants only when a different
+source label is useful. This keeps end-to-end tests independent of the developer's
+environment.
 
 ## Add diagnostics that match user intent
 

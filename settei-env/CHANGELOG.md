@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- BREAKING: environment bindings are validated once at construction. `Bindings` is an
+  opaque validated collection built by `bindings` or `prefixedBindings`; `envSource`
+  and `readEnvSource` take `Bindings` and are total; `environmentSource` and
+  `readEnvironmentSource` provide the conventional `"environment"` label;
+  `bindingsList` inspects a validated collection.
 - Add `renderEnvErrorText` and `renderEnvErrorsText` for stable, operator-readable,
   value-free binding diagnostics.
 

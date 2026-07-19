@@ -19,7 +19,6 @@ build-depends:
 The main modules are:
 
 ```haskell
-import Data.Bifunctor (first)
 import Data.List.NonEmpty (NonEmpty)
 import Data.Text (Text)
 import Data.Text qualified as Text
@@ -95,23 +94,39 @@ also define how `RawText` is handled.
 
 ## Bind environment variables explicitly
 
-An `EnvBinding` maps one portable environment name to one structural key:
+An `EnvBinding` maps one portable environment name to one structural key. Build the
+complete list once with `bindings`; the opaque `Bindings` result proves that the list is
+valid before any source is assembled:
 
 ```haskell
-environmentBindings :: [EnvBinding]
+environmentBindings :: Bindings
 environmentBindings =
-  [ binding (EnvName "HASKELL_ENV") (validKey "runtime.environment"),
-    binding (EnvName "DATABASE_HOST") (validKey "database.host"),
-    binding (EnvName "DATABASE_PORT") (validKey "database.port"),
-    fromKubernetesObject
-      (kubernetesRef SecretObject (Just "production") "service-database" (Just "password"))
-      (binding (EnvName "DATABASE_PASSWORD") (validKey "database.password"))
-  ]
+  either (error . Text.unpack . renderEnvErrorsText) id
+    ( bindings
+        [ binding (EnvName "HASKELL_ENV") (validKey "runtime.environment"),
+          binding (EnvName "DATABASE_HOST") (validKey "database.host"),
+          binding (EnvName "DATABASE_PORT") (validKey "database.port"),
+          fromKubernetesObject
+            (kubernetesRef SecretObject (Just "production") "service-database" (Just "password"))
+            (binding (EnvName "DATABASE_PASSWORD") (validKey "database.password"))
+        ]
+    )
 ```
 
 Only listed variables are read. An absent variable creates no candidate, so `required`,
 `optional`, or `withDefault` controls what absence means. Empty strings are present values
 and are passed to the setting decoder.
+
+`bindings` rejects invalid or repeated variable names, repeated target keys, and
+overlapping targets such as `database` together with `database.host`. The resulting
+`EnvError` values contain names and keys, never environment values. The top-level
+definition validates the static list once; force it in the application test suite so a
+bad edit fails in tests before it can fail at startup:
+
+```haskell
+testCase "environment bindings are valid" $
+  length (bindingsList environmentBindings) @?= 4
+```
 
 `fromKubernetesObject` adds origin metadata for explanations. It does not contact a
 cluster and does not make a value secret. The `secretSetting` declaration above is what
@@ -120,20 +135,21 @@ guarantees redaction.
 At application startup, snapshot the environment once:
 
 ```haskell
-loadEnvironment :: IO (Either (NonEmpty EnvError) Source)
+loadEnvironment :: IO Source
 loadEnvironment =
-  readEnvSource "environment" environmentBindings
+  readEnvironmentSource environmentBindings
 ```
 
-The source label should be stable and safe to display. `readEnvSource` reads the process
-environment once, then uses the same pure translation as `envSource`.
+`readEnvironmentSource` reads the process environment once and uses the stable,
+display-safe source label `"environment"`. Use `readEnvSource` only when the application
+needs a different label; both functions are total because `Bindings` is already valid.
 
 ### Test without modifying the process environment
 
 Use an `EnvSnapshot` in unit tests:
 
 ```haskell
-testEnvironment :: Either (NonEmpty EnvError) Source
+testEnvironment :: Source
 testEnvironment =
   envSource
     "test environment"
@@ -146,22 +162,11 @@ testEnvironment =
     )
 ```
 
-`envSource` validates the entire binding list. It rejects invalid or repeated variable
-names, repeated target keys, and overlapping targets such as `database` together with
-`database.host`. The resulting `EnvError` values contain names and keys, never environment
-values.
-
-Render validation failures with the exported operator-facing renderer:
-
-```haskell
-loadEnvironmentText :: IO (Either Text Source)
-loadEnvironmentText =
-  fmap (first renderEnvErrorsText) loadEnvironment
-```
-
 `renderEnvErrorText` renders one sentence and `renderEnvErrorsText` renders a non-empty
 batch with one problem per line and a trailing newline. Both functions can mention only
 variable names and structural keys because `EnvError` never retains environment values.
+Use the plural renderer when the one-time `bindings` construction fails, as the
+`environmentBindings` definition above does.
 
 ### Generate conventional bindings
 
@@ -169,16 +174,17 @@ For a large flat set of keys, `prefixedBindings` derives names by uppercasing se
 joining them with underscores:
 
 ```haskell
-generatedBindings :: Either (NonEmpty EnvError) [EnvBinding]
+generatedBindings :: Either (NonEmpty EnvError) Bindings
 generatedBindings =
   prefixedBindings
     "MYAPP"
     [validKey "service.host", validKey "service.port"]
 ```
 
-This produces `MYAPP_SERVICE_HOST` and `MYAPP_SERVICE_PORT`. Generation remains explicit:
-pass the returned bindings to `envSource` or `readEnvSource`. Normalization collisions are
-reported instead of silently selecting one binding.
+This produces `MYAPP_SERVICE_HOST` and `MYAPP_SERVICE_PORT`. A successful result is
+already validated and can go directly to `envSource`, `environmentSource`, or their
+effectful siblings. Normalization collisions are reported instead of silently selecting
+one binding.
 
 ## Parse reusable command-line options
 

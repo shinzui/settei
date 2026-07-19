@@ -89,7 +89,7 @@ authority).
 | 15 | Add a Decoder functor and combinator kit | docs/plans/15-add-a-decoder-functor-and-combinator-kit.md | None | None | Complete |
 | 16 | Provide shared tagged-format configuration loading | docs/plans/16-provide-shared-tagged-format-configuration-loading.md | None | EP-17 | Complete |
 | 17 | Add error renderers to every source adapter | docs/plans/17-add-error-renderers-to-every-source-adapter.md | None | None | Complete |
-| 18 | Make environment bindings total and validated | docs/plans/18-make-environment-bindings-total-and-validated.md | None | EP-17 | Not Started |
+| 18 | Make environment bindings total and validated | docs/plans/18-make-environment-bindings-total-and-validated.md | None | EP-17 | Complete |
 | 19 | Add declaration sugar for conditionals and rendered defaults | docs/plans/19-add-declaration-sugar-for-conditionals-and-rendered-defaults.md | None | None | Not Started |
 | 20 | Tighten the public surface and dependency hygiene | docs/plans/20-tighten-the-public-surface-and-dependency-hygiene.md | None | EP-15, EP-16, EP-17, EP-18, EP-19 | Not Started |
 | 21 | Extend reusable CLI options and complete the ergonomics docs sweep | docs/plans/21-extend-reusable-cli-options-and-complete-the-ergonomics-docs-sweep.md | EP-15, EP-16, EP-17, EP-18, EP-19 | EP-20 | Not Started |
@@ -168,8 +168,8 @@ a new ADR), EP-20's public-surface and dependency decision (amendment to docs/ad
 - [x] EP-16: loader tests and guide coverage
 - [x] EP-17: text renderers for YAML, KDL, Dhall, and Env errors with tests
 - [x] EP-17: examples and guides stop using Show for adapter errors
-- [ ] EP-18: validated Bindings construction; envSource total; default label
-- [ ] EP-18: examples and environment guide updated
+- [x] EP-18: validated Bindings construction; envSource total; default label
+- [x] EP-18: examples and environment guide updated
 - [ ] EP-19: selective conditional helpers and rendered-default ergonomics with tests
 - [ ] EP-19: examples and getting-started guide use the sugar
 - [ ] EP-20: Settei.Prelude exposure and lens footprint decided, implemented, ADR 0001 amended
@@ -202,6 +202,12 @@ a new ADR), EP-20's public-surface and dependency decision (amendment to docs/ad
   always-present report and warning channels. This does not change any downstream
   interface, but later plans should use `#answer` rather than the obsolete `#value`
   assumption.
+- EP-18's planning-time caller inventory omitted one environment-source helper in
+  `settei-optparse-applicative/test/Settei/OptparseTest.hs` and expected
+  `docs/guides/cli-application.md` to contain signature-neutral prose, but that guide also
+  declared `[EnvBinding]`. EP-18's repository-wide API scan migrated both. EP-20 and
+  EP-21 should treat the tree as fully converted to the opaque `Bindings` surface rather
+  than reserving either cleanup for the final sweep.
 
 
 ## Decision Log
@@ -233,6 +239,16 @@ a new ADR), EP-20's public-surface and dependency decision (amendment to docs/ad
   Rationale: Five plans editing examples/settei-cli and examples/settei-service
   concurrently would conflict constantly; per docs/adr/0007 the examples are the
   conformance boundary and deserve one deliberate final pass.
+  Date: 2026-07-19
+
+- Decision: Environment binding collections are opaque and validated once through
+  `bindings` or `prefixedBindings`; `envSource` and `readEnvSource` are total over
+  `Bindings`, and default-label conveniences use `"environment"`.
+  Rationale: EP-18 removed an impossible runtime error branch from every application
+  source stack while preserving all validation and secret-safe diagnostics. The durable
+  contract, including the rejection of an unsafe constructor, is recorded in
+  docs/adr/0010-validate-environment-bindings-at-construction.md and is the interface
+  EP-20 audits and EP-21 documents.
   Date: 2026-07-19
 
 

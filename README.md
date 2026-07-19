@@ -84,11 +84,8 @@ Sources are passed from lowest to highest precedence. The resolver selects the r
 candidate and retains every shadowed origin in the report.
 
 ```haskell
-environmentSource <-
-  either (fail . show) pure
-    (envSource "environment" environmentBindings snapshot)
-
-let orderedSources =
+let environmentSource = Settei.Env.environmentSource environmentBindings snapshot
+    orderedSources =
       fileSources
         <> [environmentSource]
         <> cliSources "arguments" overrides

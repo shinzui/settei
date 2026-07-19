@@ -43,6 +43,7 @@ The declaration excerpts use:
 import Control.Selective (select)
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Text (Text)
+import Data.Text qualified as Text
 import Settei
 import Settei.Env
 import Settei.Yaml
@@ -145,28 +146,33 @@ branch explicitly.
 Map only supported variables:
 
 ```haskell
-environmentBindings :: [EnvBinding]
+environmentBindings :: Bindings
 environmentBindings =
-  [ binding (EnvName "HASKELL_ENV") (validKey "runtime.environment"),
-    binding (EnvName "HTTP_HOST") (validKey "http.host"),
-    binding (EnvName "HTTP_PORT") (validKey "http.port"),
-    binding (EnvName "DATABASE_HOST") (validKey "database.host"),
-    binding (EnvName "DATABASE_PORT") (validKey "database.port"),
-    binding (EnvName "DATABASE_POOL_SIZE") (validKey "database.poolSize"),
-    fromKubernetesObject
-      ( kubernetesRef
-          SecretObject
-          Nothing
-          "my-service-database"
-          (Just "password")
-      )
-      (binding (EnvName "DATABASE_PASSWORD") (validKey "database.password"))
-  ]
+  either (error . Text.unpack . renderEnvErrorsText) id
+    ( bindings
+        [ binding (EnvName "HASKELL_ENV") (validKey "runtime.environment"),
+          binding (EnvName "HTTP_HOST") (validKey "http.host"),
+          binding (EnvName "HTTP_PORT") (validKey "http.port"),
+          binding (EnvName "DATABASE_HOST") (validKey "database.host"),
+          binding (EnvName "DATABASE_PORT") (validKey "database.port"),
+          binding (EnvName "DATABASE_POOL_SIZE") (validKey "database.poolSize"),
+          fromKubernetesObject
+            ( kubernetesRef
+                SecretObject
+                Nothing
+                "my-service-database"
+                (Just "password")
+            )
+            (binding (EnvName "DATABASE_PASSWORD") (validKey "database.password"))
+        ]
+    )
 ```
 
 `fromKubernetesObject` records how the application expects the variable to be delivered.
 It does not query Kubernetes or verify the pod spec. The annotation may name the Secret
-and key in reports, while the setting value remains `<redacted>`.
+and key in reports, while the setting value remains `<redacted>`. Its
+`KubernetesRef -> EnvBinding -> EnvBinding` flow is unchanged: it annotates one binding
+before `bindings` validates the complete list, and its metadata semantics do not move.
 
 ## Load an annotated mounted file
 

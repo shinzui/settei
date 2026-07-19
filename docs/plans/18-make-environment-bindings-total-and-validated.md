@@ -54,40 +54,74 @@ nix develop -c cabal test all --test-show-details=direct
 
 ## Progress
 
-- [ ] Preflight: clean tree confirmed, baseline `cabal test all` green, EP-17 landing
-      status checked (does `renderEnvErrorsText` exist in `settei-env`?).
-- [ ] Milestone 1: `Settei.Env` reshaped — `Bindings`, `bindings`, `bindingsList`,
+- [x] (2026-07-19 20:47Z) Preflight: clean tree confirmed, baseline `cabal test all`
+      green, and EP-17's `renderEnvErrorsText` confirmed in `settei-env`.
+- [x] (2026-07-19 20:47Z) Milestone 1: `Settei.Env` reshaped — `Bindings`, `bindings`, `bindingsList`,
       total `envSource`/`readEnvSource`, `environmentSource`/`readEnvironmentSource`,
       `prefixedBindings` returning `Bindings`, unified validation, sentinel haddock updated,
       export list updated.
-- [ ] Milestone 1: `settei-env/test/Settei/EnvTest.hs` rewritten — per-constructor
+- [x] (2026-07-19 20:47Z) Milestone 1: `settei-env/test/Settei/EnvTest.hs` rewritten — per-constructor
       construction-validation cases, bounded-exhaustive totality enumeration, snapshot
       behavior tests adapted, prefixed-path tests.
-- [ ] Milestone 1: `nix develop -c cabal test settei-env-tests --test-show-details=direct`
-      green; commit 1 made with required trailers.
-- [ ] Milestone 2: `examples/settei-service/src/Settei/Example/Service.hs` — `error (show
+- [x] (2026-07-19 20:47Z) Milestone 1 validation: `nix develop -c cabal test
+      settei-env-tests --test-show-details=direct` passed all 16 tests.
+- [x] (2026-07-19 20:48Z) Milestone 1 committed as `a8960a7` with required trailers.
+- [x] (2026-07-19 20:50Z) Milestone 2: `examples/settei-service/src/Settei/Example/Service.hs` — `error (show
       problems)` branch deleted; `environmentBindings` is a validated `Bindings` CAF.
-- [ ] Milestone 2: `examples/settei-cli/src/Settei/Example/Cli.hs` — env `InputFailure`
+- [x] (2026-07-19 20:50Z) Milestone 2: `examples/settei-cli/src/Settei/Example/Cli.hs` — env `InputFailure`
       plumbing deleted; `environmentBindings` is a validated `Bindings` CAF.
-- [ ] Milestone 2: `examples/settei-conformance/test/Settei/Example/ConformanceTest.hs`
+- [x] (2026-07-19 20:50Z) Milestone 2: `examples/settei-conformance/test/Settei/Example/ConformanceTest.hs`
       `expectEnvSource` made total; example test suites force both `Bindings` CAFs.
-- [ ] Milestone 2: `nix develop -c cabal test all --test-show-details=direct` green;
-      commit 2 made with required trailers.
-- [ ] Milestone 3: `docs/guides/environment-and-cli.md` rewritten for the new API.
-- [ ] Milestone 3: `docs/guides/kubernetes-service.md` env-binding section updated;
+- [x] (2026-07-19 20:50Z) Milestone 2: the additional optparse adapter test caller was
+      migrated and `nix develop -c cabal test all --test-show-details=direct` passed.
+- [x] (2026-07-19 20:51Z) Milestone 2 committed as `5f967b0` with required trailers.
+- [x] (2026-07-19 20:53Z) Milestone 3: `docs/guides/environment-and-cli.md` rewritten for the new API.
+- [x] (2026-07-19 20:53Z) Milestone 3: `docs/guides/kubernetes-service.md` env-binding section updated;
       `fromKubernetesObject` flow verified unchanged and stated as such.
-- [ ] Milestone 3: `README.md` source-assembly snippet updated;
-      `docs/guides/cli-application.md` prose checked (expected: still accurate).
-- [ ] Milestone 3: `settei-env/CHANGELOG.md` gains an Unreleased breaking-change entry.
-- [ ] Milestone 3: new short ADR written (next free number at implementation time);
-      MasterPlan registry row EP-18 status and Progress checkboxes updated.
-- [ ] Milestone 3: full suite green again; commit 3 made with required trailers.
-- [ ] Living sections of this plan updated; ADR distillation pass done; plan complete.
+- [x] (2026-07-19 20:53Z) Milestone 3: `README.md` source-assembly snippet updated;
+      `docs/guides/cli-application.md` corrected to construct `Bindings` and use the total
+      default-label functions.
+- [x] (2026-07-19 20:53Z) Milestone 3: `settei-env/CHANGELOG.md` gains an Unreleased breaking-change entry.
+- [x] (2026-07-19 20:53Z) Milestone 3: construction-time validation recorded in
+      `docs/adr/0010-validate-environment-bindings-at-construction.md`.
+- [x] (2026-07-19 20:55Z) Milestone 3: MasterPlan registry row EP-18 marked Complete and
+      its Progress checkboxes updated; cross-plan caller discoveries recorded.
+- [x] (2026-07-19 20:55Z) Milestone 3 validation: `nix develop -c cabal test all
+      --test-show-details=direct` passed; maintained guides, README, examples, and current
+      tests contain no old-signature `envSource` pattern.
+- [ ] Milestone 3 commit made with required trailers.
+- [x] (2026-07-19 20:55Z) Living sections updated; ADR distillation completed in
+      `docs/adr/0010-validate-environment-bindings-at-construction.md`; plan complete.
 
 
 ## Surprises & Discoveries
 
-(None yet.)
+- Observation: EP-17 landed before this plan and exports `renderEnvErrorsText`, so the
+  reference applications can use the operator-readable renderer immediately and need no
+  `Show` fallback or `TODO(EP-17)` marker.
+  Evidence: `rg -n "renderEnvErrorsText" settei-env/src/Settei/Env.hs` matched the export
+  and definition before implementation began; the baseline full workspace suite passed.
+
+- Observation: `settei-optparse-applicative/test/Settei/OptparseTest.hs` contained one
+  additional old-signature `envSource` caller that the planning-time caller inventory
+  omitted. The first post-example full build exposed it before the example suites ran.
+  Evidence: GHC reported that `[EnvBinding]` no longer matched `Bindings` at
+  `OptparseTest.hs:117`; the helper now validates with `bindings` and calls the total
+  `environmentSource`.
+
+- Observation: `fromKubernetesObject` remained exactly the single-binding annotation
+  function described by the plan; collection validation wraps the annotated result and
+  does not change Kubernetes metadata semantics.
+  Evidence: `Settei.Env` still declares
+  `fromKubernetesObject :: KubernetesRef -> EnvBinding -> EnvBinding`.
+
+- Observation: the plan's literal final grep commands also search checked-in historical
+  plan documents, including this plan's explanation of the removed signature, so they
+  cannot be expected to return no matches repository-wide. Validation scoped the stale
+  API scan to maintained guides, README, examples, adapter source, and current tests.
+  Evidence: `rg` found no old `[EnvBinding]` source-builder signature or `envSource`
+  `Either` handling in those maintained surfaces; matches outside that scope are planning
+  history that intentionally describes the migration.
 
 
 ## Decision Log
@@ -214,10 +248,36 @@ nix develop -c cabal test all --test-show-details=direct
   explicit scope for the same reason.
   Date: 2026-07-19
 
+- Decision: Update the typed binding example in `docs/guides/cli-application.md` during
+  this plan rather than leaving it for EP-21.
+  Rationale: the planning-time note expected only signature-neutral prose, but the guide
+  actually declared `environmentBindings :: [EnvBinding]`. Leaving it unchanged would
+  make a maintained guide fail against the new public API immediately after EP-18.
+  Date: 2026-07-19
+
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+EP-18 delivered the planned breaking ergonomics change. `Settei.Env` now exposes an
+opaque, smart-constructed `Bindings` collection; both explicit and prefixed construction
+share one validator; `envSource` and `readEnvSource` are total; and the conventional
+`"environment"` label has pure and effectful convenience functions. The focused adapter
+suite grew from 13 to 16 tests, including construction coverage for every `EnvError`
+category and a deterministic enumeration of all 64 subsets in the designed binding pool.
+
+Both reference applications validate their static binding lists once, render any
+programming error through EP-17's stable renderer, and have no impossible source-assembly
+branch. Their tests force the CAFs, the conformance helper is total, and the one additional
+optparse adapter test caller discovered during the full build was migrated. The full
+workspace suite passed after the code migration and again after documentation and ADR
+work.
+
+The maintained environment, Kubernetes, and CLI guides plus the README now teach the
+construction-once API; `settei-env/CHANGELOG.md` records the breaking surface. Durable
+semantics were distilled into
+`docs/adr/0010-validate-environment-bindings-at-construction.md`. No implementation work
+remains in this ExecPlan; EP-20 can audit the finalized surface and EP-21 can perform the
+broader coherent examples-and-docs sweep against it.
 
 
 ## Context and Orientation
