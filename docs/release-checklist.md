@@ -3,7 +3,8 @@
 This checklist prepares the six publishable Settei packages for an initial 0.1.0.0
 release. The three packages beneath `examples/` are internal validation artifacts and must
 not be uploaded. Completing this document does not authorize publication, tag creation,
-signing, or credential use.
+signing, or credential use. The checked automated evidence was re-validated on 2026-07-19
+after the fleet-adoption correctness-hardening pass.
 
 
 ## Scope and metadata
@@ -43,8 +44,13 @@ signing, or credential use.
 - [x] `nix develop -c cabal sdist all`
 - [x] `cabal check` in every package directory
 - [x] Every publishable source distribution is unpacked in a new temporary directory and
-  builds from its own contents.
-- [x] `mori show --full`
+  builds and passes its tests from its own contents.
+- [x] The conformance `booleans.yaml` fixture proves untagged `no` and `on` remain text.
+- [x] The YAML and KDL huge-exponent fixtures are rejected with their stable adapter
+  categories.
+- [x] A forced resolution failure retains a provenance report, and its errors and report
+  redact a secret sentinel.
+- [x] `mori registry show shinzui/settei --full`
 - [x] `nix flake check`
 - [x] `git diff --check`
 

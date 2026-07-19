@@ -11,18 +11,28 @@ to “where did this value come from?”
 
 Settei 0.1.0.0 is implementation-complete and prepared for its initial release. The six
 publishable packages have aligned version, license, changelog, dependency-bound, and
-`tested-with` metadata. The MasterPlan and all eight ExecPlans are complete.
+`tested-with` metadata. The
+[original build MasterPlan](docs/masterplans/1-build-settei-as-a-provenance-aware-configuration-library-for-haskell.md)
+and the
+[fleet-adoption correctness MasterPlan](docs/masterplans/2-harden-settei-correctness-before-fleet-wide-adoption.md)
+are complete.
 
-The release candidate has been validated with GHC 9.12.4 and Cabal 3.16.1.0 on
+The release candidate was first validated on 2026-07-18 and re-validated after the
+correctness-hardening pass on 2026-07-19, with GHC 9.12.4 and Cabal 3.16.1.0 on
 `aarch64-darwin`:
 
 - All nine workspace packages build, including the three internal example packages.
-- All 138 tests pass both in the repository and from isolated unpacked source
-  distributions.
+- All 192 workspace tests pass across 10 suites; the six publishable packages also pass
+  all 169 of their tests from isolated unpacked source distributions.
 - Package checks, Haddocks, source distributions, formatting, Mori inventory, example
   Nix outputs, CLI smoke tests, and `nix flake check` pass.
 - Package-family guides, security guidance, compatibility policy, release metadata, and
   the automated release checklist are complete.
+
+Since the first validation, conflicting sensitivities have become structured errors with
+most-restrictive redaction, YAML and KDL reject impractically large numeric exponents,
+YAML booleans follow the 1.2 core schema, failed resolutions retain provenance reports,
+and custom-source construction plus YAML/Dhall diagnostics have been hardened.
 
 The release has **not** been tagged, signed, or uploaded to Hackage. Those manual actions,
 including a public-registry installation smoke test, require separate authorization and

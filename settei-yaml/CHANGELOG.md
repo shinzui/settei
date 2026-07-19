@@ -1,6 +1,6 @@
 # Changelog for settei-yaml
 
-## 0.1.0.0 — 2026-07-18
+## 0.1.0.0 — 2026-07-19
 
 - Initial experimental release.
 - Add a strict YAML mapping with exact node locations, explicit unsupported-feature

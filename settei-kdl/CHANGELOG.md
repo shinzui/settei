@@ -1,6 +1,6 @@
 # Changelog for settei-kdl
 
-## 0.1.0.0 — 2026-07-18
+## 0.1.0.0 — 2026-07-19
 
 - Initial experimental release.
 - Add the canonical KDL v2 mapping with exact spans, deterministic cardinality, explicit

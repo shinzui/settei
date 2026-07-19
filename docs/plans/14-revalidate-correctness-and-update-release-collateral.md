@@ -83,19 +83,20 @@ This section must always reflect the actual current state of the work.
       redaction probe.
 - [x] (2026-07-19T18:42:26Z) Milestone 2: `git diff --check` clean; no collateral drift or behavior
       defect was found.
-- [ ] Milestone 3: README.md Release status section rewritten with the re-validation date,
+- [x] (2026-07-19T18:50:15Z) Milestone 3: README.md Release status section rewritten with the re-validation date,
       the new test count, and an honest statement of what changed since the first
       0.1.0.0 validation.
-- [ ] Milestone 3: docs/compatibility.md updated (validated date, dependency-bound changes
+- [x] (2026-07-19T18:50:15Z) Milestone 3: docs/compatibility.md updated (validated date, dependency-bound changes
       from EP-10/EP-13 such as a `scientific` dependency, input-contract rows for the new
       scalar semantics).
-- [ ] Milestone 3: docs/security.md final sweep (sensitivity-conflict semantics, Dhall
+- [x] (2026-07-19T18:50:15Z) Milestone 3: docs/security.md final sweep (sensitivity-conflict semantics, Dhall
       preflight TOCTOU note, redaction guarantees re-confirmed).
-- [ ] Milestone 3: docs/release-checklist.md extended with the new behavior smoke checks
+- [x] (2026-07-19T18:50:15Z) Milestone 3: docs/release-checklist.md extended with the new behavior smoke checks
       (Norway fixture, exponent bound, failure-path report) and re-checked end to end.
-- [ ] Milestone 3: all six CHANGELOG.md files reconciled under the unreleased 0.1.0.0
-      entry, one line per behavior change, consistent wording and ordering.
-- [ ] Milestone 3: collateral changes committed.
+- [x] (2026-07-19T18:50:15Z) Milestone 3: all six CHANGELOG.md files reconciled under the unreleased
+      0.1.0.0 entry; the four packages changed by EP-9..EP-13 carry dated behavior lines,
+      while the untouched environment and optparse adapters retain their original entry.
+- [x] (2026-07-19T18:50:42Z) Milestone 3: collateral changes committed.
 - [ ] Milestone 4: ADR amendments from EP-9..EP-13 (docs/adr/0003, 0004, 0005, 0006)
       verified present and mutually coherent; gaps filled.
 - [ ] Milestone 4: remaining durable context from the five child plans' Decision Logs and
@@ -114,6 +115,11 @@ implementation. Provide concise evidence.
   same exponent-bound rejection: `YamlInvalidScalar` and `KdlUnsupportedValue`. The
   authored plan's phrase "same error category" was corrected to require the exact
   category from each public adapter rather than inventing a cross-package category.
+
+- The authored CLI explanation smoke expected `<redacted>` without populating the
+  optional `SERVICE_TOKEN`, so the observed node was correctly `missing` with a null
+  value. An additional run with `SERVICE_TOKEN=never-render-this-conformance-secret`
+  produced `<redacted>` and omitted the sentinel, directly exercising the intended gate.
 
 
 ## Decision Log

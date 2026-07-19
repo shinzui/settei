@@ -14,6 +14,8 @@ For a setting declared `Secret`:
   is retained in `ResolutionNode` or a structured error.
 - `renderResolutionText`, `renderResolutionJson`, and `renderErrorsText` can display the
   key and secret-safe origin metadata but render the value as `<redacted>`.
+- Resolution failures retain a provenance report, and that report applies the same
+  redaction before any secret candidate is retained or rendered.
 - A derived secret is also represented as redacted.
 - The public `ReportedValue` API can render its safe display form but cannot recover an
   underlying secret.
@@ -42,6 +44,12 @@ document “for context.”
 Malformed high-priority values fail resolution; Settei does not silently fall back to a
 lower valid value. This prevents an invalid credential or policy value from accidentally
 activating an older configuration.
+
+YAML and KDL reject numeric scalars whose base-10 exponent magnitude exceeds 4096 before
+exact conversion. This bound is a denial-of-service protection: a hostile or corrupt file
+cannot make startup spend unbounded time or memory constructing a rational number. The
+YAML pure decode boundary also converts unexpected synchronous failures to a fixed,
+source-free structured error while allowing asynchronous exceptions to propagate.
 
 
 ## Environment variables

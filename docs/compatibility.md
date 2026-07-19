@@ -1,6 +1,6 @@
 # Compatibility matrix
 
-This matrix records the workspace actually validated for Settei 0.1.0.0 on 2026-07-18.
+This matrix records the workspace actually validated for Settei 0.1.0.0 on 2026-07-19.
 Dependency bounds describe the intended solver range; they do not claim that every point
 in a range has been tested.
 
@@ -31,6 +31,8 @@ The host's unrelated GHC 9.10 installation cannot satisfy `base >=4.21`; use
 | Dhall evaluation | `dhall-1.42.3` | `>=1.42.3 && <1.43` |
 | Dhall JSON conversion | `dhall-json-1.7.12` | `==1.7.12` plus the documented Hackage-revision compatibility allowances in `cabal.project` |
 | JSON values/reports | `aeson-2.2.5.0` | Dhall adapter: `>=2.2 && <2.3` |
+| Exact numeric conversion | `scientific-0.3.8.1` | YAML, KDL, and Dhall adapters: `>=0.3.7 && <0.4` |
+| Dhall parse positions | `megaparsec-9.8.1` | Dhall adapter: `>=9 && <10` |
 | Test framework | `tasty-1.5.4` | `>=1.5 && <1.6` |
 
 Nix overrides Dhall and dhall-json to the pinned optparse-applicative 0.19 derivation so
@@ -45,9 +47,9 @@ affected package artifacts without mixing those test closures.
 | --- | --- |
 | Environment | Explicit name-to-key bindings; no prefix discovery. |
 | optparse-applicative | Ordered overrides with occurrence provenance; 0.19 option groups are used by examples. |
-| YAML | One strict mapping document; exact locations; ambiguous YAML features fail. |
-| KDL | Canonical KDL v2 mapping; exact spans; one argument is scalar and two or more are an array. |
-| Dhall | JSON-compatible normalized values under `NoImports` or explicit `LocalImportsWithin`. |
+| YAML | One strict mapping document with exact locations; only case-insensitive `true` and `false` are booleans, YAML 1.1 spellings remain text, exponent magnitudes above 4096 fail, and ambiguous features fail. |
+| KDL | Canonical KDL v2 mapping with exact spans; one argument is scalar, two or more are an array, and numeric exponent magnitudes above 4096 fail. |
+| Dhall | JSON-compatible normalized values under `NoImports` or explicit `LocalImportsWithin`; root and local-import parse failures carry one-based positions. |
 
 
 ## Public modules
