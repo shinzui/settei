@@ -15,6 +15,7 @@ where
 import Data.Generics.Labels ()
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
 import Settei.Error
 import Settei.Internal.Config
   ( Config (..),
@@ -86,7 +87,9 @@ resolve :: ResolveOptions -> [Source] -> Config a -> Either (NonEmpty ConfigErro
 resolve options sources config =
   case NonEmpty.nonEmpty (validateDefaultCycles config) of
     Just errors -> Left errors
-    Nothing -> resolveValidated
+    Nothing -> case NonEmpty.nonEmpty (validateSensitivityConflicts schemaSettings) of
+      Just errors -> Left errors
+      Nothing -> resolveValidated
   where
     resolveValidated =
       case NonEmpty.nonEmpty structuralErrors of
@@ -112,6 +115,13 @@ resolve options sources config =
       WarnUnknownKeys -> Right ()
       RejectUnknownKeys -> errorsOnly (fmap UnknownKeyError unknownProblems)
     completeNodes = addNotSelected schemaSettings (evaluation ^. #nodes)
+
+validateSensitivityConflicts :: [SchemaSetting] -> [ConfigError]
+validateSensitivityConflicts schemaSettings =
+  [ SensitivityConflict (SensitivityConflictProblem {key = schemaSettingKey schemaSetting})
+  | schemaSetting <- schemaSettings,
+    Set.size (schemaSetting ^. #declaredSensitivities) > 1
+  ]
 
 validateStructure :: [SchemaSetting] -> [Source] -> [ConfigError]
 validateStructure schemaSettings sources =

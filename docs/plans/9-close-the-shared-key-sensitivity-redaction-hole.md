@@ -25,8 +25,8 @@ public (by mistake) in a metrics module — nothing detects the conflict, and th
 node built for the public declaration retains and renders the raw secret value. A password
 can appear in plain text in `renderResolutionText` and `renderResolutionJson` output.
 
-After this change, two things are true and demonstrable. First, resolving any declaration
-that names one key with both `Public` and `Secret` sensitivity fails with a new structured
+After this change, two things are true and demonstrable. First, resolving any acyclic
+declaration that names one key with both `Public` and `Secret` sensitivity fails with a new structured
 error, `SensitivityConflict`, that identifies the key, so the declaration bug is surfaced
 to the roughly 70 adopting codebases instead of being silently absorbed. Second, as
 defense in depth, every internal code path — schema merging, report-node construction, and
@@ -44,19 +44,24 @@ only the core `settei` package plus documentation; no adapter package changes.
 
 ## Progress
 
-- [x] (2026-07-19 09:29 -0700) M1: `SchemaSetting` tracks every declared sensitivity and `mergeSetting` in
+- [x] (2026-07-19 09:29 -0700) M1: `SchemaSetting` tracks every declared sensitivity and
+      `mergeSetting` in
       settei/src/Settei/Internal/Schema.hs merges sensitivity most-restrictively
       (`Secret` wins).
-- [x] (2026-07-19 09:29 -0700) M1: schema-merge tests pass for both declaration orders, for a duplicate inside a
+- [x] (2026-07-19 09:29 -0700) M1: schema-merge tests pass for both declaration orders,
+      for a duplicate inside a
       selective branch, and for a duplicate inside a default dependency.
-- [ ] M2: `SensitivityConflictProblem` record and `SensitivityConflict` constructor added
+- [x] (2026-07-19 09:35 -0700) M2: `SensitivityConflictProblem` record and
+      `SensitivityConflict` constructor added
       to settei/src/Settei/Error.hs.
-- [ ] M2: pre-evaluation `validateSensitivityConflicts` gate wired into `resolve` in
+- [x] (2026-07-19 09:35 -0700) M2: pre-evaluation `validateSensitivityConflicts` gate
+      wired into `resolve` in
       settei/src/Settei/Resolve.hs alongside `validateDefaultCycles`.
-- [ ] M2: text and JSON rendering for the new error added to
+- [x] (2026-07-19 09:35 -0700) M2: text and JSON rendering for the new error added to
       settei/src/Settei/Render.hs; every exhaustive `ConfigError` pattern match in the
       repository updated (core test helper plus two example test helpers).
-- [ ] M2: resolve-level conflict tests pass (error returned, correct key, both orders).
+- [x] (2026-07-19 09:35 -0700) M2: resolve-level conflict tests pass (error returned,
+      correct key, both orders).
 - [ ] M3: per-key effective-sensitivity map computed in `resolve` and threaded through
       `evaluate`, `evaluateSetting`, `missingNode`, `derivedNode`, and
       `defaultReportedValue`.
@@ -73,7 +78,26 @@ only the core `settei` package plus documentation; no adapter package changes.
 
 ## Surprises & Discoveries
 
-(None yet.)
+- The initially planned expression that appended default-cycle errors to
+  sensitivity-conflict errors caused the existing cyclic-default test to stop after
+  printing its test name. Computing sensitivity conflicts requires
+  `schemaPossible (describeEvaluation config)`, and static description follows the
+  deliberately cyclic default dependency forever. Restoring an explicit first gate for
+  `validateDefaultCycles`, followed by the schema-dependent conflict gate only when that
+  list is empty, made the focused cyclic test and all 54 core tests pass.
+
+  Evidence:
+
+  ```text
+  Settei.Default
+    cyclic defaults fail before source evaluation:
+  ^C
+
+  Settei.Default
+    cyclic defaults fail before source evaluation: OK
+
+  All 1 tests passed (0.00s)
+  ```
 
 
 ## Decision Log
@@ -141,6 +165,17 @@ only the core `settei` package plus documentation; no adapter package changes.
   Rationale: 0.1.0.0 has never been published (the MasterPlan's premise is hardening
   before the first fleet-wide adoption), so the initial release notes are still the
   correct home and no version bump is required.
+  Date: 2026-07-19
+
+- Decision: Keep default-cycle validation as the first resolver gate and run
+  sensitivity-conflict validation as a second declaration-level gate only when the
+  declaration is acyclic.
+  Rationale: Conflict detection consumes the static schema, but describing a cyclic
+  default dependency does not terminate. The ordering preserves the existing guarantee
+  that cycles fail before source or schema evaluation while still reporting every
+  sensitivity conflict before structure validation and runtime evaluation for all valid,
+  acyclic declarations. A declaration containing both defects reports its default cycle
+  first instead of accumulating both error kinds.
   Date: 2026-07-19
 
 
@@ -362,22 +397,25 @@ label works through the `Generic` instance even though the constructor is not ex
 `schemaPossible` returns entries in key order, so multiple conflicts report
 deterministically in key order.
 
-Wire the gate into `resolve` as part of the first (pure, declaration-level) validation
-step so cycle errors and sensitivity conflicts accumulate together before any
-source-dependent work:
+Wire the gate into `resolve` as the second pure declaration-level validation step. The
+default-cycle gate must remain first because computing `schemaSettings` follows default
+dependencies and therefore cannot terminate for an already-invalid cyclic declaration:
 
 ```haskell
 resolve options sources config =
-  case NonEmpty.nonEmpty (validateDefaultCycles config <> validateSensitivityConflicts schemaSettings) of
+  case NonEmpty.nonEmpty (validateDefaultCycles config) of
     Just errors -> Left errors
-    Nothing -> resolveValidated
+    Nothing -> case NonEmpty.nonEmpty (validateSensitivityConflicts schemaSettings) of
+      Just errors -> Left errors
+      Nothing -> resolveValidated
 ```
 
 `schemaSettings` is already computed in `resolve`'s `where` clause as
-`schemaPossible (describeEvaluation config)`; it is source-free, so hoisting its use into
-the first gate is safe and keeps `describe`-style inspection ahead of any source lookup,
-matching the ADR 0003 ordering (declaration-level errors, then structural, then
-evaluation).
+`schemaPossible (describeEvaluation config)`; it is source-free but only safe to force
+after default-cycle validation succeeds. This keeps declaration inspection ahead of any
+source lookup while preserving termination. Multiple sensitivity conflicts still report
+deterministically in key order; a declaration containing both a default cycle and a
+sensitivity conflict reports the cycle first because its schema cannot safely be built.
 
 In settei/src/Settei/Render.hs extend the two closed case expressions, following the
 existing patterns exactly. In `renderErrorText`:
@@ -783,8 +821,8 @@ branches by default. Update this plan's Progress section at every stopping point
 The change is accepted when all of the following observable behaviors hold, in addition
 to a fully green test run.
 
-Behavior 1 — the conflict is a structured error. Resolving any declaration that names one
-key with both `Public` and `Secret` sensitivity returns `Left` containing
+Behavior 1 — the conflict is a structured error. Resolving any acyclic declaration that
+names one key with both `Public` and `Secret` sensitivity returns `Left` containing
 `SensitivityConflict (SensitivityConflictProblem {key = <that key>})`, regardless of
 declaration order and even when one duplicate sits inside an unselected selective branch
 or a default dependency. `renderErrorsText` for it reads, for the key
@@ -797,6 +835,10 @@ database.password: declared with both public and secret sensitivity; treated as 
 and `renderErrorsJson` contains the object
 `{"kind":"sensitivity-conflict","key":"database.password"}` inside a `schemaVersion: 1`
 `settei.errors` document.
+
+A declaration containing a default cycle is rejected by `DefaultCycle` before its static
+schema is built; if it also contains a sensitivity conflict, the cycle is reported first
+because following the cyclic defaults to compute sensitivity metadata cannot terminate.
 
 Behavior 2 — most-restrictive schema. `describe` on the same declaration yields a schema
 whose entry for the key has sensitivity `Secret`; `renderSchemaText` shows `secret` in
@@ -917,3 +959,13 @@ mergeNodes :: ResolutionNode -> ResolutionNode -> ResolutionNode
 Nothing else in the public surface changes. `mergeRequirement` and `mergePresence` in
 settei/src/Settei/Internal/Schema.hs are explicitly out of scope and must remain
 byte-identical.
+
+
+## Revision Note
+
+2026-07-19: Revised Milestone 2 after validation exposed that combining default-cycle and
+sensitivity-conflict error lists forces static schema description for cyclic defaults and
+does not terminate. The implemented resolver now preserves default-cycle validation as
+the first gate and runs sensitivity-conflict validation second for acyclic declarations;
+the Progress, Surprises & Discoveries, Decision Log, Plan of Work, and acceptance context
+record the ordering and its evidence.

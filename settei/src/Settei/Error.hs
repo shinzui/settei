@@ -9,6 +9,7 @@ module Settei.Error
     DecodeProblem (..),
     MissingProblem (..),
     RawShape (..),
+    SensitivityConflictProblem (..),
     StructuralError (..),
     UnknownKeyProblem (..),
   )
@@ -69,6 +70,12 @@ data DefaultCycleProblem = DefaultCycleProblem
   }
   deriving stock (Generic, Eq, Show)
 
+-- | One key was declared with both public and secret sensitivity.
+data SensitivityConflictProblem = SensitivityConflictProblem
+  { key :: !Key
+  }
+  deriving stock (Generic, Eq, Show)
+
 -- | A fatal resolver error. Every constructor is safe to render or show.
 data ConfigError
   = MissingRequired !MissingProblem
@@ -77,6 +84,7 @@ data ConfigError
   | UnknownKeyError !UnknownKeyProblem
   | DefaultError !DefaultProblem
   | DefaultCycle !DefaultCycleProblem
+  | SensitivityConflict !SensitivityConflictProblem
   deriving stock (Generic, Eq, Show)
 
 -- | A non-fatal resolver diagnostic.

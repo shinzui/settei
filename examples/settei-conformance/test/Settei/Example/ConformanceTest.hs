@@ -355,6 +355,7 @@ problemKey = \case
   UnknownKeyError problem -> problem ^. #key
   DefaultError problem -> problem ^. #key
   DefaultCycle _ -> error "cycle has no key"
+  SensitivityConflict problem -> problem ^. #key
 
 validKey :: Text -> Key
 validKey value = either (error . show) id (parseKey value)

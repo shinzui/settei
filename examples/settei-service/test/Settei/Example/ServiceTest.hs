@@ -97,6 +97,7 @@ problemKey = \case
   UnknownKeyError problem -> problem ^. #key
   DefaultError problem -> problem ^. #key
   DefaultCycle _ -> error "cycle has no key"
+  SensitivityConflict problem -> problem ^. #key
 
 expectResolution :: Either a b -> IO b
 expectResolution = \case

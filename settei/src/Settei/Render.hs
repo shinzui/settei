@@ -199,6 +199,9 @@ renderErrorText = \case
   DefaultCycle problem ->
     "default cycle: "
       <> Text.intercalate " -> " (fmap renderRuleName (NonEmpty.toList (problem ^. #rules)))
+  SensitivityConflict problem ->
+    renderKey (problem ^. #key)
+      <> ": declared with both public and secret sensitivity; treated as secret"
 
 -- | Render non-fatal diagnostics in deterministic source and key order.
 renderWarningsText :: [ConfigWarning] -> Text
@@ -340,6 +343,11 @@ errorJson = \case
     jsonObject
       [ ("kind", jsonString "default-cycle"),
         ("rules", jsonArray (fmap (jsonString . renderRuleName) (NonEmpty.toList (problem ^. #rules))))
+      ]
+  SensitivityConflict problem ->
+    jsonObject
+      [ ("kind", jsonString "sensitivity-conflict"),
+        ("key", jsonString (renderKey (problem ^. #key)))
       ]
 
 -- | Render warnings as a versioned deterministic JSON document.

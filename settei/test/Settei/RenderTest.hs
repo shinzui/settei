@@ -38,6 +38,14 @@ tests =
         assertBool "text omitted the not-selected outcome" ("<not selected>" `Text.isInfixOf` textOutput)
         assertBool "JSON omitted the missing outcome" ("\"outcome\":\"missing\"" `Text.isInfixOf` jsonOutput)
         assertBool "JSON omitted the not-selected outcome" ("\"outcome\":\"not-selected\"" `Text.isInfixOf` jsonOutput),
+      testCase "sensitivity conflicts render as structured errors" $ do
+        let errors = SensitivityConflict (SensitivityConflictProblem {key = databasePassword}) :| []
+        assertBool
+          "text omitted the conflict explanation"
+          ("database.password: declared with both public and secret sensitivity" `Text.isInfixOf` renderErrorsText errors)
+        assertBool
+          "JSON omitted the sensitivity-conflict kind"
+          ("\"kind\":\"sensitivity-conflict\"" `Text.isInfixOf` renderErrorsJson errors),
       testCase "every supported output redacts marked secrets" redactionTest
     ]
 

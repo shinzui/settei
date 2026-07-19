@@ -108,8 +108,23 @@ tests =
             [StructuralConflict structuralError] ->
               structuralError ^. #key @?= databasePassword
             _ -> fail "expected one structural conflict"
-          Right _ -> fail "source shape validation should fail"
+          Right _ -> fail "source shape validation should fail",
+      testCase "conflicting sensitivity declarations fail with a structured error" $ do
+        assertSensitivityConflict secretThenPublic
+        assertSensitivityConflict publicThenSecret,
+      testCase "sensitivity conflicts include unselected selective branches" $
+        assertSensitivityConflict selectiveSensitivityConflict,
+      testCase "sensitivity conflicts include default dependencies" $
+        assertSensitivityConflict defaultSensitivityConflict
     ]
+
+assertSensitivityConflict :: Config a -> IO ()
+assertSensitivityConflict declaration =
+  case resolve defaultResolveOptions [passwordSource] declaration of
+    Left errors -> case NonEmpty.toList errors of
+      [SensitivityConflict problem] -> problem ^. #key @?= databasePassword
+      _ -> fail "expected one sensitivity conflict"
+    Right _ -> fail "mixed-sensitivity declaration should fail"
 
 checkOrdering :: [(Int, Source)] -> IO ()
 checkOrdering orderedSources = do
@@ -138,6 +153,7 @@ errorKey = \case
   UnknownKeyError problem -> problem ^. #key
   DefaultError problem -> problem ^. #key
   DefaultCycle _ -> error "a cycle has no single setting key"
+  SensitivityConflict problem -> problem ^. #key
 
 serviceConfig :: Config (Text, Int)
 serviceConfig = (,) <$> required hostSetting <*> required portSetting
@@ -149,6 +165,31 @@ productionPassword = select selector branch
       (\environment -> if environment == "production" then Left () else Right Nothing)
         <$> required environmentSetting
     branch = (\password _ -> Just password) <$> required passwordSetting
+
+secretThenPublic :: Config (Text, Text)
+secretThenPublic =
+  (,) <$> required passwordSetting <*> required publicPasswordSetting
+
+publicThenSecret :: Config (Text, Text)
+publicThenSecret =
+  (,) <$> required publicPasswordSetting <*> required passwordSetting
+
+selectiveSensitivityConflict :: Config Text
+selectiveSensitivityConflict =
+  select
+    ((\password -> Right password :: Either () Text) <$> required passwordSetting)
+    ((\publicValue () -> publicValue) <$> required publicPasswordSetting)
+
+defaultSensitivityConflict :: Config Text
+defaultSensitivityConflict =
+  withDefault
+    passwordSetting
+    ( derivedDefault
+        (RuleName "password-from-public-duplicate")
+        "Exercise a sensitivity conflict in a default dependency"
+        (required publicPasswordSetting)
+        id
+    )
 
 hostSetting :: Setting Text
 hostSetting = publicSetting serviceHost "Service host" textDecoder
@@ -167,6 +208,21 @@ environmentSetting = publicSetting runtimeEnvironment "Runtime environment" text
 
 passwordSetting :: Setting Text
 passwordSetting = secretSetting databasePassword "Database password" textDecoder
+
+publicPasswordSetting :: Setting Text
+publicPasswordSetting = publicSetting databasePassword "Metrics password label" textDecoder
+
+passwordSource :: Source
+passwordSource =
+  source
+    "password"
+    (CustomSource "test")
+    ( RawObject
+        ( Map.singleton
+            "database"
+            (RawObject (Map.singleton "password" (RawText "sensitive-value")))
+        )
+    )
 
 textArrayDecoder :: Decoder [Text]
 textArrayDecoder = decoder $ \key -> \case
