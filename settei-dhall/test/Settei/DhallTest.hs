@@ -206,6 +206,32 @@ tests =
                 (not (secretSentinel `Text.isInfixOf` Text.pack (show problem)))
           )
           cases,
+      testCase "root parse errors carry exact one-based positions" $ do
+        firstProblem <- expectError noImportOptions (dhallExpression "broken" "{ port =")
+        dhallErrorCategory firstProblem @?= DhallParseError
+        dhallErrorLine firstProblem @?= Just 1
+        dhallErrorColumn firstProblem @?= Just 9
+        secondProblem <-
+          expectError
+            noImportOptions
+            (dhallExpression "broken2" "let a = 1\nin { port = }")
+        dhallErrorCategory secondProblem @?= DhallParseError
+        dhallErrorLine secondProblem @?= Just 2
+        dhallErrorColumn secondProblem @?= Just 13
+        dhallErrorMessage secondProblem @?= "invalid Dhall syntax",
+      testCase "local-import parse errors retain the imported-file position" $
+        withSystemTempDirectory "settei-dhall-parse-position" $ \root -> do
+          let imported = root FilePath.</> "broken.dhall"
+          TextIO.writeFile imported "let a = 1\nin { port = }"
+          problem <-
+            expectError
+              (localOptions root)
+              (dhallExpression "importing root" "./broken.dhall")
+          dhallErrorCategory problem @?= DhallParseError
+          dhallErrorPath problem @?= Just imported
+          dhallErrorLine problem @?= Just 2
+          dhallErrorColumn problem @?= Just 13
+          dhallErrorMessage problem @?= "invalid syntax in local import",
       testCase "resolved secret values are redacted while Dhall provenance remains" $ do
         input <-
           expectSource

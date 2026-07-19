@@ -84,16 +84,20 @@ below also names a small observable behavior you can check directly.
 - [x] (2026-07-19T18:13:04Z) M3 validation: `nix develop -c cabal test settei-yaml-tests
       --test-show-details=direct` passed all 33 tests, and `nix develop -c cabal build all`
       compiled the workspace.
-- [ ] M4: extend `DhallSourceError` with optional line/column fields and the
+- [x] (2026-07-19T18:19:35Z) M4: extended `DhallSourceError` with optional line/column fields and the
       `dhallErrorLine`/`dhallErrorColumn` accessors in settei-dhall/src/Settei/Dhall.hs.
-- [ ] M4: populate positions from the Megaparsec bundle at both `DhallParseError`
+- [x] (2026-07-19T18:19:35Z) M4: populated positions from the Megaparsec bundle at both `DhallParseError`
       construction sites (root parse and import preflight) and add `megaparsec` to
       settei-dhall.cabal.
-- [ ] M4: add position tests to settei-dhall/test/Settei/DhallTest.hs.
-- [ ] M4: append a dated amendment note to docs/adr/0006-dhall-input-import-and-provenance-semantics.md
+- [x] (2026-07-19T18:19:35Z) M4: added root and imported-file position tests to settei-dhall/test/Settei/DhallTest.hs.
+- [x] (2026-07-19T18:19:35Z) M4: appended a dated amendment note to docs/adr/0006-dhall-input-import-and-provenance-semantics.md
       and update the error section of docs/guides/dhall.md.
-- [ ] M4: add the LocalImportsWithin TOCTOU-race warning to docs/security.md (verified
+- [x] (2026-07-19T18:19:35Z) M4: added the LocalImportsWithin TOCTOU-race warning to docs/security.md (verified
       absent as of 2026-07-19).
+- [x] (2026-07-19T18:19:35Z) M4 validation: `nix develop -c cabal test settei-dhall-tests
+      --test-show-details=direct` passed all 16 tests; the root and imported fixture both
+      pinned line 2, column 13; `nix develop -c cabal build all` compiled the workspace;
+      the solved direct dependency is Megaparsec 9.8.1.
 - [ ] M5: implement terminating-decimal rendering in `renderRawValue` in
       settei/src/Settei/Provenance.hs.
 - [ ] M5: add rendering unit tests; run golden tests and reconcile
@@ -119,6 +123,13 @@ below also names a small observable behavior you can check directly.
   uses a fixed fallback literal without exception content; and leaves `unsafePerformIO`
   and `NOINLINE` intact. Ordinary malformed input remains covered by a positioned
   `YamlSyntaxError` regression test.
+- Mori located the registered Dhall 1.42.3 source and confirmed that
+  `Dhall.Parser.ParseError` exposes its Megaparsec bundle. Direct inspection of current
+  Megaparsec 9.8.1 then found that `reachOffsetNoLine` returns an updated `PosState`, not
+  the `(SourcePos, PosState)` tuple assumed by the authored plan. The implementation reads
+  `pstateSourcePos` from that returned state. Hackage and upstream tags both identify
+  9.8.1, so the direct dependency remains the planned `>=9 && <10` range without a
+  compatibility workaround.
 
 
 ## Decision Log
@@ -205,6 +216,15 @@ below also names a small observable behavior you can check directly.
   the same settei-yaml module and EP-12 causes Render/golden churn; landing last keeps
   this sweep plan's diffs small. Each ADR amendment appends its own dated note rather than
   rewriting earlier ones.
+  Date: 2026-07-19
+
+- Decision: use the Megaparsec 9.x structural position API by taking
+  `pstateSourcePos` from the `PosState` returned by `reachOffsetNoLine`; keep the direct
+  dependency at `megaparsec >=9 && <10`.
+  Rationale: Mori-located Dhall 1.42.3 supports Megaparsec `>=8 && <10`, while the
+  authoritative registry and upstream tags identify 9.8.1 as current. The 9.x API avoids
+  rendering a source line and the PVP-compatible bound covers the released major without
+  pinning one patch version.
   Date: 2026-07-19
 
 
@@ -594,15 +614,17 @@ parseErrorPosition :: DhallParser.ParseError -> (Maybe Int, Maybe Int)
 parseErrorPosition parseError =
   let bundle = DhallParser.unwrap parseError
       offset = Megaparsec.errorOffset (NonEmpty.head (Megaparsec.bundleErrors bundle))
-      (position, _) = Megaparsec.reachOffsetNoLine offset (Megaparsec.bundlePosState bundle)
+      reached = Megaparsec.reachOffsetNoLine offset (Megaparsec.bundlePosState bundle)
+      position = Megaparsec.pstateSourcePos reached
    in ( Just (Megaparsec.unPos (Megaparsec.sourceLine position)),
         Just (Megaparsec.unPos (Megaparsec.sourceColumn position))
       )
 ```
 
-`reachOffsetNoLine` computes a `SourcePos` without materializing the offending source
-line, so no snippet ever exists in the adapter; the `ParseError` value itself is consumed
-here and never stored. Change the root parse branch of `loadDhallSourceDetailed` (lines
+`reachOffsetNoLine` computes an updated `PosState` without materializing the offending
+source line; `pstateSourcePos` exposes its `SourcePos`, so no snippet ever exists in the
+adapter. The `ParseError` value itself is consumed here and never stored. Change the root
+parse branch of `loadDhallSourceDetailed` (lines
 236–237) from `Left _ -> ... "invalid Dhall syntax"` to bind the error, extract the
 position, and emit the same fixed message with the position filled in. Do the same at the
 import-preflight parse site in `visitImport` (around line 399, message "invalid syntax in

@@ -14,6 +14,8 @@ module Settei.Dhall
     DhallSourceOptions,
     annotateDhallSourceOptions,
     dhallErrorCategory,
+    dhallErrorColumn,
+    dhallErrorLine,
     dhallErrorMessage,
     dhallErrorName,
     dhallErrorPath,
@@ -58,6 +60,7 @@ import Settei
 import Settei.Prelude
 import System.Directory qualified as Directory
 import System.FilePath qualified as FilePath
+import Text.Megaparsec qualified as Megaparsec
 
 -- | Import capabilities available to version-one callers.
 --
@@ -129,12 +132,15 @@ data DhallErrorCategory
 
 -- | A secret-safe Dhall input failure.
 --
--- The error retains only a stable category, source name, optional safe path,
--- and fixed message. It never retains source text or an upstream exception.
+-- The error retains only a stable category, source name, optional safe path, optional
+-- one-based position, and fixed message. It never retains source text or an upstream
+-- exception.
 data DhallSourceError = DhallSourceError
   { category :: !DhallErrorCategory,
     name :: !Text,
     path :: !(Maybe FilePath),
+    line :: !(Maybe Int),
+    column :: !(Maybe Int),
     message :: !Text
   }
   deriving stock (Generic, Eq, Show)
@@ -150,6 +156,8 @@ data PreparedRoot = PreparedRoot
 data PreflightFailure = PreflightFailure
   { category :: !DhallErrorCategory,
     path :: !(Maybe FilePath),
+    line :: !(Maybe Int),
+    column :: !(Maybe Int),
     message :: !Text
   }
   deriving stock (Generic)
@@ -186,6 +194,14 @@ dhallErrorName problem = problem ^. #name
 -- | Return a safe relevant path when one is known.
 dhallErrorPath :: DhallSourceError -> Maybe FilePath
 dhallErrorPath problem = problem ^. #path
+
+-- | Return the one-based line associated with an error, when known.
+dhallErrorLine :: DhallSourceError -> Maybe Int
+dhallErrorLine problem = problem ^. #line
+
+-- | Return the one-based column associated with an error, when known.
+dhallErrorColumn :: DhallSourceError -> Maybe Int
+dhallErrorColumn problem = problem ^. #column
 
 -- | Return a fixed secret-safe error message.
 dhallErrorMessage :: DhallSourceError -> Text
@@ -234,7 +250,17 @@ loadDhallSourceDetailed options root = do
     Left problem -> pure (Left (NonEmpty.singleton problem))
     Right prepared ->
       case DhallParser.exprFromText (Text.unpack (prepared ^. #label)) (prepared ^. #input) of
-        Left _ -> pure (failure options DhallParseError (prepared ^. #filePath) "invalid Dhall syntax")
+        Left parseError ->
+          let (line, column) = parseErrorPosition parseError
+           in pure
+                ( positionedFailure
+                    options
+                    DhallParseError
+                    (prepared ^. #filePath)
+                    line
+                    column
+                    "invalid Dhall syntax"
+                )
         Right expression -> do
           resolvedResult <- resolveExpression options prepared expression
           pure $ do
@@ -320,10 +346,12 @@ resolveExpression options prepared expression = case options ^. #importPolicy of
         case preflightResult of
           Left problem ->
             pure
-              ( failure
+              ( positionedFailure
                   options
                   (problem ^. #category)
                   (problem ^. #path)
+                  (problem ^. #line)
+                  (problem ^. #column)
                   (problem ^. #message)
               )
           Right imports -> do
@@ -397,7 +425,14 @@ visitImport allowedRoot baseDirectory (visited, observed) importValue =
             Left _ -> throwPreflight DhallImportError (Just canonical) "cannot read local import"
             Right value -> pure value
           imported <- case DhallParser.exprFromText canonical input of
-            Left _ -> throwPreflight DhallParseError (Just canonical) "invalid syntax in local import"
+            Left parseError ->
+              let (line, column) = parseErrorPosition parseError
+               in throwPositionedPreflight
+                    DhallParseError
+                    (Just canonical)
+                    line
+                    column
+                    "invalid syntax in local import"
             Right value -> pure value
           visitExpression
             allowedRoot
@@ -497,7 +532,17 @@ importModeName DhallRawBytesImport = "raw-bytes"
 importModeName DhallLocationImport = "location"
 
 throwPreflight :: DhallErrorCategory -> Maybe FilePath -> Text -> ExceptT PreflightFailure IO a
-throwPreflight category path message = throwE PreflightFailure {category, path, message}
+throwPreflight category path = throwPositionedPreflight category path Nothing Nothing
+
+throwPositionedPreflight ::
+  DhallErrorCategory ->
+  Maybe FilePath ->
+  Maybe Int ->
+  Maybe Int ->
+  Text ->
+  ExceptT PreflightFailure IO a
+throwPositionedPreflight category path line column message =
+  throwE PreflightFailure {category, path, line, column, message}
 
 isWithin :: FilePath -> FilePath -> Bool
 isWithin root pathCandidate =
@@ -508,11 +553,42 @@ isWithin root pathCandidate =
           _ -> True
 
 failure :: DhallSourceOptions -> DhallErrorCategory -> Maybe FilePath -> Text -> Either (NonEmpty DhallSourceError) a
-failure options category path message = Left (NonEmpty.singleton (singleError options category path message))
+failure options category path = positionedFailure options category path Nothing Nothing
+
+positionedFailure ::
+  DhallSourceOptions ->
+  DhallErrorCategory ->
+  Maybe FilePath ->
+  Maybe Int ->
+  Maybe Int ->
+  Text ->
+  Either (NonEmpty DhallSourceError) a
+positionedFailure options category path line column message =
+  Left (NonEmpty.singleton (positionedError options category path line column message))
 
 singleError :: DhallSourceOptions -> DhallErrorCategory -> Maybe FilePath -> Text -> DhallSourceError
-singleError options category path message =
-  DhallSourceError {category, name = options ^. #name, path, message}
+singleError options category path = positionedError options category path Nothing Nothing
+
+positionedError ::
+  DhallSourceOptions ->
+  DhallErrorCategory ->
+  Maybe FilePath ->
+  Maybe Int ->
+  Maybe Int ->
+  Text ->
+  DhallSourceError
+positionedError options category path line column message =
+  DhallSourceError {category, name = options ^. #name, path, line, column, message}
+
+parseErrorPosition :: DhallParser.ParseError -> (Maybe Int, Maybe Int)
+parseErrorPosition parseError =
+  let bundle = DhallParser.unwrap parseError
+      offset = Megaparsec.errorOffset (NonEmpty.head (Megaparsec.bundleErrors bundle))
+      reached = Megaparsec.reachOffsetNoLine offset (Megaparsec.bundlePosState bundle)
+      position = Megaparsec.pstateSourcePos reached
+   in ( Just (Megaparsec.unPos (Megaparsec.sourceLine position)),
+        Just (Megaparsec.unPos (Megaparsec.sourceColumn position))
+      )
 
 firstOne ::
   DhallSourceOptions ->

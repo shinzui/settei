@@ -272,9 +272,10 @@ renderDhallError problem =
 ```
 
 `DhallErrorCategory` distinguishes IO, parse, policy, import, type, conversion, invalid
-key, and top-level type failures. Use `dhallErrorName` and `dhallErrorPath` to add safe
-context. Errors do not retain expression snippets, imported values, or upstream exception
-text.
+key, and top-level type failures. Use `dhallErrorName`, `dhallErrorPath`,
+`dhallErrorLine`, and `dhallErrorColumn` to add safe context. Line and column are optional,
+one-based positions populated for parse failures. Errors do not retain expression
+snippets, imported values, or upstream exception text.
 
 ## Attach Kubernetes metadata
 

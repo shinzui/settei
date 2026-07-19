@@ -103,3 +103,12 @@ evidence. Default homogeneous-map conversion was rejected because duplicate asso
 keys could be collapsed silently. Rendering upstream exceptions was rejected because
 parse and type diagnostics may echo source text before Settei knows which fields are
 secret.
+
+
+## Amendment 2026-07-19: positioned parse failures
+
+Parse failures now carry an optional one-based line and column extracted structurally
+from the Megaparsec error bundle, matching the YAML and KDL adapters. Positions are not
+secrets; rendered snippets remain excluded, and messages remain fixed. The adapter uses
+the bundle's error offset and position state directly and never renders or retains the
+offending line.

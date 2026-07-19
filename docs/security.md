@@ -81,6 +81,12 @@ Remote and environment imports are not part of the maintained adapter surface. A
 local graph reports its root and transitive import closure, but normalization makes exact
 leaf-to-import attribution unavailable. Do not claim finer provenance in audit output.
 
+`LocalImportsWithin` is preflight validation, not an operating-system sandbox: import
+paths are canonicalized and checked before evaluation, so an actor able to mutate files
+or symlinks concurrently can race the preflight and the upstream read (a
+time-of-check/time-of-use race). Never treat a directory writable by untrusted actors as
+a safe import root.
+
 
 ## Safe application practices
 

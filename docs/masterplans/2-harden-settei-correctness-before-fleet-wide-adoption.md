@@ -203,6 +203,12 @@ EP-12's always-available report semantics (amend docs/adr/0003).
   beyond its initial document inventory. They were migrated, and EP-14 should validate
   release collateral with repository-wide API searches rather than only its enumerated
   file list.
+- During EP-13 implementation (2026-07-19), Mori and direct source inspection found that
+  Megaparsec 9.x `reachOffsetNoLine` returns an updated `PosState`, not the tuple assumed
+  by the authored plan. EP-13 reads `pstateSourcePos` structurally, adds the direct
+  `megaparsec >=9 && <10` bound to settei-dhall, and resolves 9.8.1. Hackage and upstream
+  tags both identify 9.8.1 as current; EP-14 must include this new direct bound in the
+  compatibility-matrix reconciliation.
 
 
 ## Decision Log
