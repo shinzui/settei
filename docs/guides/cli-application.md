@@ -25,6 +25,10 @@ build-depends:
   , text
 ```
 
+The [`settei-formats`](formats.md) package provides the `--config FORMAT:PATH` reader and
+format-dispatching loader shown explicitly later in this guide. Multi-format applications
+can use that package instead of maintaining their own parser and three-way dispatch.
+
 Use fewer adapter packages when the application supports fewer formats.
 
 The code excerpts below use these imports in addition to application modules:

@@ -30,6 +30,10 @@ build-depends:
   , text
 ```
 
+The [`settei-formats`](formats.md) package bundles tagged loading and Kubernetes
+annotation attachment across YAML, KDL, and Dhall mounted files. Services that support
+all three formats can use it instead of maintaining separate dispatch code.
+
 Add `settei-kdl`, `settei-dhall`, or `settei-optparse-applicative` only when the service
 uses those inputs.
 

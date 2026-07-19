@@ -62,6 +62,7 @@ The supported adoption surface is:
   `Settei.Resolve`, `Settei.Schema`, `Settei.Setting`, `Settei.Source`, and `Settei.Value`.
 - Adapters: `Settei.Env`, `Settei.Optparse`, `Settei.Yaml`, `Settei.Kdl`, and
   `Settei.Dhall`.
+- Multi-format umbrella: `Settei.Formats` and `Settei.Formats.Optparse`.
 
 Modules beneath `Settei.Internal` and all packages beneath `examples/` are not public API.
 Version 0.1.0.0 is experimental and does not promise semantic stability beyond these

@@ -62,10 +62,10 @@ that one deliberate pass rewrites the conformance-boundary examples.
       `nix develop -c cabal test settei-formats-tests --test-show-details=direct`.
 - [x] (2026-07-19T20:15:00Z) Milestone 3: full workspace validation green (`nix develop -c cabal test all`,
       `nix flake check`).
-- [ ] Milestone 4: `docs/guides/formats.md` written; pointer edits in
+- [x] (2026-07-19T20:21:00Z) Milestone 4: `docs/guides/formats.md` written; pointer edits in
       `docs/guides/README.md`, `docs/guides/cli-application.md`,
       `docs/guides/kubernetes-service.md`; `docs/compatibility.md` public-module list updated.
-- [ ] Milestone 4: `docs/adr/0008-settei-formats-umbrella-package.md` written.
+- [x] (2026-07-19T20:21:00Z) Milestone 4: `docs/adr/0008-settei-formats-umbrella-package.md` written.
 - [x] (2026-07-19T20:05:00Z) EP-17 renderers were unavailable, so the typed `Show` stub is active and a
       `TODO(EP-17)` is recorded in `Settei.Formats`; the function type is final so replacement
       will not churn callers.

@@ -15,6 +15,7 @@ application guide that match your program:
 | [YAML configuration](yaml.md) | You want strict YAML files with line and column provenance. |
 | [KDL configuration](kdl.md) | You want KDL v2 files with exact source spans. |
 | [Dhall configuration](dhall.md) | You want typed Dhall input with an explicit import policy. |
+| [Tagged multi-format configuration](formats.md) | You accept `--config FORMAT:PATH` inputs across YAML, KDL, and Dhall with one shared loader. |
 | [Building a CLI application](cli-application.md) | You are assembling files, environment variables, overrides, and exit behavior in a command-line program. |
 | [Building a Kubernetes service](kubernetes-service.md) | You are loading mounted configuration and Secret-backed environment variables in a service. |
 
