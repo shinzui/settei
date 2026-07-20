@@ -75,10 +75,92 @@ tests =
         assertBool
           "JSON omitted the sensitivity-conflict kind"
           ("\"kind\":\"sensitivity-conflict\"" `Text.isInfixOf` renderErrorsJson errors),
+      kubernetesRendererTests,
       testCase "every supported output redacts marked secrets" redactionTest,
       testCase "mixed-sensitivity declarations never expose their secret sentinel" $
         sensitivityConflictRedactionTest
     ]
+
+kubernetesRendererTests :: TestTree
+kubernetesRendererTests =
+  testGroup
+    "Kubernetes provenance"
+    [ testCase "text appends only the file modification time" $ do
+        let output = renderResolutionText (kubernetesReport freshKubernetesOrigin)
+        output
+          @?= Text.unlines
+            [ "service.host = \"api.internal\"",
+              "  from kubernetes-mounted-directory source service-config from Kubernetes ConfigMap payments/service-config key host (modified 2026-07-19T15:20:08Z)"
+            ]
+        assertBool
+          "text rendered the mount-path annotation"
+          (not ("/etc/app-config" `Text.isInfixOf` output))
+        assertBool
+          "text rendered the read-at annotation"
+          (not ("2026-07-19T15:21:00Z" `Text.isInfixOf` output)),
+      testCase "text without file-modified retains the old suffix exactly" $ do
+        let originWithoutModified =
+              freshKubernetesOrigin
+                & #annotations
+                %~ Map.delete "kubernetes.file-modified"
+            output = renderResolutionText (kubernetesReport originWithoutModified)
+        output
+          @?= Text.unlines
+            [ "service.host = \"api.internal\"",
+              "  from kubernetes-mounted-directory source service-config from Kubernetes ConfigMap payments/service-config key host"
+            ]
+        assertBool "text unexpectedly added a modification suffix" (not ("(modified" `Text.isInfixOf` output)),
+      testCase "JSON retains every Kubernetes annotation" $ do
+        let output = renderResolutionJson (kubernetesReport freshKubernetesOrigin)
+            expectedEntries =
+              [ "\"kubernetes.file-modified\":\"2026-07-19T15:20:08Z\"",
+                "\"kubernetes.mount-path\":\"/etc/app-config\"",
+                "\"kubernetes.namespace\":\"payments\"",
+                "\"kubernetes.object-key\":\"host\"",
+                "\"kubernetes.object-kind\":\"ConfigMap\"",
+                "\"kubernetes.object-name\":\"service-config\"",
+                "\"kubernetes.read-at\":\"2026-07-19T15:21:00Z\""
+              ]
+        assertBool
+          "JSON omitted a Kubernetes annotation"
+          (all (`Text.isInfixOf` output) expectedEntries)
+    ]
+
+kubernetesReport :: Origin -> ResolutionReport
+kubernetesReport origin =
+  ResolutionReport
+    { nodes =
+        Map.singleton
+          serviceHost
+          ResolutionNode
+            { key = serviceHost,
+              sensitivity = Public,
+              outcome = Resolved (reportedValue Public (RawText "api.internal")),
+              origin = Just origin,
+              shadowed = [],
+              derivation = Nothing
+            },
+      branches = []
+    }
+
+freshKubernetesOrigin :: Origin
+freshKubernetesOrigin =
+  Origin
+    { kind = CustomSource "kubernetes-mounted-directory",
+      name = "service-config",
+      key = serviceHost,
+      location = Nothing,
+      annotations =
+        Map.fromList
+          [ ("kubernetes.object-kind", "ConfigMap"),
+            ("kubernetes.namespace", "payments"),
+            ("kubernetes.object-name", "service-config"),
+            ("kubernetes.object-key", "host"),
+            ("kubernetes.mount-path", "/etc/app-config"),
+            ("kubernetes.file-modified", "2026-07-19T15:20:08Z"),
+            ("kubernetes.read-at", "2026-07-19T15:21:00Z")
+          ]
+    }
 
 renderNumber :: Rational -> Text
 renderNumber = renderReportedValue . reportedValue Public . RawNumber

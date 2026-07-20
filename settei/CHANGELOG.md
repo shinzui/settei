@@ -19,6 +19,9 @@
   inspectable declaration algebra.
 - Add `publicShowSetting` and `withRenderer` to `Settei.Setting` for concise typed-default
   rendering; secret settings continue to redact regardless of attached renderers.
+- The text renderer's Kubernetes suffix appends `(modified TIME)` when an origin carries
+  the `kubernetes.file-modified` annotation. JSON output is unchanged because it already
+  emits the full annotation map.
 
 ## 0.1.0.0 — 2026-07-19
 

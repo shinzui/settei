@@ -161,6 +161,10 @@ kubernetesSuffix origin =
         <> maybe "" (<> "/") (origin ^. #annotations . at "kubernetes.namespace")
         <> objectName
         <> maybe "" (" key " <>) (origin ^. #annotations . at "kubernetes.object-key")
+        <> maybe
+          ""
+          (\modified -> " (modified " <> modified <> ")")
+          (origin ^. #annotations . at "kubernetes.file-modified")
     _ -> ""
 
 -- | Render structured failures without access to rejected secret values.

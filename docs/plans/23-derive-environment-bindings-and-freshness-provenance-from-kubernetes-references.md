@@ -86,7 +86,7 @@ rendering its resolution report: the report line ends with something like
       `kubernetes.file-modified` per key via `annotateSourceAt`; temp-dir fixture tests
       asserting presence and ISO-8601 parseability; settei-kubernetes suite green;
       changelog entry; commit 3 with required trailers.
-- [ ] Milestone 4: core `kubernetesSuffix` in settei/src/Settei/Render.hs appends
+- [x] (2026-07-20T02:20:19Z) Milestone 4: core `kubernetesSuffix` in settei/src/Settei/Render.hs appends
       `(modified TIME)` when present; unit tests in settei/test/Settei/RenderTest.hs for
       both the extended and unchanged suffix; golden-file impact check done
       (settei/test/golden/); settei/CHANGELOG.md entry; `settei-tests` and full suite
