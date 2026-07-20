@@ -108,31 +108,33 @@ Preflight (reconciliation — mandatory before Milestone 1):
 
 Milestone 1 — reference service integration:
 
-- [ ] Add the `--secrets-dir PATH` option to the service parser (Configuration group)
+- [x] (2026-07-20T03:41:09Z) Add the `--secrets-dir PATH` option to the service parser (Configuration group)
       and thread it through `ServiceOptions`.
-- [ ] Bind `POD_NAMESPACE` to an optional public `kubernetes.namespace` setting so the
+- [x] (2026-07-20T03:41:09Z) Bind `POD_NAMESPACE` to an optional public `kubernetes.namespace` setting so the
       checked-in downward-API value appears in explanations without making local,
       non-Kubernetes runs fail.
-- [ ] Load the mounted directory via the `Settei.Kubernetes` reader with explicit file
+- [x] (2026-07-20T03:41:09Z) Load the mounted directory via the `Settei.Kubernetes` reader with explicit file
       bindings (`password` file -> `database.password`), keeping the env-var delivery
       binding so both modes are demonstrated.
-- [ ] Place the mounted-directory source between the mounted config file and the
+- [x] (2026-07-20T03:41:09Z) Place the mounted-directory source between the mounted config file and the
       environment source in `resolveServiceSources`; document the order in the module.
-- [ ] Replace the hand-assembled `fromKubernetesObject` env-binding entry with the
+- [x] (2026-07-20T03:41:09Z) Replace the hand-assembled `fromKubernetesObject` env-binding entry with the
       EP-23 derived-bindings construction.
-- [ ] Update the base Deployment so both containers pass
+- [x] (2026-07-20T03:41:09Z) Update the base Deployment so both containers pass
       `--secrets-dir /etc/settei/secrets` and mount the same Secret there while retaining
       `DATABASE_PASSWORD` delivery.
-- [ ] Update examples/settei-service/test/Settei/Example/ServiceTest.hs: temp-dir
+- [x] (2026-07-20T03:41:09Z) Update examples/settei-service/test/Settei/Example/ServiceTest.hs: temp-dir
       mounted-secret fixture resolves to the typed config; report shows the
       mounted-directory origin with object identity, mount path, and freshness
       annotations; secret redacted; a missing/not-a-directory path exits with source
       exit code 3, while an existing directory missing `password` reaches typed
       resolution and exits 4 in Production.
-- [ ] Update the service cabal file (add `settei-kubernetes` dependency; extend
-      data-files if a checked-in fixture directory is added).
-- [ ] `nix develop -c cabal test settei-example-service --test-show-details=direct`
-      green; commit.
+- [x] (2026-07-20T03:41:09Z) Update the service cabal file with `settei-kubernetes`,
+      package the deploy YAML as data files, add the temp-fixture dependencies, and wire
+      the new service edge in Nix and Mori.
+- [x] (2026-07-20T03:41:09Z) `nix develop -c cabal test settei-example-service
+      --test-show-details=direct` passes all 14 tests; the offline deployment validator
+      also passes every overlay and new mounted-path invariant. Commit.
 
 Milestone 2 — conformance and smoke coverage:
 
@@ -209,6 +211,13 @@ Milestone 4 — full validation and MasterPlan closure:
   while README.md still says 192 tests, nine workspace packages, and six publishable
   packages; docs/release-checklist.md says seven publishable packages. Milestone 3 owns
   this correction.
+
+- The core text renderer does not display `SourceLocation.path` for a `CustomSource`;
+  it renders the custom source name, the Kubernetes object suffix, and EP-23's file
+  modification suffix. The first mounted-origin test therefore caught that a generic
+  source name omitted the requested mount path from text explanations even though JSON
+  retained `kubernetes.mount-path`. The service now includes the requested directory in
+  its mounted source name; the adapter annotation and exact file location remain intact.
 
 
 ## Decision Log
@@ -349,6 +358,15 @@ Record every decision made while working on the plan.
   deployment-only identity into a new prerequisite for every existing local run. The
   cookbook continues to recommend a required setting for services that only run in
   Kubernetes, while the reference remains usable at both process boundaries.
+  Date: 2026-07-20
+
+- Decision: Name each mounted Secret source `mounted service secrets at PATH`, where
+  `PATH` is the exact `--secrets-dir` argument.
+  Rationale: `CustomSource` text origins render the stable source name but not the
+  `SourceLocation` path. Including the path in the name makes `--explain-config` satisfy
+  the plan's operator-visible mount-path outcome, while JSON continues to carry the
+  dedicated `kubernetes.mount-path` annotation and per-file location. The name contains
+  metadata only, never file content.
   Date: 2026-07-20
 
 

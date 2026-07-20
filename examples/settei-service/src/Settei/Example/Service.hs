@@ -11,6 +11,7 @@ module Settei.Example.Service
     ServiceOptions,
     ServiceRun,
     environmentBindings,
+    loadMountedSecretsSource,
     resolutionExitCode,
     resolveServiceOptions,
     resolveServiceSources,
@@ -36,6 +37,8 @@ import Settei
 import Settei.Env
 import Settei.Formats
 import Settei.Formats.Optparse (configInputReader)
+import Settei.Kubernetes qualified as Kubernetes
+import Settei.Kubernetes.Bindings qualified as KubernetesBindings
 import Settei.Optparse
 import Settei.Prelude
 import Text.Printf (printf)
@@ -50,7 +53,8 @@ newtype SecretText = SecretText Text
 
 -- | Fully resolved service configuration; the secret-bearing constructor stays private.
 data ServiceConfig = ServiceConfig
-  { environment :: !RuntimeEnvironment,
+  { namespace :: !(Maybe Text),
+    environment :: !RuntimeEnvironment,
     http :: !HttpConfig,
     database :: !DatabaseConfig
   }
@@ -75,6 +79,7 @@ data DatabaseConfig = DatabaseConfig
 -- | Parsed command line before the mounted file is loaded.
 data ServiceOptions = ServiceOptions
   { configInput :: !(Maybe ConfigInput),
+    secretsDir :: !(Maybe FilePath),
     diagnosticMode :: !DiagnosticMode
   }
   deriving stock (Generic, Eq, Show)
@@ -122,8 +127,14 @@ serviceParserInfo =
 
 serviceOptionsParser :: Parser ServiceOptions
 serviceOptionsParser =
-  ServiceOptions
-    <$> Options.parserOptionGroup "Configuration" configInputParser
+  ( \(parsedConfigInput, parsedSecretsDir) diagnosticMode ->
+      ServiceOptions
+        { configInput = parsedConfigInput,
+          secretsDir = parsedSecretsDir,
+          diagnosticMode
+        }
+  )
+    <$> Options.parserOptionGroup "Configuration" ((,) <$> configInputParser <*> secretsDirParser)
     <*> Options.parserOptionGroup "Diagnostics" diagnosticModeOptions
 
 configInputParser :: Parser (Maybe ConfigInput)
@@ -137,11 +148,22 @@ configInputParser =
         )
     )
 
+secretsDirParser :: Parser (Maybe FilePath)
+secretsDirParser =
+  Options.optional
+    ( Options.strOption
+        ( Options.long "secrets-dir"
+            <> Options.metavar "PATH"
+            <> Options.help "Read mounted Kubernetes Secret files from this directory"
+        )
+    )
+
 -- | Service declaration with named defaults and a Production-only password.
 serviceConfig :: Config ServiceConfig
 serviceConfig =
   ServiceConfig
-    <$> required environmentSetting
+    <$> optional kubernetesNamespaceSetting
+    <*> required environmentSetting
     <*> httpConfig
     <*> databaseConfig
 
@@ -204,17 +226,27 @@ environmentBindings =
   either
     (error . Text.unpack . renderEnvErrorsText)
     id
-    ( bindings
-        [ binding (EnvName "HASKELL_ENV") runtimeEnvironmentKey,
-          binding (EnvName "HTTP_HOST") httpHostKey,
-          binding (EnvName "HTTP_PORT") httpPortKey,
-          binding (EnvName "DATABASE_HOST") databaseHostKey,
-          binding (EnvName "DATABASE_PORT") databasePortKey,
-          binding (EnvName "DATABASE_POOL_SIZE") databasePoolSizeKey,
-          fromKubernetesObject
-            (kubernetesRef SecretObject Nothing "settei-example-service-database" (Just "password"))
-            (binding (EnvName "DATABASE_PASSWORD") databasePasswordKey)
-        ]
+    ( do
+        ordinaryBindings <-
+          bindings
+            [ binding (EnvName "POD_NAMESPACE") kubernetesNamespaceKey,
+              binding (EnvName "HASKELL_ENV") runtimeEnvironmentKey,
+              binding (EnvName "HTTP_HOST") httpHostKey,
+              binding (EnvName "HTTP_PORT") httpPortKey,
+              binding (EnvName "DATABASE_HOST") databaseHostKey,
+              binding (EnvName "DATABASE_PORT") databasePortKey,
+              binding (EnvName "DATABASE_POOL_SIZE") databasePoolSizeKey
+            ]
+        secretBindings <-
+          KubernetesBindings.bindingsFromSecret
+            Nothing
+            "settei-example-service-database"
+            [ KubernetesBindings.objectKeyBinding
+                "password"
+                (EnvName "DATABASE_PASSWORD")
+                databasePasswordKey
+            ]
+        mergeBindings [ordinaryBindings, secretBindings]
     )
 
 -- | Load, resolve, and render one capturable run against an injected snapshot.
@@ -239,21 +271,50 @@ runServiceWithSnapshot snapshot options = do
 -- | Resolve the parsed mounted-file option followed by the environment source.
 resolveServiceOptions :: EnvSnapshot -> ServiceOptions -> IO (Either ServiceFailure (ResolveResult ServiceConfig))
 resolveServiceOptions snapshot options = do
-  loaded <- traverse (loadConfigInput loadOptions) (options ^. #configInput)
+  loadedConfig <- traverse (loadConfigInput loadOptions) (options ^. #configInput)
+  loadedSecrets <- traverse loadMountedSecretsSource (options ^. #secretsDir)
   pure $ do
-    fileSources <- case loaded of
+    fileSources <- case loadedConfig of
       Nothing -> Right []
       Just (Left problems) -> Left (InputFailure (renderFormatLoadErrorsText problems))
       Just (Right value) -> Right [value]
-    Right (resolveServiceSources fileSources snapshot)
+    secretSources <- case loadedSecrets of
+      Nothing -> Right []
+      Just (Left message) -> Left (InputFailure message)
+      Just (Right value) -> Right [value]
+    Right (resolveServiceSources (fileSources <> secretSources) snapshot)
 
--- | Resolve already loaded file sources followed by an injected environment snapshot.
+-- | Resolve general files, then mounted secrets, then the environment snapshot.
+--
+-- Callers place a general configuration document before the narrower Secret directory.
+-- The environment remains highest so an explicit pod-spec override wins during an
+-- incident while the mounted candidate remains in the shadow trace.
 resolveServiceSources :: [Source] -> EnvSnapshot -> ResolveResult ServiceConfig
 resolveServiceSources fileSources snapshot =
   resolve
     defaultResolveOptions
     (fileSources <> [environmentSource environmentBindings snapshot])
     serviceConfig
+
+-- | Load the reference service's explicitly bound projected Secret directory.
+loadMountedSecretsSource :: FilePath -> IO (Either Text Source)
+loadMountedSecretsSource directory = do
+  loaded <-
+    Kubernetes.readMountedDirectorySource
+      ( Kubernetes.mountedDirectoryOptions
+          ("mounted service secrets at " <> Text.pack directory)
+          (kubernetesRef SecretObject Nothing "settei-example-service-database" Nothing)
+      )
+      mountedSecretBindings
+      directory
+  pure (either (Left . Kubernetes.renderKubernetesErrorsText) Right loaded)
+
+mountedSecretBindings :: Kubernetes.FileBindings
+mountedSecretBindings =
+  either
+    (error . Text.unpack . Kubernetes.renderKubernetesErrorsText)
+    id
+    (Kubernetes.fileBindings [Kubernetes.fileBinding "password" databasePasswordKey])
 
 data ServiceFailure
   = InputFailure !Text
@@ -300,6 +361,10 @@ environmentSetting =
     (enumDecoder [("development", Development), ("test", Test), ("production", Production)])
     renderEnvironment
 
+kubernetesNamespaceSetting :: Setting Text
+kubernetesNamespaceSetting =
+  publicSetting kubernetesNamespaceKey "Kubernetes namespace" textDecoder
+
 httpHostSetting :: Setting Text
 httpHostSetting = publicSetting httpHostKey "HTTP bind host" textDecoder
 
@@ -332,7 +397,8 @@ renderEnvironment Production = "production"
 renderInt :: Int -> Text
 renderInt value = Text.pack (printf "%d" value)
 
-runtimeEnvironmentKey, httpHostKey, httpPortKey, databaseHostKey, databasePortKey, databasePoolSizeKey, databasePasswordKey, serviceTagsKey :: Key
+kubernetesNamespaceKey, runtimeEnvironmentKey, httpHostKey, httpPortKey, databaseHostKey, databasePortKey, databasePoolSizeKey, databasePasswordKey, serviceTagsKey :: Key
+kubernetesNamespaceKey = validKey "kubernetes.namespace"
 runtimeEnvironmentKey = validKey "runtime.environment"
 httpHostKey = validKey "http.host"
 httpPortKey = validKey "http.port"

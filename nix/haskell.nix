@@ -103,6 +103,7 @@
             settei = setteiPackage;
             settei-env = setteiEnvPackage;
             settei-formats = setteiFormatsPackage;
+            settei-kubernetes = setteiKubernetesPackage;
             settei-optparse-applicative = setteiOptparseApplicativePackage;
             settei-yaml = setteiYamlPackage;
           }

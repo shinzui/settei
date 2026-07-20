@@ -19,6 +19,8 @@ for overlay in dev test production; do
   expect "namespace stamped" "namespace: ${overlay}"
   expect "downward API namespace" "fieldPath: metadata.namespace"
   expect "secret-backed password" "name: settei-example-service-database"
+  expect "mounted Secret option" "--secrets-dir"
+  expect "mounted Secret path" "mountPath: /etc/settei/secrets"
   expect "check-config gate" "--check-config"
   expect "no real secret committed" "PLACEHOLDER-REPLACE-VIA-YOUR-SECRET-PIPELINE"
 done

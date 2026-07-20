@@ -1,10 +1,12 @@
 module Settei.Example.ServiceTest (tests) where
 
+import Data.Foldable (for_)
 import Data.Generics.Labels ()
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
-import Data.Maybe (isNothing)
+import Data.Maybe (isNothing, listToMaybe)
 import Data.Text qualified as Text
+import Data.Text.IO qualified as TextIO
 import Options.Applicative qualified as Options
 import Paths_settei_example_service qualified as Paths
 import Settei
@@ -12,6 +14,8 @@ import Settei.Env
 import Settei.Example.Service
 import Settei.Prelude
 import Settei.Yaml qualified as Yaml
+import System.FilePath ((</>))
+import System.IO.Temp (withSystemTempDirectory)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, testCase, (@?=))
 
@@ -20,7 +24,7 @@ tests =
   testGroup
     "Settei.Example.Service"
     [ testCase "environment bindings validate at construction" $
-        length (bindingsList environmentBindings) @?= 7,
+        length (bindingsList environmentBindings) @?= 8,
       testCase "development derives defaults without a password" $ do
         let result = resolveServiceSources [publicSource] (envSnapshot [("HASKELL_ENV", "development")])
         config <- expectResolution result
@@ -109,7 +113,96 @@ tests =
           "secret-bearing failure leaked its sentinel"
           ( not (secretSentinel `Text.isInfixOf` serviceStandardOutput secretFailure)
               && not (secretSentinel `Text.isInfixOf` serviceStandardError secretFailure)
-          )
+          ),
+      testCase "mounted secrets directory resolves the production password" $
+        withMountedSecret secretSentinel $ \directory -> do
+          mounted <- expectMountedSecrets directory
+          let result =
+                resolveServiceSources
+                  [publicSource, mounted]
+                  (envSnapshot [("HASKELL_ENV", "production")])
+          config <- expectResolution result
+          assertBool
+            "mounted password did not satisfy the Production requirement"
+            (not (isNothing (config ^. #database . #password))),
+      testCase "mounted-directory origin carries identity mount path and freshness" $
+        withMountedSecret secretSentinel $ \directory -> do
+          mounted <- expectMountedSecrets directory
+          let result =
+                resolveServiceSources
+                  [publicSource, mounted]
+                  (envSnapshot [("HASKELL_ENV", "production")])
+          _ <- expectResolution result
+          origin <- expectChosenOrigin databasePasswordKey result
+          origin ^. #annotations . at "kubernetes.object-name"
+            @?= Just "settei-example-service-database"
+          origin ^. #annotations . at "kubernetes.object-key" @?= Just "password"
+          origin ^. #annotations . at "kubernetes.mount-path" @?= Just (Text.pack directory)
+          assertBool
+            "file modification annotation missing"
+            (not (isNothing (origin ^. #annotations . at "kubernetes.file-modified")))
+          assertBool
+            "source read timestamp missing"
+            (not (isNothing (origin ^. #annotations . at "kubernetes.read-at")))
+          let rendered = renderResolutionText (result ^. #report)
+          assertBool "mounted file path missing" (Text.pack directory `Text.isInfixOf` rendered)
+          assertBool "mounted report leaked password" (not (secretSentinel `Text.isInfixOf` rendered))
+          assertBool "mounted report omitted redaction" ("<redacted>" `Text.isInfixOf` rendered),
+      testCase "environment shadows the mounted secret" $
+        withMountedSecret "mounted-secret-sentinel" $ \directory -> do
+          mounted <- expectMountedSecrets directory
+          let result =
+                resolveServiceSources
+                  [publicSource, mounted]
+                  ( envSnapshot
+                      [ ("HASKELL_ENV", "production"),
+                        ("DATABASE_PASSWORD", "environment-secret-sentinel")
+                      ]
+                  )
+          _ <- expectResolution result
+          case result ^. #report . #nodes . at databasePasswordKey of
+            Just node -> do
+              fmap (^. #kind) (node ^. #origin) @?= Just EnvironmentSource
+              length (node ^. #shadowed) @?= 1
+              fmap (^. #kind) (listToMaybe (node ^. #shadowed))
+                @?= Just (CustomSource "kubernetes-mounted-directory")
+            Nothing -> fail "expected database.password report node",
+      testCase "missing and invalid secrets paths are source failures" $
+        withSystemTempDirectory "settei-service-source-errors" $ \directory -> do
+          let missingPath = directory </> "missing"
+              regularFile = directory </> "not-a-directory"
+          TextIO.writeFile regularFile "not a mount"
+          for_ [missingPath, regularFile] $ \path -> do
+            options <- expectOptions ["--secrets-dir", path, "--check-config"]
+            result <- runServiceWithSnapshot completeProductionSnapshot options
+            serviceExitCode result @?= sourceExitCode
+            assertBool
+              "mounted-directory source error omitted the stable message"
+              ("mounted path is not a directory" `Text.isInfixOf` serviceStandardError result)
+            assertBool
+              "mounted-directory source error used a derived Show representation"
+              (not ("KubernetesSourceError" `Text.isInfixOf` serviceStandardError result)),
+      testCase "absent password file remains a resolution failure" $
+        withSystemTempDirectory "settei-service-empty-secret" $ \directory -> do
+          options <- expectOptions ["--secrets-dir", directory, "--check-config"]
+          result <- runServiceWithSnapshot completeProductionSnapshot options
+          serviceExitCode result @?= resolutionExitCode
+          assertBool
+            "missing mounted password did not reach typed resolution"
+            ("database.password: required value is missing" `Text.isInfixOf` serviceStandardError result),
+      testCase "downward API namespace is visible when supplied" $ do
+        let result =
+              resolveServiceSources
+                [publicSource]
+                ( envSnapshot
+                    [ ("POD_NAMESPACE", "production"),
+                      ("HASKELL_ENV", "development")
+                    ]
+                )
+        _ <- expectResolution result
+        let rendered = renderResolutionText (result ^. #report)
+        assertBool "namespace setting missing" ("kubernetes.namespace" `Text.isInfixOf` rendered)
+        assertBool "namespace value missing" ("production" `Text.isInfixOf` rendered)
     ]
 
 publicSource :: Source
@@ -132,8 +225,32 @@ productionSnapshot =
       ("DATABASE_PASSWORD", secretSentinel)
     ]
 
+completeProductionSnapshot :: EnvSnapshot
+completeProductionSnapshot =
+  envSnapshot
+    [ ("HASKELL_ENV", "production"),
+      ("HTTP_HOST", "0.0.0.0"),
+      ("DATABASE_HOST", "postgres.internal")
+    ]
+
 secretSentinel :: Text
 secretSentinel = "never-render-this-service-secret"
+
+withMountedSecret :: Text -> (FilePath -> IO a) -> IO a
+withMountedSecret value action =
+  withSystemTempDirectory "settei-service-mounted-secret" $ \directory -> do
+    TextIO.writeFile (directory </> "password") value
+    action directory
+
+expectMountedSecrets :: FilePath -> IO Source
+expectMountedSecrets directory =
+  loadMountedSecretsSource directory >>= either (fail . Text.unpack) pure
+
+expectChosenOrigin :: Key -> ResolveResult a -> IO Origin
+expectChosenOrigin key result =
+  case result ^. #report . #nodes . at key >>= (^. #origin) of
+    Just origin -> pure origin
+    Nothing -> fail "expected chosen origin"
 
 assertRule :: Text -> Text -> ResolveResult ServiceConfig -> IO ()
 assertRule keyText expected result =
@@ -164,3 +281,6 @@ expectOptions arguments =
 
 validKey :: Text -> Key
 validKey value = either (error . show) id (parseKey value)
+
+databasePasswordKey :: Key
+databasePasswordKey = validKey "database.password"
