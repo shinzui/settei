@@ -76,29 +76,29 @@ Milestone 1 — package scaffold and workspace registration:
 - [x] 2026-07-19 `cabal.project` gains the package entry and `tests: True` block.
 - [x] 2026-07-19 `nix/haskell.nix` gains `setteiKubernetesPackage` and `packages.settei-kubernetes`.
 - [x] 2026-07-19 `mori.dhall` gains the `settei-kubernetes` package entry.
-- [ ] `nix develop -c cabal build settei-kubernetes` succeeds; commit 1 with required
+- [x] 2026-07-19 `nix develop -c cabal build settei-kubernetes` succeeds; commit 1 with required
       trailers.
 
 Milestone 2 — bindings, options, errors, and the mounted-directory reader:
 
-- [ ] `FileBinding` type, `fileBinding`, `annotateFileBinding`, and accessor functions in
+- [x] 2026-07-19 `FileBinding` type, `fileBinding`, `annotateFileBinding`, and accessor functions in
       `settei-kubernetes/src/Settei/Kubernetes.hs`.
-- [ ] `KubernetesErrorCategory` and `KubernetesSourceError` defined with accessors.
-- [ ] Opaque `FileBindings` collection with validating constructor `fileBindings`
+- [x] 2026-07-19 `KubernetesErrorCategory` and `KubernetesSourceError` defined with accessors.
+- [x] 2026-07-19 Opaque `FileBindings` collection with validating constructor `fileBindings`
       (empty/invalid/reserved file names, duplicate file names, duplicate target keys,
       prefix-overlapping target keys) and `fileBindingsList`.
-- [ ] `MountedDirectoryOptions` with `mountedDirectoryOptions`,
+- [x] 2026-07-19 `MountedDirectoryOptions` with `mountedDirectoryOptions`,
       `annotateMountedDirectoryOptions`, `keepTrailingNewline`, and accessors.
-- [ ] `readMountedDirectorySource` implemented: directory check, per-binding symlink-safe
+- [x] 2026-07-19 `readMountedDirectorySource` implemented: directory check, per-binding symlink-safe
       file reads, absent-file-is-absent-leaf, UTF-8 decoding, trailing-newline policy,
       tree building, per-key locations and annotations, error accumulation.
-- [ ] `unboundMountedFiles` implemented with the `..`-prefix filter.
-- [ ] Module compiles with complete haddocks and a sorted export list; commit 2 with
+- [x] 2026-07-19 `unboundMountedFiles` implemented with the `..`-prefix filter.
+- [x] 2026-07-19 Module compiles with complete haddocks and a sorted export list; commit 2 with
       required trailers.
 
 Milestone 3 — error renderers per the EP-17 contract:
 
-- [ ] `renderKubernetesErrorText` and `renderKubernetesErrorsText` implemented and
+- [x] 2026-07-19 `renderKubernetesErrorText` and `renderKubernetesErrorsText` implemented and
       exported, one line per problem, graceful omission of absent name/path, never
       echoing file content.
 - [ ] Commit 3 with required trailers (may be folded into the Milestone 4 commit if
