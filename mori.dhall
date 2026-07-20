@@ -61,6 +61,14 @@ in  Schema.Project::{
         , dependencies = [ Schema.Dependency.ByName "settei" ]
         }
       , Schema.Package::{
+        , name = "settei-kubernetes"
+        , type = Schema.PackageType.Library
+        , language = Schema.Language.Haskell
+        , path = Some "settei-kubernetes"
+        , description = Some "Kubernetes mounted-directory (projected volume) sources for Settei"
+        , dependencies = [ Schema.Dependency.ByName "settei" ]
+        }
+      , Schema.Package::{
         , name = "settei-optparse-applicative"
         , type = Schema.PackageType.Library
         , language = Schema.Language.Haskell

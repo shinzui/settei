@@ -7,6 +7,7 @@ packages:
   settei-env
   settei-formats
   settei-kdl
+  settei-kubernetes
   settei-optparse-applicative
   settei-yaml
 
@@ -23,6 +24,9 @@ package settei-formats
   tests: True
 
 package settei-kdl
+  tests: True
+
+package settei-kubernetes
   tests: True
 
 package settei-optparse-applicative

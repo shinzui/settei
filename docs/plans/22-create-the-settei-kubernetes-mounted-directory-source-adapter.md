@@ -63,18 +63,19 @@ release collateral).
 
 Milestone 1 — package scaffold and workspace registration:
 
-- [ ] Preflight: clean tree confirmed; baseline `nix develop -c cabal test all` green;
+- [x] 2026-07-19 Preflight: tree contained only this plan's MasterPlan status update;
+      baseline `nix develop -c cabal test all` green;
       reconciliation check performed (see Context and Orientation: does settei-yaml export
       `renderYamlErrorText` from EP-17? does settei-env export an opaque `Bindings` from
       EP-18? what is the highest number in docs/adr/?). Findings recorded in Surprises &
       Discoveries.
-- [ ] `settei-kubernetes/` directory created with `settei-kubernetes.cabal` (canonical
+- [x] 2026-07-19 `settei-kubernetes/` directory created with `settei-kubernetes.cabal` (canonical
       common stanza, version 0.1.0.0, metadata matching siblings), `LICENSE` copied from a
       sibling package, initial `CHANGELOG.md`, and a stub `src/Settei/Kubernetes.hs` that
       compiles.
-- [ ] `cabal.project` gains the package entry and `tests: True` block.
-- [ ] `nix/haskell.nix` gains `setteiKubernetesPackage` and `packages.settei-kubernetes`.
-- [ ] `mori.dhall` gains the `settei-kubernetes` package entry.
+- [x] 2026-07-19 `cabal.project` gains the package entry and `tests: True` block.
+- [x] 2026-07-19 `nix/haskell.nix` gains `setteiKubernetesPackage` and `packages.settei-kubernetes`.
+- [x] 2026-07-19 `mori.dhall` gains the `settei-kubernetes` package entry.
 - [ ] `nix develop -c cabal build settei-kubernetes` succeeds; commit 1 with required
       trailers.
 
@@ -142,7 +143,10 @@ Milestone 5 — documentation, collateral, and closure:
 
 ## Surprises & Discoveries
 
-(None yet.)
+- 2026-07-19: The baseline `nix develop -c cabal test all` passed. EP-17's renderer
+  convention has landed (`renderYamlErrorText` exists), settei-env has the opaque
+  validated `Bindings` collection, and the highest ADR is 0010. The mapping-semantics
+  ADR for this plan will therefore be 0011 unless another change lands first.
 
 
 ## Decision Log

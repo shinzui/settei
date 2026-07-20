@@ -48,6 +48,10 @@
           kdl-hs = kdlHsPackage;
           settei = setteiPackage;
         };
+      setteiKubernetesPackage =
+        haskellPackages.callCabal2nix "settei-kubernetes" ../settei-kubernetes {
+          settei = setteiPackage;
+        };
       setteiDhallPackage =
         pkgs.haskell.lib.dontCheck (
           haskellPackages.callCabal2nix "settei-dhall" ../settei-dhall {
@@ -151,6 +155,7 @@
       packages.settei-env = setteiEnvPackage;
       packages.settei-formats = setteiFormatsPackage;
       packages.settei-kdl = setteiKdlPackage;
+      packages.settei-kubernetes = setteiKubernetesPackage;
       packages.settei-optparse-applicative = setteiOptparseApplicativePackage;
       packages.settei-yaml = setteiYamlPackage;
 
