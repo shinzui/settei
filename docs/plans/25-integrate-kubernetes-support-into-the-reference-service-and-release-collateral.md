@@ -35,7 +35,8 @@ None of those plans, by design, makes the reference service actually *use* the n
 adapter end to end. Until that happens, `settei-kubernetes` is the only maintained
 package outside the conformance boundary, and the initiative's release collateral
 (compatibility matrix, README package map, security model, release checklist,
-changelogs) still describes a six-package family.
+changelogs) still carries a mixture of six- and seven-package claims from before
+`settei-formats` and `settei-kubernetes` both joined the eight-package family.
 
 After this plan is complete, four things are true that are not true today. First, the
 Kubernetes-shaped reference service in examples/settei-service accepts a
@@ -75,33 +76,43 @@ here, even if it requires splitting a partially completed task into two ("done" 
 
 Preflight (reconciliation — mandatory before Milestone 1):
 
-- [ ] Confirm EP-22, EP-23, and EP-24 are marked Complete in the MasterPlan registry and
-      their own Progress sections agree; abort and report if not.
-- [ ] Read the landed `settei-kubernetes` source and record the real spellings in this
-      plan's Context section: the mounted-directory reader (provisionally
-      `readMountedDirectorySource`), the per-file bindings type (provisionally
-      `FileBindings`), the source-options/annotation entry points, the error type and
-      its renderer, and the EP-23 derived-bindings constructor (provisionally
-      `bindingsFromKubernetesObject`) plus the exact freshness annotation names
-      (provisionally `kubernetes.mount-path`, `kubernetes.file-modified`).
-- [ ] Read the post-EP-21 examples/settei-service sources and record the actual CLI
-      surface (shared `DiagnosticMode`, settei-formats tagged input, validated
-      `Bindings`, warning rendering) so the new option composes with the shipped
-      ergonomics shape rather than the pre-ergonomics shape described as fallback here.
-- [ ] Read EP-24's landed deploy/ tree (base plus overlays) and cookbook; record the
-      manifest spelling for the secrets mount (mount path, file names, container args)
-      and reconcile this plan's `--secrets-dir` spelling and default mount path with it;
-      note whether the old examples/settei-service/kubernetes/ directory was replaced.
-- [ ] Reconcile with sibling MasterPlans' closures: confirm EP-14 and EP-21 left the
-      release collateral in the state this plan's Milestone 3 edits assume (current test
-      count in README, publishable-package count, compatibility matrix structure);
-      record the current totals here.
-- [ ] Commit the preflight recording.
+- [x] (2026-07-20T03:28:32Z) Confirmed EP-22, EP-23, and EP-24 are Complete in the
+      MasterPlan registry and their fully checked Progress sections agree.
+- [x] (2026-07-20T03:28:32Z) Read the landed `settei-kubernetes` source and recorded the
+      shipped surface in Context: `FileBindings`/`fileBindings`,
+      `MountedDirectoryOptions`/`mountedDirectoryOptions`,
+      `readMountedDirectorySource`, `KubernetesSourceError`,
+      `renderKubernetesErrorsText`, and
+      `Settei.Kubernetes.Bindings.bindingsFromSecret` with `objectKeyBinding`. The
+      freshness names are `kubernetes.mount-path`, `kubernetes.file-modified`, and
+      `kubernetes.read-at`.
+- [x] (2026-07-20T03:28:32Z) Read the post-EP-21 service and recorded its shipped CLI
+      surface: settei-formats' optional tagged `ConfigInput`, the six-constructor shared
+      `DiagnosticMode`, validated `Bindings`, and warning rendering on successful
+      resolution.
+- [x] (2026-07-20T03:28:32Z) Read EP-24's deploy tree and cookbook. The old
+      `examples/settei-service/kubernetes/` directory is gone. EP-24 deliberately
+      shipped only `DATABASE_PASSWORD` via `secretKeyRef`, with no mounted Secret or
+      `--secrets-dir`; this plan extends both containers with
+      `--secrets-dir /etc/settei/secrets`, mounts the same Secret at that path with file
+      name `password`, and keeps the env delivery to demonstrate env-over-file
+      precedence.
+- [x] (2026-07-20T03:28:32Z) Reconciled sibling closure state. EP-14 last recorded 192
+      tests across 10 suites and six publishable packages; EP-21 added settei-formats;
+      EP-24's latest clean run is authoritative at 322 tests across 11 suites. The live
+      tree now has eight publishable packages and eleven workspace packages, while
+      README.md and docs/release-checklist.md still carry stale six/seven-package and
+      192-test claims for Milestone 3 to repair.
+- [x] (2026-07-20T03:28:32Z) Committed the preflight recording with the MasterPlan,
+      ExecPlan, and Intention trailers.
 
 Milestone 1 — reference service integration:
 
 - [ ] Add the `--secrets-dir PATH` option to the service parser (Configuration group)
       and thread it through `ServiceOptions`.
+- [ ] Bind `POD_NAMESPACE` to an optional public `kubernetes.namespace` setting so the
+      checked-in downward-API value appears in explanations without making local,
+      non-Kubernetes runs fail.
 - [ ] Load the mounted directory via the `Settei.Kubernetes` reader with explicit file
       bindings (`password` file -> `database.password`), keeping the env-var delivery
       binding so both modes are demonstrated.
@@ -109,11 +120,15 @@ Milestone 1 — reference service integration:
       environment source in `resolveServiceSources`; document the order in the module.
 - [ ] Replace the hand-assembled `fromKubernetesObject` env-binding entry with the
       EP-23 derived-bindings construction.
+- [ ] Update the base Deployment so both containers pass
+      `--secrets-dir /etc/settei/secrets` and mount the same Secret there while retaining
+      `DATABASE_PASSWORD` delivery.
 - [ ] Update examples/settei-service/test/Settei/Example/ServiceTest.hs: temp-dir
       mounted-secret fixture resolves to the typed config; report shows the
       mounted-directory origin with object identity, mount path, and freshness
-      annotations; secret redacted; missing/invalid directory exits with source exit
-      code 3.
+      annotations; secret redacted; a missing/not-a-directory path exits with source
+      exit code 3, while an existing directory missing `password` reaches typed
+      resolution and exits 4 in Production.
 - [ ] Update the service cabal file (add `settei-kubernetes` dependency; extend
       data-files if a checked-in fixture directory is added).
 - [ ] `nix develop -c cabal test settei-example-service --test-show-details=direct`
@@ -169,10 +184,31 @@ Milestone 4 — full validation and MasterPlan closure:
 
 ## Surprises & Discoveries
 
-Document unexpected behaviors, bugs, optimizations, or insights discovered during
-implementation. Provide concise evidence.
+- The local Mori registry entry for `shinzui/settei` is stale: `mori registry show
+  shinzui/settei --full` reports nine packages and omits both `settei-formats` and
+  `settei-kubernetes`, although the live `mori.dhall`, Cabal project, Nix wiring, and
+  source tree contain them. Dependency API work therefore used Mori for discovery as
+  required, then treated the current working tree as the authoritative source surface;
+  this plan changes no external version bound.
 
-(None yet.)
+- EP-24's manifests intentionally demonstrate the environment-variable Secret path
+  only. They inject `DATABASE_PASSWORD` through `secretKeyRef` and have no mounted
+  Secret volume, `--secrets-dir` argument, or `/etc/settei/secrets` path. EP-25 owns the
+  downstream integration, so it will add the mounted path to both containers while
+  retaining the env path. The resulting manifest exercises the documented precedence
+  decision instead of choosing only one delivery mode.
+
+- EP-22's missing-file semantics correct an authored EP-25 expectation: a nonexistent
+  mount root is `KubernetesNotADirectory` and therefore source exit 3, but a present
+  directory without the bound `password` file produces an absent leaf. In Production
+  that reaches the core resolver and fails with missing `database.password` at exit 4;
+  it is not a source error.
+
+- Release collateral drift accumulated across the preceding initiatives. EP-24's clean
+  run records 322 tests across 11 suites and the tree has eight publishable packages,
+  while README.md still says 192 tests, nine workspace packages, and six publishable
+  packages; docs/release-checklist.md says seven publishable packages. Milestone 3 owns
+  this correction.
 
 
 ## Decision Log
@@ -259,19 +295,17 @@ Record every decision made while working on the plan.
   rewriting an accepted ADR.
   Date: 2026-07-19
 
-- Decision: This plan is written while EP-22, EP-23, and EP-24 (and the ergonomics
-  EP-15..EP-21 it also builds on) are unfilled skeletons; every identifier this plan
-  uses for their deliverables — `readMountedDirectorySource`, `FileBindings`,
-  `bindingsFromKubernetesObject`, `kubernetes.mount-path`, `kubernetes.file-modified`,
-  the shared `DiagnosticMode`, the settei-formats input types, the validated `Bindings`
-  — is provisional, taken from the MasterPlan's Integration Points and this plan's
-  recommendations. The mandatory preflight in Progress reconciles all of them against
-  landed code before any Milestone 1 edit, updating this plan with a revision note.
-  Rationale: Same reasoning EP-14 and EP-21 recorded: freezing guessed spellings as
-  requirements would make the plan wrong; freezing the reconciliation procedure makes
-  it robust and restartable. The concepts are fixed by the MasterPlan even where the
-  spellings are not.
-  Date: 2026-07-19
+- Decision: The mandatory preflight reconciled every authoring-time identifier against
+  the completed EP-22, EP-23, EP-24, and ergonomics work before Milestone 1. The shipped
+  names are `FileBindings`, `fileBindings`, `MountedDirectoryOptions`,
+  `mountedDirectoryOptions`, `readMountedDirectorySource`, `KubernetesSourceError`,
+  `renderKubernetesErrorsText`, `bindingsFromSecret`, `objectKeyBinding`, validated
+  `Bindings`/`mergeBindings`, settei-formats' `ConfigInput`, and the shared
+  `DiagnosticMode`.
+  Rationale: The plan was authored before those dependencies landed. Recording the
+  reconciliation result now makes the implementation instructions describe the actual
+  public surface rather than preserving guesses after they can be checked.
+  Date: 2026-07-20
 
 - Decision: Failures found during Milestone 4 validation are triaged the same way EP-14
   triaged them: collateral drift (stale doc claim, missing sdist file, stale fixture) is
@@ -294,6 +328,28 @@ Record every decision made while working on the plan.
   not invent one. The examples/ packages have no CHANGELOG.md files (verified
   2026-07-19) and remain unpublished, so none is created.
   Date: 2026-07-19
+
+- Decision: Extend EP-24's Deployment in this plan so both the check-config init
+  container and main container pass `--secrets-dir /etc/settei/secrets` and mount the
+  `settei-example-service-database` Secret at that path, while retaining the existing
+  `DATABASE_PASSWORD` `secretKeyRef`.
+  Rationale: EP-24 deliberately landed before service support existed and therefore had
+  no mounted-path spelling to consume. EP-25 is the downstream integration plan. Using
+  the same Secret in both forms makes the real manifest exercise the specified source
+  order (mounted file below environment) and lets the shadow trace prove both delivery
+  modes without inventing a second credential object.
+  Date: 2026-07-20
+
+- Decision: The reference service binds `POD_NAMESPACE` to an optional public
+  `kubernetes.namespace` setting rather than making it required.
+  Rationale: EP-24 explicitly delegates the downward-API binding to EP-25, and an
+  optional setting makes the injected namespace visible in Kubernetes explanations.
+  The binary is also a local reference executable used by format conformance fixtures
+  and smoke commands outside Kubernetes; making namespace required would turn that
+  deployment-only identity into a new prerequisite for every existing local run. The
+  cookbook continues to recommend a required setting for services that only run in
+  Kubernetes, while the reference remains usable at both process boundaries.
+  Date: 2026-07-20
 
 
 ## Outcomes & Retrospective
@@ -334,7 +390,7 @@ OverloadedLabels, OverloadedStrings), uses strict fields, explicit deriving stra
 lens/generic-lens label access via `Settei.Prelude`, and postpositive `qualified`
 imports — all governed by docs/adr/0001.
 
-### What the settei-kubernetes surface is (from the MasterPlan; reconcile at preflight)
+### The shipped settei-kubernetes surface
 
 A "projected ConfigMap or Secret volume" is the standard Kubernetes mount shape: the
 kubelet materializes each key of a ConfigMap or Secret object as one file in a mounted
@@ -346,38 +402,39 @@ because object keys legally contain dots that collide with Settei's dotted key s
 the adapter handles the symlink layout, and its errors are secret-safe. EP-23 adds
 derived environment bindings — one construction that produces both the env binding and
 its Kubernetes provenance annotation so they cannot drift apart — and freshness/identity
-annotations carried in the existing ordered annotation vocabulary: provisionally
-`kubernetes.mount-path` and `kubernetes.file-modified` alongside the existing
+annotations carried in the existing ordered annotation vocabulary:
+`kubernetes.mount-path`, `kubernetes.file-modified`, and `kubernetes.read-at` alongside
+the existing
 `kubernetes.object-kind`, `kubernetes.object-name`, `kubernetes.namespace`, and
 `kubernetes.object-key` names rendered by the kubernetes suffix in
-settei/src/Settei/Render.hs (docs/adr/0003). The provisional reader spelling this plan
-uses is `readMountedDirectorySource` with a `FileBindings` argument; the provisional
-derived-bindings spelling is `bindingsFromKubernetesObject`. The preflight replaces all
-of these with the landed spellings and records the adapter's error type, renderer name
-(EP-17 contract: `render<Adapter>ErrorText` style), and options record here.
+settei/src/Settei/Render.hs (docs/adr/0003). The public reader is
+`readMountedDirectorySource :: MountedDirectoryOptions -> FileBindings -> FilePath ->
+IO (Either (NonEmpty KubernetesSourceError) Source)`. Valid bindings come from
+`fileBindings`; options come from `mountedDirectoryOptions`; source errors render through
+`renderKubernetesErrorsText`. Environment derivation lives in
+`Settei.Kubernetes.Bindings`: `bindingsFromSecret` consumes `objectKeyBinding` rows and
+returns settei-env's validated `Bindings`, which compose with manual collections through
+`mergeBindings`.
 
-### The reference service as it stands (fallback description; reconcile at preflight)
+### The reference service before EP-25 integration
 
-This plan was authored against the pre-ergonomics tree; EP-21 rewrites the service
-before this plan starts. Both states are described so the implementer can navigate
-either. In the authored tree, examples/settei-service/src/Settei/Example/Service.hs
+The shipped post-EP-21 service in
+examples/settei-service/src/Settei/Example/Service.hs
 declares `ServiceConfig` (environment, http, database records; `database.password` is a
 `Secret` setting decoded into a Show-less `SecretText`, required only when
 `runtime.environment` resolves to `production`), parses `ServiceOptions` (an optional
-`--config FORMAT:PATH` tagged input and a diagnostic mode with `--check-config`,
-`--explain-config`, `--explain-config-json`), builds `environmentBindings` including a
+settei-formats `--config FORMAT:PATH` tagged input and the shared `DiagnosticMode` with
+`--check-config`, text/JSON explain, and text/JSON describe modes), builds validated
+`environmentBindings` including a
 `fromKubernetesObject (kubernetesRef SecretObject Nothing
 "settei-example-service-database" (Just "password")) (binding (EnvName
 "DATABASE_PASSWORD") databasePasswordKey)` entry, and resolves file sources followed by
-the environment source in `resolveServiceSources :: [Source] -> EnvSnapshot -> Either
-(NonEmpty ConfigError) (ResolveResult ServiceConfig)`. Exit codes are a contract: 0
+the environment source in `resolveServiceSources :: [Source] -> EnvSnapshot ->
+ResolveResult ServiceConfig`. Exit codes are a contract: 0
 success, 2 usage (`usageExitCode`), 3 source IO/parse failure (`sourceExitCode`), 4
-typed resolution failure (`resolutionExitCode`). After EP-21, the tagged input comes
-from settei-formats, the diagnostic mode is the shared six-mode
-`Settei.Optparse.DiagnosticMode` (adding describe modes), environment bindings are the
-validated EP-18 `Bindings`, warnings render to stderr, and the conditional password uses
-EP-19 sugar — but the exports the conformance package depends on
-(`serviceConformanceConfig`, `resolveServiceSources`, the exit codes) keep their shapes.
+typed resolution failure (`resolutionExitCode`). Successful resolver warnings render to
+stderr, and the conformance package consumes `serviceConformanceConfig`,
+`resolveServiceSources`, and the exit-code surface directly.
 The executable (examples/settei-service/app/Main.hs) prints a captured `ServiceRun`'s
 stdout/stderr and exits with its code; tests live in
 examples/settei-service/test/Settei/Example/ServiceTest.hs (driver test/Main.hs, fixture
@@ -395,26 +452,23 @@ executables; asserts the sentinel never appears and `<redacted>` does). Its fixt
 live in examples/settei-conformance/test/fixtures/ and its cabal data-files globs cover
 `*.yaml`, `*.kdl`, `*.dhall`.
 
-Deployment manifests: the authored tree has a hand-written
-examples/settei-service/kubernetes/ directory (configmap.yaml, deployment.yaml,
-secret.yaml.example) whose deployment passes container args `--config
-yaml:/etc/settei/application.yaml --explain-config` and delivers the password via
-`secretKeyRef` env. EP-24 creates the authoritative runnable tree under
-examples/settei-service/deploy/ (a kustomize *base* — plain YAML manifests — plus
-per-namespace *overlays*; kustomize is the Kubernetes-native tool that patches a base
-manifest set per environment, invoked as `kubectl kustomize <dir>` or `kustomize build
-<dir>`), mounting the Secret as a directory so the mounted-file delivery mode exists in
-manifests. Preflight records what EP-24 landed, including whether kubernetes/ was
-removed or narrowed, the secrets mount path (this plan's placeholder:
-`/etc/settei/secrets`), and which flags the manifests pass.
+Deployment manifests now live only under examples/settei-service/deploy/ as a
+namespace-agnostic kustomize base plus dev, test, and production overlays; the old
+examples/settei-service/kubernetes/ directory was removed. EP-24's base passes
+`--config yaml:/etc/settei/application.yaml`, injects `POD_NAMESPACE`, `HASKELL_ENV`,
+and `DATABASE_PASSWORD`, and mounts only the ConfigMap at `/etc/settei`. Because EP-24
+landed before the service accepted a mounted Secret, EP-25 extends both containers with
+`--secrets-dir /etc/settei/secrets` and a read-only Secret volume whose visible file is
+`password`, while preserving the env delivery path and the check-config gate.
 
 ### Release collateral this plan owns
 
 docs/compatibility.md (tables: Toolchain; Libraries and adapters; Input contracts;
 Public modules — settei-kubernetes rows are added to the last three in the existing
-style), README.md (the "Package map" table and "Release status" section — note the
-release-status test count and package count will already have been rewritten by EP-14
-and EP-21; take the then-current numbers at preflight), docs/security.md (sections
+style), README.md (the "Package map" table and "Release status" section — the preflight
+found its 192-test, nine-workspace-package, and six-publishable-package claims stale
+against EP-24's 322-test baseline and the live eight-package family), docs/security.md
+(sections
 including "Kubernetes Secrets and mounted files", which this plan extends),
 docs/release-checklist.md ("Automated validation" gains the manifest render check and
 mounted-fixture smoke), settei-kubernetes/CHANGELOG.md, settei-env/CHANGELOG.md (only
@@ -439,17 +493,17 @@ cabal.project (packages list plus a `package settei-kubernetes` stanza).
 - docs/adr/0003-resolution-provenance-and-default-semantics.md — the annotation
   vocabulary and renderer rules the mounted-directory origin assertions rely on;
   EP-23 extended the `kubernetes.*` names additively.
-- The settei-kubernetes adapter ADR created by EP-22/EP-23 (number known after they
-  land; read it at preflight) — mounted-directory mapping semantics, symlink handling,
-  freshness vocabulary. Milestone 4 verifies its coherence and promotes into it.
+- docs/adr/0011-kubernetes-mounted-directory-input-semantics.md — mounted-directory
+  mapping semantics, symlink handling, and freshness vocabulary. Milestone 4 verifies
+  its coherence and promotes the restart-to-reload/no-cluster-client posture into it.
 - docs/adr/0002, 0004, 0005, 0006 — background input semantics; no amendment expected
   from this plan.
 
 
 ## Plan of Work
 
-The work is a preflight plus four milestones, strictly ordered. Preflight reconciles
-this plan's provisional names with the landed EP-15..EP-24 deliverables. Milestone 1
+The work is a preflight plus four milestones, strictly ordered. Preflight reconciled
+this plan's authoring-time names with the landed EP-15..EP-24 deliverables. Milestone 1
 makes the reference service exercise the new adapter end to end. Milestone 2 locks the
 new surface at the conformance boundary and validates the manifests against the real
 flags. Milestone 3 reconciles the release collateral. Milestone 4 proves the whole
@@ -458,20 +512,18 @@ compiling and its tests green, so the plan can pause at any boundary.
 
 ### Preflight — reconcile against the landed dependency plans
 
-Scope: this plan file only (plus reading). Do not skip. Read, in order: the completed
+Completed 2026-07-20. The preflight read, in order, the completed
 EP-22/EP-23/EP-24 plan documents; the shipped settei-kubernetes source under
 settei-kubernetes/src/ (module names, reader, bindings type, options, error type,
 renderer, EP-23 modules and annotation names); the post-EP-21
 examples/settei-service/src/Settei/Example/Service.hs and its test module; EP-24's
 examples/settei-service/deploy/ tree and docs/guides/kubernetes-cookbook.md; the
-adapter ADR EP-22/EP-23 wrote; and README.md's then-current "Release status" numbers.
-Rewrite the provisional spellings throughout this plan (Context, Plan of Work, Concrete
-Steps, Interfaces) to the landed ones, resolve the `--secrets-dir` spelling and default
-mount path against the manifests, record the current total test count and publishable
-package count, and add a revision note at the bottom. If any of EP-22/23/24 is not
-Complete, stop and report — this plan hard-depends on all three. Acceptance: the
-preflight Progress boxes are checked and the plan contains no remaining "provisionally"
-markers in normative instructions. Commit the updated plan.
+adapter ADR EP-22/EP-23 wrote; and README.md's current "Release status" numbers. The
+result is recorded in Progress, Surprises & Discoveries, Decision Log, Context, and
+Interfaces. EP-22/23/24 are Complete; the API names are reconciled; the live baseline is
+322 tests across 11 suites and eight publishable packages; and the deployment extension
+uses `--secrets-dir /etc/settei/secrets`. Commit this restartable record before
+Milestone 1 code.
 
 ### Milestone 1 — the reference service exercises the mounted-directory source
 
@@ -489,6 +541,12 @@ mounted Kubernetes Secret files from this directory". The option is optional: wi
 it the service behaves exactly as before (env-var delivery only), which keeps every
 existing test and manifest valid during rollout.
 
+In the same declaration, add an optional public `kubernetes.namespace` setting to
+`ServiceConfig` and bind `POD_NAMESPACE` to it. EP-24's downward API then becomes
+visible in explanations, while local reference runs without Kubernetes remain valid.
+This intentionally specializes the cookbook's required-setting recommendation for a
+dual-purpose reference executable; record the distinction in the guide.
+
 Second, load the directory through the public adapter. Add a
 `loadMountedSecretsSource :: FilePath -> IO (Either Text Source)`-shaped helper (align
 the error side with how the post-EP-21 service carries rendered source errors) that
@@ -498,10 +556,12 @@ binding asserts, so the two delivery modes visibly describe one Kubernetes objec
 explicit file bindings mapping at minimum the file `password` to the key
 `database.password`. Use the adapter's own options/annotation entry points so the
 origin carries the object identity, the mount path, and the EP-23 freshness
-annotations; do not hand-assemble annotations. Any reader failure — directory missing,
-unreadable, a bound file absent or invalid — is a *source* failure: it must surface
-through the existing `InputFailure`-class path and exit with `sourceExitCode` (3),
-rendered with the adapter's EP-17-style renderer, never with `show`.
+annotations; do not hand-assemble annotations. Any reader failure — directory
+missing/not a directory, unreadable entry, or invalid UTF-8 — is a *source* failure: it
+must surface through the existing `InputFailure`-class path and exit with
+`sourceExitCode` (3), rendered with `renderKubernetesErrorsText`, never with `show`.
+An absent bound `password` file is not a reader failure under ADR 0011; it contributes
+no leaf and Production then exits 4 with the normal missing-required diagnostic.
 
 Third, place it in the precedence stack. In `resolveServiceSources` (and the loading
 step in `resolveServiceOptions` that feeds it), order sources lowest to highest:
@@ -514,12 +574,20 @@ the CLI example's stack; its env < CLI ordering is unchanged and is reused by th
 conformance laws.
 
 Fourth, adopt the derived bindings. Replace the hand-assembled `fromKubernetesObject
-... (binding (EnvName "DATABASE_PASSWORD") databasePasswordKey)` entry in
-`environmentBindings` with the EP-23 derived construction
-(provisionally `bindingsFromKubernetesObject`), which produces the binding and its
-provenance annotation in one step so they cannot drift. The reconciled call must
-compose with the post-EP-18 validated `Bindings` type that EP-21 made the service use;
-the other (non-Kubernetes) bindings stay as they are.
+... (binding (EnvName "DATABASE_PASSWORD") databasePasswordKey)` entry with
+`bindingsFromSecret Nothing "settei-example-service-database"
+[objectKeyBinding "password" (EnvName "DATABASE_PASSWORD") databasePasswordKey]`.
+Build the non-Kubernetes entries as a separate validated `Bindings` collection and use
+`mergeBindings` to combine it with the derived Secret collection, so cross-collection
+conflicts remain validated.
+
+Finally, extend examples/settei-service/deploy/base/deployment.yaml. Both the init
+container and main container must pass `--secrets-dir /etc/settei/secrets`, mount a
+read-only `database-secrets` volume at that path, and source the volume from Secret
+`settei-example-service-database`. Retain the existing `DATABASE_PASSWORD`
+`secretKeyRef`; the manifest intentionally supplies both candidates so environment
+precedence and the mounted shadow are observable. Keep both containers' arguments,
+environment, and mounts aligned except for the init container's final `--check-config`.
 
 Fifth, update the tests in
 examples/settei-service/test/Settei/Example/ServiceTest.hs (the module named in the
@@ -549,9 +617,10 @@ New cases, each phrased against observable behavior:
 - "missing or invalid secrets directory is a source failure": run
   `runServiceWithSnapshot` (or the post-EP-21 equivalent) with `--secrets-dir` pointing
   at a nonexistent path and assert exit code 3 with a rendered (non-`show`) message on
-  stderr; repeat with a directory missing the bound `password` file if the adapter
-  treats that as an error (reconcile with EP-22's semantics at preflight — if an absent
-  bound file is instead an absent key, assert *that* behavior and record it here).
+  stderr; repeat with a regular file path to assert the same category. For an existing
+  directory missing the bound `password` file, assert the shipped ADR 0011 behavior:
+  source loading succeeds with an absent leaf and Production resolution exits 4 with a
+  missing-required `database.password` diagnostic.
 
 Update examples/settei-service/settei-example-service.cabal: add `settei-kubernetes
 ==0.1.0.0` to the library (and test suite if the tests import it directly), plus any
@@ -743,8 +812,8 @@ grep -n "^| 22 \|^| 23 \|^| 24 " docs/masterplans/4-deliver-kubernetes-deploymen
 ```
 
 Every row for EP-22, EP-23, EP-24 must read Complete; stop and report otherwise. Then
-read the sources and documents listed in Plan of Work's Preflight, rewrite this plan's
-provisional spellings, and commit:
+read the sources and documents listed in Plan of Work's Preflight, record the reconciled
+shipped spellings, and commit:
 
 ```text
 docs(plan-25): reconcile against landed EP-22..EP-24 and ergonomics interfaces
@@ -994,19 +1063,18 @@ status.
 This plan introduces no new public API and no new external library in publishable
 packages. Its code changes are confined to examples/settei-service and
 examples/settei-conformance; its documentation changes are enumerated in Milestone 3.
-All dependency spellings below are provisional until Step 0's reconciliation (see
-Decision Log) and this section must be updated with the shipped ones.
 
-From `settei-kubernetes` (EP-22/EP-23; module `Settei.Kubernetes` plus whatever EP-23
-exposed): the mounted-directory reader (provisionally `readMountedDirectorySource`,
-taking source options with a `KubernetesRef` and explicit per-file bindings —
-provisionally `FileBindings` mapping file names to Settei `Key`s — and returning
-`IO (Either <adapter error> Source)` in the family's adapter shape); the adapter error
-type and its EP-17-contract text renderer; the EP-23 derived-bindings constructor
-(provisionally `bindingsFromKubernetesObject`) returning the validated EP-18 `Bindings`
-material; and the annotation names (provisionally `kubernetes.mount-path`,
-`kubernetes.file-modified`, joining `kubernetes.object-kind`, `kubernetes.object-name`,
-`kubernetes.namespace`, `kubernetes.object-key`).
+From `Settei.Kubernetes`: `fileBinding :: Text -> Key -> FileBinding`, `fileBindings ::
+[FileBinding] -> Either (NonEmpty KubernetesSourceError) FileBindings`,
+`mountedDirectoryOptions :: Text -> KubernetesRef -> MountedDirectoryOptions`,
+`readMountedDirectorySource :: MountedDirectoryOptions -> FileBindings -> FilePath -> IO
+(Either (NonEmpty KubernetesSourceError) Source)`, and
+`renderKubernetesErrorsText`. The returned source carries
+`kubernetes.mount-path`/`kubernetes.read-at` source-wide and
+`kubernetes.file-modified` per key, alongside core's object kind/name/namespace/key
+annotations. From `Settei.Kubernetes.Bindings`: `objectKeyBinding` and
+`bindingsFromSecret`, returning validated settei-env `Bindings`; `mergeBindings`
+combines that collection with ordinary bindings while re-validating conflicts.
 
 From `settei` (core): `Config`, `resolve`, `defaultResolveOptions`, the post-EP-12
 resolve result carrying `value`, `report`, `warnings` on success and report-bearing
@@ -1045,3 +1113,13 @@ nix/haskell.nix) are verified, not redesigned. External tools: the Nix dev shell
 and `kubectl kustomize` (or `kustomize`) for the render gate with its documented
 fallback. The manual publication steps at the bottom of docs/release-checklist.md
 (tagging, signing, Hackage upload) remain out of scope and unauthorized.
+
+
+## Revision Notes
+
+2026-07-20: Completed the mandatory preflight against EP-22, EP-23, EP-24, and the
+post-ergonomics tree. Replaced authoring-time API guesses with the shipped
+settei-kubernetes and settei-env names; recorded the 322-test/eight-publishable-package
+baseline and stale Mori/README inventory; corrected absent-bound-file semantics; added
+the delegated `POD_NAMESPACE` binding; and made EP-25 responsible for extending the
+landed manifests with the mounted Secret path now that `--secrets-dir` exists.
