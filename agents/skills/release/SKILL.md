@@ -44,8 +44,12 @@ inter-package `build-depends`. Each depends only on packages listed above it.
 3. **settei-dhall** — `settei-dhall/` — depends on `settei`.
 4. **settei-kdl** — `settei-kdl/` — depends on `settei`.
 5. **settei-yaml** — `settei-yaml/` — depends on `settei`.
-6. **settei-optparse-applicative** — `settei-optparse-applicative/` — depends on
-   `settei` and `settei-env` (publish last).
+6. **settei-kubernetes** — `settei-kubernetes/` — depends on `settei` and
+   `settei-env`.
+7. **settei-optparse-applicative** — `settei-optparse-applicative/` — depends on
+   `settei` and `settei-env`.
+8. **settei-formats** — `settei-formats/` — depends on `settei`, `settei-dhall`,
+   `settei-kdl`, `settei-yaml`, and `settei-optparse-applicative` (publish last).
 
 The following packages are **NOT released** to Hackage — they are internal
 reference and conformance artifacts under `examples/`:
@@ -108,7 +112,9 @@ Edit the `version:` field in every publishable cabal file to the new version:
 - `settei-dhall/settei-dhall.cabal`
 - `settei-kdl/settei-kdl.cabal`
 - `settei-yaml/settei-yaml.cabal`
+- `settei-kubernetes/settei-kubernetes.cabal`
 - `settei-optparse-applicative/settei-optparse-applicative.cabal`
+- `settei-formats/settei-formats.cabal`
 
 Verify every publishable package is at the target version before committing.
 
@@ -120,8 +126,13 @@ version, update every internal `settei*` bound to `==<new-version>`:
 
 - In `settei-env`, `settei-dhall`, `settei-kdl`, `settei-yaml`: the `settei`
   bound (library and test-suite sections).
+- In `settei-kubernetes`: the `settei` and `settei-env` bounds (library and
+  test-suite sections).
 - In `settei-optparse-applicative`: the `settei` and `settei-env` bounds
   (library and test-suite sections).
+- In `settei-formats`: the `settei`, `settei-dhall`, `settei-kdl`,
+  `settei-yaml`, and `settei-optparse-applicative` bounds (library and
+  test-suite sections).
 - In the internal example packages (`examples/*`): update their `settei*`
   bounds too, so the workspace continues to build even though they are not
   published. Grep for `, settei` across all cabal files to catch every site:
@@ -137,8 +148,9 @@ asks.
 
 - For each publishable package with a `CHANGELOG.md`
   (`settei/`, `settei-env/`, `settei-dhall/`, `settei-kdl/`, `settei-yaml/`,
-  `settei-optparse-applicative/`), add a new section for the new version above
-  previous entries, using today's date in `YYYY-MM-DD` format.
+  `settei-kubernetes/`, `settei-optparse-applicative/`, `settei-formats/`), add
+  a new section for the new version above previous entries, using today's date
+  in `YYYY-MM-DD` format.
 - Move any content from an "Unreleased" section into the new version section.
 - Summarize commits since the last release, grouped by (include only
   non-empty categories):
@@ -182,7 +194,7 @@ any failure before proceeding.
 
 For EACH publishable package, in this order —
 `settei` → `settei-env` → `settei-dhall` → `settei-kdl` → `settei-yaml` →
-`settei-optparse-applicative`:
+`settei-kubernetes` → `settei-optparse-applicative` → `settei-formats`:
 
 1. `cd <pkg-dir>`.
 2. `cabal check` — verify no packaging issues.
@@ -203,7 +215,9 @@ After all packages are published, present a summary table:
 | settei-dhall | X.Y.Z.W | https://hackage.haskell.org/package/settei-dhall-X.Y.Z.W |
 | settei-kdl | X.Y.Z.W | https://hackage.haskell.org/package/settei-kdl-X.Y.Z.W |
 | settei-yaml | X.Y.Z.W | https://hackage.haskell.org/package/settei-yaml-X.Y.Z.W |
+| settei-kubernetes | X.Y.Z.W | https://hackage.haskell.org/package/settei-kubernetes-X.Y.Z.W |
 | settei-optparse-applicative | X.Y.Z.W | https://hackage.haskell.org/package/settei-optparse-applicative-X.Y.Z.W |
+| settei-formats | X.Y.Z.W | https://hackage.haskell.org/package/settei-formats-X.Y.Z.W |
 
 ### 7. Create the GitHub release
 
@@ -220,7 +234,9 @@ gh release create v<version> --title "v<version>" --notes "$(cat <<'EOF'
 | settei-dhall | https://hackage.haskell.org/package/settei-dhall-X.Y.Z.W |
 | settei-kdl | https://hackage.haskell.org/package/settei-kdl-X.Y.Z.W |
 | settei-yaml | https://hackage.haskell.org/package/settei-yaml-X.Y.Z.W |
+| settei-kubernetes | https://hackage.haskell.org/package/settei-kubernetes-X.Y.Z.W |
 | settei-optparse-applicative | https://hackage.haskell.org/package/settei-optparse-applicative-X.Y.Z.W |
+| settei-formats | https://hackage.haskell.org/package/settei-formats-X.Y.Z.W |
 
 ## What's Changed
 
@@ -239,7 +255,7 @@ EOF
   committing. The commit and tag are created only AFTER user approval.
 - Always publish in dependency order:
   `settei` → `settei-env` → `settei-dhall` → `settei-kdl` → `settei-yaml` →
-  `settei-optparse-applicative`.
+  `settei-kubernetes` → `settei-optparse-applicative` → `settei-formats`.
 - Never publish the `examples/*` packages (`settei-example-cli`,
   `settei-example-service`, `settei-example-conformance`).
 - Never skip the check gates: `nix fmt`, `cabal build/test/haddock/sdist all`,
