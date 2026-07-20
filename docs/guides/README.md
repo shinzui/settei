@@ -17,7 +17,8 @@ application guide that match your program:
 | [Dhall configuration](dhall.md) | You want typed Dhall input with an explicit import policy. |
 | [Tagged multi-format configuration](formats.md) | You accept `--config FORMAT:PATH` inputs across YAML, KDL, and Dhall with one shared loader. |
 | [Building a CLI application](cli-application.md) | You are assembling files, environment variables, overrides, and exit behavior in a command-line program. |
-| [Building a Kubernetes service](kubernetes-service.md) | You are loading mounted configuration and Secret-backed environment variables in a service. |
+| [Building a Kubernetes service](kubernetes-service.md) | You are writing application code that loads mounted configuration and Secret-backed environment variables. |
+| [Deploying across Kubernetes namespaces](kubernetes-cookbook.md) | You are promoting one image through dev, test, and production with per-namespace ConfigMaps and Secrets. |
 
 All source lists in these guides are ordered from lowest to highest precedence. A later
 source wins for a key, while Settei retains the earlier origins for explanations.

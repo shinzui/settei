@@ -114,10 +114,15 @@ Milestone 2 — the cookbook guide:
 
 Milestone 3 — rescope the service guide and update indexes:
 
-- [ ] Rescope docs/guides/kubernetes-service.md to application code only; move deployment content to the cookbook; cross-link both ways.
-- [ ] Update docs/guides/README.md index (new cookbook row; narrowed kubernetes-service description).
-- [ ] Update the top-level README.md guide list with the cookbook.
-- [ ] Verify no dangling links (`grep -rn "settei-service/kubernetes" docs README.md examples` is empty); commit.
+- [x] (2026-07-20T02:56:55Z) Rescope `docs/guides/kubernetes-service.md` to application
+      code only; remove Deployment/ConfigMap manifest YAML and deployment checklist
+      items; cross-link the cookbook's rollout, rotation, and manifest sections.
+- [x] (2026-07-20T02:56:55Z) Update `docs/guides/README.md` with a new namespace
+      deployment row and narrow the service-guide description to application code.
+- [x] (2026-07-20T02:56:55Z) Add the cookbook to the top-level `README.md` guide list.
+- [x] (2026-07-20T02:56:55Z) Verify live documentation and example paths contain no
+      `settei-service/kubernetes` reference, local links resolve, and the service guide
+      contains no deployment manifest YAML; commit the rescope milestone.
 
 Milestone 4 — validation, bookkeeping, closure:
 
@@ -163,6 +168,12 @@ Milestone 4 — validation, bookkeeping, closure:
   captured no-password run proves its diagnostic. The cookbook now directs operators to
   pod events for missing Kubernetes objects and to init-container logs for application
   failures instead of conflating the two gates.
+
+- The authored dangling-link command searched all of `docs/`, which necessarily matched
+  historical ExecPlans that describe the old directory and even matched EP-24's own
+  migration instructions. The meaningful integrity gate is scoped to live guides,
+  top-level README, and examples: `rg -n "settei-service/kubernetes" docs/guides
+  README.md examples`. That command produced no matches after the rescope.
 
 
 ## Decision Log

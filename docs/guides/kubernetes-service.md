@@ -1,8 +1,13 @@
 # Building a Kubernetes service
 
-This guide configures a service from a mounted public file, direct environment values,
-and a Secret-backed environment variable. Settei works with the files and environment
-visible to the process; it does not require a Kubernetes client or cluster access.
+This is the application-code half of running Settei on Kubernetes. It configures a
+service from a mounted public file, direct environment values, and a Secret-backed
+environment variable. The deployment half—namespaces, ConfigMaps, Secrets, rollout
+gates, and the incident runbook—is in the
+[namespace deployment cookbook](kubernetes-cookbook.md).
+
+Settei works with the files and environment visible to the process; it does not require
+a Kubernetes client or cluster access.
 
 The complete working implementation and manifests are in
 [`settei-example-service`](../../examples/settei-service/).
@@ -228,78 +233,13 @@ failed startup can therefore log or return the same redacted provenance view as 
 successful validation, showing which sources won, what they shadowed, and what remained
 missing without exposing the typed record.
 
-By default, Settei does not watch mounted volumes. Kubernetes may update a projected
-ConfigMap or Secret after startup, but the typed value already held by the process does not
-change. Use rollout restarts for simple deployments. If the application implements live
-reload, reload every relevant source, resolve the complete declaration, and replace the
-active configuration only after full success. For Dhall graphs, obtain the import closure
-with `loadDhallSourceDetailed` so the watcher covers every local dependency.
-
-## Create the ConfigMap and Deployment
-
-Mount public configuration read-only:
-
-```yaml
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: my-service
-data:
-  application.yaml: |
-    http:
-      host: 0.0.0.0
-    database:
-      host: postgres.internal
-      port: 5432
-```
-
-Map the environment and Secret into the container:
-
-```yaml
-apiVersion: apps/v1
-kind: Deployment
-metadata:
-  name: my-service
-spec:
-  selector:
-    matchLabels:
-      app: my-service
-  template:
-    metadata:
-      labels:
-        app: my-service
-    spec:
-      containers:
-        - name: service
-          image: registry.example/my-service:VERSION
-          args:
-            - --config
-            - yaml:/etc/my-service/application.yaml
-          env:
-            - name: HASKELL_ENV
-              value: production
-            - name: DATABASE_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: my-service-database
-                  key: password
-          volumeMounts:
-            - name: configuration
-              mountPath: /etc/my-service
-              readOnly: true
-      volumes:
-        - name: configuration
-          configMap:
-            name: my-service
-```
-
-The `yaml:` tag is an application-level policy used by the example service. If your
-service accepts only YAML, a plain path is sufficient. Keep the CLI syntax and loader in
-agreement.
-
-Create real Secret values through the deployment's secret manager or delivery pipeline.
-Do not commit a usable Secret manifest, encoded credential, or stable placeholder that
-could be mistaken for a credential.
+By default, Settei does not watch mounted volumes. The typed value already held by the
+process does not change when a file changes. If the application implements live reload,
+reload every relevant source, resolve the complete declaration, and replace the active
+configuration only after full success. For Dhall graphs, obtain the import closure with
+`loadDhallSourceDetailed` so the watcher covers every local dependency. The
+[cookbook's rotation section](kubernetes-cookbook.md#8-rotate-by-restarting) documents
+the recommended Kubernetes restart posture.
 
 ## Expose safe diagnostics
 
@@ -325,25 +265,10 @@ render and exit. For a running service, log only:
 Never log the complete typed record. Secret-bearing record types should have no automatic
 `Show` instance.
 
-### Validate before accepting traffic
-
-Use the same command in an initContainer (or startup probe) to reject a bad ConfigMap
-before the main container receives traffic:
-
-```yaml
-initContainers:
-  - name: validate-configuration
-    image: registry.example/my-service:VERSION
-    args: ["--config", "yaml:/etc/my-service/application.yaml", "--check-config"]
-    volumeMounts:
-      - name: configuration
-        mountPath: /etc/my-service
-        readOnly: true
-```
-
-Exit code `0` permits startup, `3` means the mounted source could not be read or parsed,
-and `4` means typed resolution failed. Consider `RejectUnknownKeys` for services where a
-misspelled ConfigMap key must fail deployment rather than emit an advisory warning.
+The [cookbook's rollout gate](kubernetes-cookbook.md#6-gate-rollouts-with---check-config)
+shows how to run check mode with the same image, environment, and mounts before the
+service receives traffic. Consider `RejectUnknownKeys` for services where a misspelled
+file key must fail startup rather than emit an advisory warning.
 
 ## Run and test locally
 
@@ -370,20 +295,18 @@ Cover Development and Production separately, file-over-environment precedence, m
 Secret values, malformed public and secret values, unknown keys, and secret sentinels in
 all text and JSON output.
 
-## Operational checklist
+## Application checklist
 
-- Mount structured public configuration read-only.
-- Deliver credentials through the cluster's Secret integration, not command-line values.
 - Bind every supported environment variable explicitly.
 - Mark sensitive settings with `secretSetting` regardless of delivery path.
 - Keep Kubernetes names, keys, paths, and custom annotations safe to display.
 - Resolve all startup configuration before opening listeners.
-- Choose rollout restart or an atomic full-resolution reload strategy.
-- Use `--check-config` for validation and reserve explanation modes for diagnostics.
+- Reserve explanation modes for explicit diagnostics; never log the typed record.
 - Test every environment-dependent default and Selective branch.
 - Assert that secret sentinels never appear in stdout, stderr, logs, errors, or reports.
 
-Review the example [Kubernetes manifests](../../examples/settei-service/deploy/) and
-the full [`Settei.Example.Service`](../../examples/settei-service/src/Settei/Example/Service.hs)
-composition together; the Haskell annotations and manifest object names must remain in
-sync.
+Continue with the [namespace deployment cookbook](kubernetes-cookbook.md) and its
+checked-in [Kubernetes manifests](../../examples/settei-service/deploy/). Review those
+alongside the full
+[`Settei.Example.Service`](../../examples/settei-service/src/Settei/Example/Service.hs)
+composition; application annotations and manifest object names must remain in sync.

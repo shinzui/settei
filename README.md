@@ -139,6 +139,7 @@ not receive a recoverable secret value.
 - [Dhall adapter and import policy](docs/guides/dhall.md)
 - [Building a CLI application](docs/guides/cli-application.md)
 - [Building a Kubernetes-shaped service](docs/guides/kubernetes-service.md)
+- [Deploying one image across Kubernetes namespaces](docs/guides/kubernetes-cookbook.md)
 - [Security model](docs/security.md)
 - [Compatibility matrix](docs/compatibility.md)
 - [Release checklist](docs/release-checklist.md)
