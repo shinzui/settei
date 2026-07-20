@@ -35,7 +35,10 @@ common common
 library
   import:          common
   hs-source-dirs:  src
-  exposed-modules: Settei.Kubernetes
+  exposed-modules:
+    Settei.Kubernetes
+    Settei.Kubernetes.Bindings
+
   build-depends:
     , base          >=4.21    && <5
     , bytestring    >=0.12    && <0.13
@@ -44,6 +47,7 @@ library
     , filepath      >=1.5.4   && <1.6
     , generic-lens  >=2.2     && <2.4
     , settei        ==0.1.0.0
+    , settei-env    ==0.1.0.0
     , text          >=2.1     && <2.2
 
 test-suite settei-kubernetes-tests
@@ -60,6 +64,7 @@ test-suite settei-kubernetes-tests
     , filepath           >=1.5.4   && <1.6
     , generic-lens       >=2.2     && <2.4
     , settei             ==0.1.0.0
+    , settei-env         ==0.1.0.0
     , settei-kubernetes  ==0.1.0.0
     , tasty              >=1.5     && <1.6
     , tasty-hunit        >=0.10.2  && <0.11

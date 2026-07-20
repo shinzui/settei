@@ -72,12 +72,12 @@ rendering its resolution report: the report line ends with something like
       cross-collection overlapping keys, empty list) in
       settei-env/test/Settei/EnvTest.hs; settei-env/CHANGELOG.md Unreleased entry;
       `settei-env-tests` green; commit 1 with required trailers.
-- [ ] Milestone 2: new module `Settei.Kubernetes.Bindings` in settei-kubernetes with
+- [x] (2026-07-20T02:11:33Z) Milestone 2: new module `Settei.Kubernetes.Bindings` in settei-kubernetes with
       `ObjectKeyBinding`, `objectKeyBinding`, `bindingsFromSecret`,
       `bindingsFromConfigMap`; exposed-modules entry in
       settei-kubernetes/settei-kubernetes.cabal (plus settei-env/time build-depends as
       needed).
-- [ ] Milestone 2: derivation tests — exact equivalence with the hand-written reference
+- [x] (2026-07-20T02:11:33Z) Milestone 2: derivation tests — exact equivalence with the hand-written reference
       service Secret entry (annotation maps equal), ConfigMap analog, namespace handling,
       invalid-list rejection, merge with a manual collection; settei-kubernetes suite
       green; settei-kubernetes/CHANGELOG.md entry; commit 2 with required trailers.

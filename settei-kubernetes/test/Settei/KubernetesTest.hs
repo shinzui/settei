@@ -10,7 +10,9 @@ import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as Text
 import Settei
+import Settei.Env
 import Settei.Kubernetes
+import Settei.Kubernetes.Bindings
 import Settei.Prelude
 import System.Directory qualified as Directory
 import System.FilePath ((</>))
@@ -23,11 +25,111 @@ tests =
   testGroup
     "Settei.Kubernetes"
     [ atomicWriterTests,
+      bindingsDerivationTests,
       bindingValidationTests,
       missingAndErrorTests,
       newlineTests,
       provenanceTests,
       rendererTests
+    ]
+
+bindingsDerivationTests :: TestTree
+bindingsDerivationTests =
+  testGroup
+    "bindings derivation"
+    [ testCase "matches the hand-written Secret binding exactly" $ do
+        derived <-
+          expectDerivedBindings
+            ( bindingsFromSecret
+                Nothing
+                "settei-example-service-database"
+                [objectKeyBinding "password" (EnvName "DATABASE_PASSWORD") passwordKey]
+            )
+        let reference =
+              kubernetesRef
+                SecretObject
+                Nothing
+                "settei-example-service-database"
+                (Just "password")
+            manual =
+              fromKubernetesObject
+                reference
+                (binding (EnvName "DATABASE_PASSWORD") passwordKey)
+        assertBool
+          "derived Secret binding differed from the hand-written idiom"
+          (bindingsList derived == [manual])
+        case bindingsList derived of
+          [derivedBinding] ->
+            bindingAnnotations derivedBinding @?= kubernetesAnnotations reference
+          _ -> fail "expected exactly one derived Secret binding",
+      testCase "derives ConfigMap namespace and object annotations" $ do
+        derived <-
+          expectDerivedBindings
+            ( bindingsFromConfigMap
+                (Just "payments")
+                "service-config"
+                [objectKeyBinding "host" (EnvName "SERVICE_HOST") hostKey]
+            )
+        case bindingsList derived of
+          [derivedBinding] -> do
+            bindingAnnotations derivedBinding
+              ^. at "kubernetes.object-kind"
+              @?= Just "ConfigMap"
+            bindingAnnotations derivedBinding
+              ^. at "kubernetes.namespace"
+              @?= Just "payments"
+            bindingAnnotations derivedBinding
+              ^. at "kubernetes.object-name"
+              @?= Just "service-config"
+            bindingAnnotations derivedBinding
+              ^. at "kubernetes.object-key"
+              @?= Just "host"
+          _ -> fail "expected exactly one derived ConfigMap binding",
+      testCase "allows one object key to feed multiple variables" $ do
+        derived <-
+          expectDerivedBindings
+            ( bindingsFromSecret
+                Nothing
+                "shared-secret"
+                [ objectKeyBinding "shared" (EnvName "DATABASE_PASSWORD") passwordKey,
+                  objectKeyBinding "shared" (EnvName "SERVICE_HOST") hostKey
+                ]
+            )
+        fmap ((^. at "kubernetes.object-key") . bindingAnnotations) (bindingsList derived)
+          @?= [Just "shared", Just "shared"],
+      testCase "rejects duplicate variables and overlapping target keys" $ do
+        let duplicateName =
+              bindingsFromSecret
+                Nothing
+                "service-secret"
+                [ objectKeyBinding "first" (EnvName "SERVICE_VALUE") databaseKey,
+                  objectKeyBinding "second" (EnvName "SERVICE_VALUE") hostKey
+                ]
+            overlappingTargets =
+              bindingsFromConfigMap
+                Nothing
+                "service-config"
+                [ objectKeyBinding "database" (EnvName "DATABASE") databaseKey,
+                  objectKeyBinding "password" (EnvName "DATABASE_PASSWORD") passwordKey
+                ]
+        assertEnvLeftContains isDuplicateEnvName duplicateName
+        assertEnvLeftContains isConflictingEnvKey overlappingTargets,
+      testCase "merges derived and manual binding collections" $ do
+        derived <-
+          expectDerivedBindings
+            ( bindingsFromSecret
+                Nothing
+                "service-secret"
+                [objectKeyBinding "password" (EnvName "DATABASE_PASSWORD") passwordKey]
+            )
+        manual <- expectEnvBindings [binding (EnvName "MANUAL_VALUE") manualKey]
+        merged <- expectDerivedBindings (mergeBindings [derived, manual])
+        assertBool
+          "derived and manual collections did not compose"
+          (bindingsList merged == bindingsList derived <> bindingsList manual)
+
+        duplicateManual <- expectEnvBindings [binding (EnvName "DATABASE_PASSWORD") manualKey]
+        assertEnvLeftContains isDuplicateEnvName (mergeBindings [derived, duplicateManual])
     ]
 
 atomicWriterTests :: TestTree
@@ -319,6 +421,28 @@ expectAnswer result = case result ^. #answer of
   Left _ -> fail "expected configuration resolution to succeed"
   Right value -> pure value
 
+expectDerivedBindings :: Either (NonEmpty EnvError) Bindings -> IO Bindings
+expectDerivedBindings = either (fail . Text.unpack . renderEnvErrorsText) pure
+
+expectEnvBindings :: [EnvBinding] -> IO Bindings
+expectEnvBindings = expectDerivedBindings . bindings
+
+assertEnvLeftContains :: (EnvError -> Bool) -> Either (NonEmpty EnvError) a -> IO ()
+assertEnvLeftContains predicate = \case
+  Left errors ->
+    assertBool
+      "expected matching environment binding validation error"
+      (any predicate (NonEmpty.toList errors))
+  Right _ -> fail "expected environment binding validation to fail"
+
+isDuplicateEnvName :: EnvError -> Bool
+isDuplicateEnvName (DuplicateEnvironmentName _) = True
+isDuplicateEnvName _ = False
+
+isConflictingEnvKey :: EnvError -> Bool
+isConflictingEnvKey (ConflictingTargetKeys _ _) = True
+isConflictingEnvKey _ = False
+
 categories :: NonEmpty KubernetesSourceError -> [KubernetesErrorCategory]
 categories = fmap kubernetesErrorCategory . NonEmpty.toList
 
@@ -349,6 +473,9 @@ passwordKey = unsafeKey "database.password"
 
 hostKey :: Key
 hostKey = unsafeKey "service.http.host"
+
+manualKey :: Key
+manualKey = unsafeKey "manual.value"
 
 unsafeKey :: Text -> Key
 unsafeKey value = case parseKey value of
