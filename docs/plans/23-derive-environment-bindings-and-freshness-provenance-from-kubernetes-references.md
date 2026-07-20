@@ -91,12 +91,14 @@ rendering its resolution report: the report line ends with something like
       both the extended and unchanged suffix; golden-file impact check done
       (settei/test/golden/); settei/CHANGELOG.md entry; `settei-tests` and full suite
       green; commit 4 with required trailers.
-- [ ] Milestone 5: shared settei-kubernetes ADR extended (or standalone ADR written per
-      the recorded contingency) with the freshness/identity vocabulary; dated amendment
-      note added to docs/adr/0003; MasterPlan registry row EP-23 and Progress checkboxes
-      updated; this plan's living sections updated; final full suite green; commit 5 with
-      required trailers.
-- [ ] ADR distillation pass performed; plan marked complete.
+- [x] (2026-07-20T02:28:40Z) Milestone 5: ADR 0011 extended with the freshness/identity
+      vocabulary; dated amendments added to ADR 0003 and ADR 0010; Nix and Mori package
+      edges reconciled; MasterPlan registry row EP-23 and Progress checkboxes updated;
+      Haddock, focused suites, full workspace suite, formatting, and `nix flake check`
+      completed successfully; commit 5 with required trailers.
+- [x] (2026-07-20T02:28:40Z) ADR distillation pass performed; durable environment
+      composition, mounted-source freshness, and renderer decisions are recorded in
+      ADRs 0010, 0011, and 0003 respectively; plan marked complete.
 
 
 ## Surprises & Discoveries
@@ -131,6 +133,20 @@ implementation. Provide concise evidence.
   already belonged to EP-22, so EP-23 introduced no guess or compatibility change for
   them. The authoritative Hackage package index and upstream tag list both reported
   `time-1.16`, while the GHC 9.12.4 dev shell provides `time-1.14`.
+
+- The final Nix gate exposed stale `callCabal2nix` arguments for direct format adapters
+  that the CLI and service no longer declare after adopting `settei-formats`. Cabal did
+  not expose the mismatch, while package evaluation did. Removing only the absent
+  arguments, retaining the service test's direct `settei-yaml` edge, and adding the new
+  settei-kubernetes-to-settei-env edge made `nix flake check` pass. The same new edge is
+  now present in `mori.dhall`.
+
+- Haddock generated both settei-kubernetes modules at 100% coverage, including the new
+  bindings module, but GHC 9.12.4/Haddock also reported unresolved destinations for
+  generated `Rep_*` names. The warning reproduces across the pre-existing core,
+  settei-env, and settei-kubernetes `Generic` records (as well as re-exported dependency
+  records), so it is repository-wide toolchain debt rather than a missing EP-23 API
+  comment. The documentation command still exited successfully.
 
 
 ## Decision Log
@@ -280,7 +296,28 @@ implementation. Provide concise evidence.
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+EP-23 delivered both incident-provenance improvements without changing a core public
+type. `Settei.Env.mergeBindings` now combines validated collections by re-validating the
+whole list, and `Settei.Kubernetes.Bindings` atomically derives Secret or ConfigMap
+environment bindings whose object-key annotations cannot drift from their bindings.
+The mounted-directory reader now records mount path, per-file modification time, and a
+source-wide read time; text reports append only the modification time, while the existing
+JSON representation retains the complete annotation map.
+
+The implementation added four settei-env tests, six settei-kubernetes tests, and three
+core renderer assertions. The final focused counts were 20 settei-env tests, 32
+settei-kubernetes tests, and 105 core tests, all passing; the complete workspace suite,
+`nix flake check`, and Haddock generation also completed successfully. One negative spot
+check deliberately changed the expected Kubernetes object key and failed at the exact
+annotation equality assertion before being restored, confirming that the principal
+anti-drift test is meaningful.
+
+The distillation pass placed fallible `Bindings` composition and Kubernetes derivation
+in ADR 0010, mounted freshness identity and adapter-owned precedence in ADR 0011, and the
+minimal text-rendering contract in ADR 0003. Guides, manifests, and reference-service
+wiring remain intentionally deferred to EP-24 and EP-25. The remaining documentation
+debt is the existing GHC 9.12.4/Haddock unresolved-link noise for generated `Rep_*`
+names; the touched public modules themselves have complete Haddock coverage.
 
 
 ## Context and Orientation

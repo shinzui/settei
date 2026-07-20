@@ -4,6 +4,8 @@ Status: Accepted
 
 Date: 2026-07-19
 
+Amended: 2026-07-20
+
 
 ## Context
 
@@ -68,3 +70,24 @@ Storing a label inside `Bindings` was rejected because one valid collection may 
 under different source identities. Replacing the internal sentinel with a more elaborate
 type-level tree proof was rejected as disproportionate to a branch already excluded by
 the opaque smart constructor.
+
+
+## Amendment 2026-07-20: validated composition and Kubernetes reference derivation
+
+`mergeBindings :: [Bindings] -> Either (NonEmpty EnvError) Bindings` concatenates
+validated collections in order and passes the result through the same `bindings`
+validator. Two collections that are valid separately can still repeat a variable name
+or target structurally overlapping keys, so composition remains explicitly fallible. An
+empty list produces the valid empty collection. A `Semigroup Bindings` instance was
+rejected because a total `(<>)` cannot report these cross-collection conflicts without
+discarding the construction-time invariant or becoming partial.
+
+`Settei.Kubernetes.Bindings` derives validated environment bindings from one ConfigMap
+or Secret reference. Each `ObjectKeyBinding` row holds a Kubernetes data key, an
+`EnvName`, and a target `Key`; the generated `EnvBinding` and its
+`kubernetes.object-key` annotation are produced from that same row before the full list
+is validated. Reusing one Kubernetes data key for multiple distinct variables is legal,
+while duplicate environment names and duplicate or overlapping target keys retain the
+ordinary `EnvError` behavior. The definitions live in `settei-kubernetes`, which is the
+adapter package allowed to depend on both core `settei` and `settei-env`; core and
+`settei-env` do not depend on Kubernetes-specific construction vocabulary.

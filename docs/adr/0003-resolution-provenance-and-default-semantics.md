@@ -4,7 +4,7 @@ Status: Accepted
 
 Date: 2026-07-17
 
-Amended: 2026-07-19
+Amended: 2026-07-19, 2026-07-20
 
 
 ## Context
@@ -57,8 +57,11 @@ source-wide annotations and composable per-key annotations; per-key entries take
 precedence when names overlap. This lets one environment snapshot or parsed document
 retain distinct metadata for each candidate without being split into artificial sources.
 The text renderer recognizes core's Kubernetes annotation vocabulary and appends the
-asserted object kind, namespace, name, and key; deterministic JSON retains the complete
-ordered annotation map. Adapter annotations must never copy raw candidate values. In
+asserted object kind, namespace, name, key, and, when present, file modification time;
+deterministic JSON retains the complete ordered annotation map. Adapter-owned Kubernetes
+freshness names are defined by
+`docs/adr/0011-kubernetes-mounted-directory-input-semantics.md`. Adapter annotations must
+never copy raw candidate values. In
 particular, the command-line adapter records a safe option-and-key spelling plus an
 occurrence number, while the potentially secret assignment remains only in `RawValue`
 until setting sensitivity is known.
@@ -247,3 +250,14 @@ total, unvalidated escape hatch for adapters that already guarantee tree validit
 paths that cannot form a `Key`, never their possibly secret values. `sourceLeaves` remains
 total and preserves its existing addressable-leaf contract; it does not silently broaden
 key syntax to accommodate invalid hand-built trees.
+
+
+## Amendment 2026-07-20: Kubernetes freshness provenance
+
+The `settei-kubernetes` adapter owns `kubernetes.mount-path`,
+`kubernetes.file-modified`, and `kubernetes.read-at` as additive descriptive annotation
+names. They do not affect source precedence or candidate selection. Core text rendering
+recognizes only `kubernetes.file-modified` and appends it to a complete Kubernetes object
+suffix; origins without that annotation retain byte-for-byte equivalent text. JSON needs
+no per-name branch because the existing ordered annotation object carries all adapter
+metadata. The capture and clock-trust semantics live in ADR 0011.

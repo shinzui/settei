@@ -87,7 +87,7 @@ the renderer contract and may be added to settei-formats only as a follow-up dec
 | # | Title | Path | Hard Deps | Soft Deps | Status |
 |---|-------|------|-----------|-----------|--------|
 | 22 | Create the settei-kubernetes mounted-directory source adapter | docs/plans/22-create-the-settei-kubernetes-mounted-directory-source-adapter.md | None | None | Complete |
-| 23 | Derive environment bindings and freshness provenance from Kubernetes references | docs/plans/23-derive-environment-bindings-and-freshness-provenance-from-kubernetes-references.md | EP-22 | None | In Progress |
+| 23 | Derive environment bindings and freshness provenance from Kubernetes references | docs/plans/23-derive-environment-bindings-and-freshness-provenance-from-kubernetes-references.md | EP-22 | None | Complete |
 | 24 | Write the namespace-driven configuration cookbook and deployment manifests | docs/plans/24-write-the-namespace-driven-configuration-cookbook-and-deployment-manifests.md | None | EP-22, EP-23 | Not Started |
 | 25 | Integrate Kubernetes support into the reference service and release collateral | docs/plans/25-integrate-kubernetes-support-into-the-reference-service-and-release-collateral.md | EP-22, EP-23, EP-24 | None | Not Started |
 
@@ -128,8 +128,11 @@ New package settei-kubernetes (EP-22 owns; EP-23 extends; EP-25 registers in rel
 collateral): top-level sibling directory per docs/adr/0001 with the canonical common
 stanza. EP-22 defines the package, its error type, its renderer (following the EP-17
 contract), and the mounted-directory source API. EP-23 adds the bindings-derivation and
-freshness modules. Dependency direction: settei-kubernetes may depend on settei and
-settei-env; nothing in the existing family depends on settei-kubernetes.
+freshness behavior. The landed public derivation module is
+`Settei.Kubernetes.Bindings`, with `objectKeyBinding`, `bindingsFromSecret`, and
+`bindingsFromConfigMap`; validated collections compose through settei-env's
+`mergeBindings`. Dependency direction: settei-kubernetes depends on settei, settei-env,
+and time; nothing in the existing family depends on settei-kubernetes.
 
 Kubernetes annotation vocabulary (EP-22, EP-23, core): docs/adr/0003 gives core the
 shared `kubernetes.*` annotation names (kubernetes.object-kind, kubernetes.object-name,
@@ -137,8 +140,11 @@ kubernetes.namespace, kubernetes.object-key) rendered by the kubernetesSuffix in
 settei/src/Settei/Render.hs. EP-23 owns the additive vocabulary extensions
 (kubernetes.mount-path, kubernetes.file-modified, and any resource-identity names) and
 decides whether the core renderer learns to display them; any core change is minimal and
-additive. The vocabulary extension is a durable decision → new ADR (number chosen at
-implementation time after the ergonomics initiative's 0008/0009).
+additive. EP-23 landed `kubernetes.mount-path`, `kubernetes.file-modified`, and
+`kubernetes.read-at`; text displays only the file modification time while JSON retains
+all annotations. The durable semantics extend
+docs/adr/0011-kubernetes-mounted-directory-input-semantics.md, with the core contract
+amended in docs/adr/0003-resolution-provenance-and-default-semantics.md.
 
 Deployment manifests (EP-24 owns; EP-25 validates): runnable manifests live under
 examples/settei-service/deploy/ (base plus per-namespace kustomize overlays) so the
@@ -152,11 +158,11 @@ the established convention): examples/settei-service gains a mounted-directory
 configuration path demonstrating the adapter; examples remain the conformance boundary
 per docs/adr/0007 and never contact a cluster.
 
-Cross-plan decisions that should become ADRs: the mounted-directory mapping semantics
-(explicit file bindings, atomic-writer symlink handling, UTF-8/trailing-newline policy —
-EP-22, new ADR), the freshness/identity annotation vocabulary (EP-23, same or separate
-ADR), and the documented restart-to-reload posture with the no-cluster-client boundary
-reaffirmed (EP-24 records it in the cookbook; EP-25 promotes it during distillation).
+Cross-plan durable records: ADR 0011 owns the mounted-directory mapping semantics and
+EP-23's freshness/identity vocabulary; ADR 0010 owns validated environment collection
+composition and Kubernetes binding derivation; ADR 0003 owns the minimal core renderer
+extension. The documented restart-to-reload posture and reaffirmed no-cluster-client
+boundary remain for EP-24's cookbook and EP-25's final distillation.
 
 
 ## Progress
@@ -164,8 +170,8 @@ reaffirmed (EP-24 records it in the cookbook; EP-25 promotes it during distillat
 - [x] EP-22: settei-kubernetes package scaffolded and registered in cabal/nix/mori
 - [x] EP-22: mounted-directory source with explicit file bindings, symlink handling, tests
 - [x] EP-22: error type plus renderer per the adapter renderer contract
-- [ ] EP-23: bindingsFrom* derivation returning validated Bindings, tests
-- [ ] EP-23: freshness/identity annotations and renderer decision, ADR drafted
+- [x] EP-23: bindingsFrom* derivation returning validated Bindings, tests
+- [x] EP-23: freshness/identity annotations and renderer decision, ADRs amended
 - [ ] EP-24: namespace cookbook written with downward API, check-config gate, runbook
 - [ ] EP-24: runnable base+overlay manifests under examples/settei-service/deploy/
 - [ ] EP-25: reference service exercises the mounted-directory source end to end
@@ -198,6 +204,18 @@ reaffirmed (EP-24 records it in the cookbook; EP-25 promotes it during distillat
   semantics live in docs/adr/0011-kubernetes-mounted-directory-input-semantics.md. EP-23
   can extend this surface directly but must still reconcile its planned environment-
   binding constructor names against the live opaque `Bindings` API.
+- EP-23 landed the provisional derivation names unchanged:
+  `Settei.Kubernetes.Bindings.objectKeyBinding`, `bindingsFromSecret`, and
+  `bindingsFromConfigMap`, returning settei-env's validated `Bindings`. EP-25 must use
+  those exact names rather than its authoring-time placeholders; mixed manual and
+  derived collections compose through `mergeBindings`.
+- EP-23's Nix gate found that the CLI and service `callCabal2nix` overrides still passed
+  direct format-adapter arguments removed when those applications adopted
+  `settei-formats`. Cabal accepted the stale arguments because it does not consume Nix
+  overrides, but `nix flake check` rejected them. EP-23 removed only arguments absent
+  from each application's Cabal graph, retained the service test's direct settei-yaml
+  argument, and added settei-env to the settei-kubernetes Nix and Mori dependency
+  declarations; the flake gate then passed.
 
 
 ## Decision Log
@@ -242,6 +260,17 @@ reaffirmed (EP-24 records it in the cookbook; EP-25 promotes it during distillat
   shape) and the ergonomics contracts (validated Bindings, renderer convention,
   DiagnosticMode) rather than being written twice. The cookbook teaches the final API.
   Date: 2026-07-19
+
+- Decision: The mounted adapter's final freshness vocabulary is
+  `kubernetes.mount-path`, `kubernetes.file-modified`, and `kubernetes.read-at`, all
+  captured eagerly during the read and descriptive only. Text renders only `(modified
+  TIME)`; JSON retains the complete map.
+  Rationale: Mount path, file modification time, and one source-wide read timestamp
+  answer the incident questions without changing `KubernetesRef` or precedence. Showing
+  all three on every text line would be noisy; the generic JSON representation already
+  preserves them for detailed tooling. Durable semantics are in ADR 0011 and the core
+  renderer contract amendment is in ADR 0003.
+  Date: 2026-07-20
 
 
 ## Outcomes & Retrospective

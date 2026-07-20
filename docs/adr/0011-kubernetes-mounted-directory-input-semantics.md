@@ -4,6 +4,8 @@ Status: Accepted
 
 Date: 2026-07-19
 
+Amended: 2026-07-20
+
 
 ## Context
 
@@ -53,6 +55,36 @@ present leaf retains the full visible file path plus object-kind, namespace, obj
 and per-file object-key annotations. Core rendering can consequently produce an origin
 such as `kubernetes-mounted-directory source app-secrets from Kubernetes Secret
 prod/app-credentials key password` without a Kubernetes client or cluster lookup.
+
+
+## Freshness and Identity Annotations
+
+`readMountedDirectorySource` attaches three adapter-owned annotations while it performs
+the eager `IO` read. `kubernetes.mount-path` is the directory path supplied to the
+reader. `kubernetes.read-at` is one wall-clock timestamp captured before the bound files
+are read, shared by every present candidate from that source.
+`kubernetes.file-modified` is captured separately for each successfully read file by
+asking the operating system for the modification time of the same visible path; normal
+symbolic-link traversal therefore observes the payload behind Kubernetes' atomic-writer
+layout without exposing its hidden directory spelling.
+
+Both timestamps use ISO-8601 UTC at whole-second precision with the fixed format
+`%Y-%m-%dT%H:%M:%SZ`. They are captured before the `Source` is returned rather than by a
+lazy annotation function. The values are incident-triage evidence, not proof of cluster
+freshness: file modification time reflects the node clock used by kubelet and read time
+reflects the same node clock as seen by the container, so cross-machine comparison
+depends on the cluster's clock discipline.
+
+All three names are descriptive only and never affect decoding, precedence, or source
+ordering. Adapter-owned values take precedence over caller annotations with the same
+names. The core text renderer displays only `kubernetes.file-modified`, as `(modified
+TIME)` after the Kubernetes object suffix; including mount path and read time on every
+text line was rejected as incident-noisy duplication. Deterministic JSON already emits
+the complete ordered annotation map, so it carries all three without a format change.
+
+The metadata remains outside `KubernetesRef`. Extending that shared core record was
+rejected because mount path and timestamps exist only for mounted-file reads and would
+force unrelated adapters and callers to handle fields they cannot truthfully populate.
 
 
 ## Consequences

@@ -51,6 +51,7 @@
       setteiKubernetesPackage =
         haskellPackages.callCabal2nix "settei-kubernetes" ../settei-kubernetes {
           settei = setteiPackage;
+          settei-env = setteiEnvPackage;
         };
       setteiDhallPackage =
         pkgs.haskell.lib.dontCheck (
@@ -90,12 +91,9 @@
           haskellPackages.callCabal2nix "settei-example-cli" ../examples/settei-cli {
             optparse-applicative = optparseApplicativePackage;
             settei = setteiPackage;
-            settei-dhall = setteiDhallPackage;
             settei-env = setteiEnvPackage;
             settei-formats = setteiFormatsPackage;
-            settei-kdl = setteiKdlPackage;
             settei-optparse-applicative = setteiOptparseApplicativePackage;
-            settei-yaml = setteiYamlPackage;
           }
         );
       setteiExampleServicePackage =
@@ -103,10 +101,8 @@
           haskellPackages.callCabal2nix "settei-example-service" ../examples/settei-service {
             optparse-applicative = optparseApplicativePackage;
             settei = setteiPackage;
-            settei-dhall = setteiDhallPackage;
             settei-env = setteiEnvPackage;
             settei-formats = setteiFormatsPackage;
-            settei-kdl = setteiKdlPackage;
             settei-optparse-applicative = setteiOptparseApplicativePackage;
             settei-yaml = setteiYamlPackage;
           }
