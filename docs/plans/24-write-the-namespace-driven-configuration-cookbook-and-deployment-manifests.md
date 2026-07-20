@@ -94,12 +94,23 @@ Milestone 1 — validation tooling and the manifest set:
 
 Milestone 2 — the cookbook guide:
 
-- [ ] Reconcile every API name the cookbook uses against the current tree (flags, exit codes, renderer output, binding constructors); record findings in this plan.
-- [ ] Write `docs/guides/kubernetes-cookbook.md` sections 1–5 (motivation and topology, namespace identity chain, environment switch with the derive-from-namespace alternative, per-namespace values, manifest walkthrough referencing checked-in files).
-- [ ] Write sections 6–10 (check-config gate, incident runbook with transcripts, rotation/reload posture, RejectUnknownKeys, FAQ).
-- [ ] Capture real `--check-config` / `--explain-config` transcripts from the built example binary and replace the plan's illustrative ones; verify `<redacted>` appears wherever the password would.
-- [ ] Decide and record the EP-22/EP-23 contingency outcome (mounted-directory Secret section and derived-bindings spelling included or deferred).
-- [ ] Commit.
+- [x] (2026-07-20T02:52:42Z) Reconcile every API name used by the cookbook against the
+      current tree: all five diagnostic flags, exit codes 2/3/4, exact renderer text,
+      `RejectUnknownKeys`, the EP-22 mounted-directory API, and the EP-23 binding
+      derivation API.
+- [x] (2026-07-20T02:52:42Z) Write `docs/guides/kubernetes-cookbook.md` sections 1–5:
+      topology, namespace identity, explicit environment choice and its alternative,
+      per-namespace delivery paths, and the checked-in manifest walkthrough.
+- [x] (2026-07-20T02:52:42Z) Write sections 6–10: rollout gate, incident runbook,
+      restart-to-reload posture, strict unknown-key recommendation, and FAQ.
+- [x] (2026-07-20T02:52:42Z) Capture real `--check-config` and successful/failing
+      `--explain-config` output from the built service using the overlay's public data;
+      the production password is `<redacted>`, its sentinel is absent, and the missing
+      Production password exits 4 with a provenance report.
+- [x] (2026-07-20T02:52:42Z) Resolve the EP-22/EP-23 contingency by documenting the
+      shipped `Settei.Kubernetes` mounted-directory API and exact
+      `Settei.Kubernetes.Bindings.bindingsFromSecret` construction.
+- [x] (2026-07-20T02:52:42Z) Commit the complete cookbook milestone.
 
 Milestone 3 — rescope the service guide and update indexes:
 
@@ -131,6 +142,27 @@ Milestone 4 — validation, bookkeeping, closure:
   explicit through `SETTEI_VALIDATE_SCHEMAS=1`. Evidence: the opt-in run validated all
   three resources in each of dev, test, and production with zero invalid resources or
   errors.
+
+- The service fixture used by its tests intentionally contains `undeclared.setting`, so
+  a direct guide capture against that fixture prints the default unknown-key warning.
+  To keep the cookbook transcript specific to the checked-in overlays, the real binary
+  was instead fed the overlay's `application.yaml` value through `/dev/stdin`. This
+  produced the exact production host and no unrelated warning while exercising the same
+  YAML loader and ConfigMap annotations.
+
+- The illustrative renderer transcript in the authored plan did not match the landed
+  renderer byte-for-byte. The shipped text says `from file source PATH (YAML) from
+  Kubernetes ...`, renders default dependencies on nested `because` lines, and appends a
+  final selected/not-selected branch trace. The cookbook uses captured text rather than
+  preserving the sketch.
+
+- A non-optional `secretKeyRef` changes where an absent Production Secret fails: kubelet
+  prevents every pod container from starting until the Secret and named key exist, so
+  the `--check-config` init container cannot itself report exit 4 for that cluster-side
+  absence. Exit 4 still covers typed failures after the process starts, and the locally
+  captured no-password run proves its diagnostic. The cookbook now directs operators to
+  pod events for missing Kubernetes objects and to init-container logs for application
+  failures instead of conflating the two gates.
 
 
 ## Decision Log
@@ -269,6 +301,16 @@ Milestone 4 — validation, bookkeeping, closure:
   hostage to adapter implementation"); both sibling plans are placeholder skeletons at
   authoring time, so no API name from them can be trusted yet.
   Date: 2026-07-19
+
+- Decision: Both soft dependencies landed before cookbook implementation, so the guide
+  includes the full mounted-Secret alternative using `Settei.Kubernetes.fileBindings`,
+  `mountedDirectoryOptions`, and `readMountedDirectorySource`, and the environment
+  example uses `Settei.Kubernetes.Bindings.bindingsFromSecret` with
+  `objectKeyBinding`. Nothing remains deferred to EP-25 for API spelling.
+  Rationale: The implementations and their test suites are present, their exported names
+  match the provisional plan, and using those names now prevents the centerpiece guide
+  from shipping an obsolete manual-construction path.
+  Date: 2026-07-20
 
 - Decision: The base Deployment includes a readinessProbe only as a commented-out
   template with an explanatory comment, and the main container runs with no diagnostic
