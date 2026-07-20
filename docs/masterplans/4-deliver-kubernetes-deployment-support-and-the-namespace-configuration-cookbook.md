@@ -88,7 +88,7 @@ the renderer contract and may be added to settei-formats only as a follow-up dec
 |---|-------|------|-----------|-----------|--------|
 | 22 | Create the settei-kubernetes mounted-directory source adapter | docs/plans/22-create-the-settei-kubernetes-mounted-directory-source-adapter.md | None | None | Complete |
 | 23 | Derive environment bindings and freshness provenance from Kubernetes references | docs/plans/23-derive-environment-bindings-and-freshness-provenance-from-kubernetes-references.md | EP-22 | None | Complete |
-| 24 | Write the namespace-driven configuration cookbook and deployment manifests | docs/plans/24-write-the-namespace-driven-configuration-cookbook-and-deployment-manifests.md | None | EP-22, EP-23 | In Progress |
+| 24 | Write the namespace-driven configuration cookbook and deployment manifests | docs/plans/24-write-the-namespace-driven-configuration-cookbook-and-deployment-manifests.md | None | EP-22, EP-23 | Complete |
 | 25 | Integrate Kubernetes support into the reference service and release collateral | docs/plans/25-integrate-kubernetes-support-into-the-reference-service-and-release-collateral.md | EP-22, EP-23, EP-24 | None | Not Started |
 
 Status values: Not Started, In Progress, Complete, Cancelled.
@@ -146,11 +146,12 @@ all annotations. The durable semantics extend
 docs/adr/0011-kubernetes-mounted-directory-input-semantics.md, with the core contract
 amended in docs/adr/0003-resolution-provenance-and-default-semantics.md.
 
-Deployment manifests (EP-24 owns; EP-25 validates): runnable manifests live under
-examples/settei-service/deploy/ (base plus per-namespace kustomize overlays) so the
-cookbook references checked-in, testable files rather than embedding untested YAML. The
-cookbook guide lives at docs/guides/kubernetes-cookbook.md and the existing
-docs/guides/kubernetes-service.md narrows to the application-code guide, linking to the
+Deployment manifests (EP-24 owns; EP-25 validates): the landed manifests live under
+examples/settei-service/deploy/ as a namespace-agnostic base plus dev, test, and
+production kustomize overlays. `deploy/validate.sh` is the mandatory offline render and
+invariant gate; `SETTEI_VALIDATE_SCHEMAS=1` adds the networked kubeconform pass. The
+cookbook lives at docs/guides/kubernetes-cookbook.md, while
+docs/guides/kubernetes-service.md is now the application-code half and links to the
 cookbook for deployment.
 
 Reference service (EP-25 owns the final pass; EP-22/EP-23 keep example edits minimal per
@@ -172,8 +173,8 @@ boundary remain for EP-24's cookbook and EP-25's final distillation.
 - [x] EP-22: error type plus renderer per the adapter renderer contract
 - [x] EP-23: bindingsFrom* derivation returning validated Bindings, tests
 - [x] EP-23: freshness/identity annotations and renderer decision, ADRs amended
-- [ ] EP-24: namespace cookbook written with downward API, check-config gate, runbook
-- [ ] EP-24: runnable base+overlay manifests under examples/settei-service/deploy/
+- [x] EP-24: namespace cookbook written with downward API, check-config gate, runbook
+- [x] EP-24: runnable base+overlay manifests under examples/settei-service/deploy/
 - [ ] EP-25: reference service exercises the mounted-directory source end to end
 - [ ] EP-25: conformance/smoke coverage, compatibility matrix, changelogs, README
 - [ ] EP-25: ADR distillation and MasterPlan closure
@@ -216,6 +217,19 @@ boundary remain for EP-24's cookbook and EP-25's final distillation.
   from each application's Cabal graph, retained the service test's direct settei-yaml
   argument, and added settei-env to the settei-kubernetes Nix and Mori dependency
   declarations; the flake gate then passed.
+- EP-24 replaced the old `examples/settei-service/kubernetes/` directory with the exact
+  downstream paths EP-25 must validate: `examples/settei-service/deploy/base/`,
+  `deploy/overlays/{dev,test,production}/`, and `deploy/validate.sh`. The live guide is
+  `docs/guides/kubernetes-cookbook.md`; EP-25 should not restore or reference the old
+  manifest home.
+- Kubeconform does not embed its default Kubernetes schema corpus; it downloads schemas
+  from its default registry. EP-24 therefore made the offline kustomize render and grep
+  gate mandatory and the schema pass opt-in through `SETTEI_VALIDATE_SCHEMAS=1`. EP-25
+  can run both gates, but must not describe the schema pass as offline.
+- A missing non-optional `secretKeyRef` blocks pod container startup at kubelet before
+  the `--check-config` init container can run. EP-24's cookbook distinguishes this pod
+  event from typed checker failures (exit 4). EP-25's final service/manifests validation
+  must preserve that distinction in tests and release prose.
 
 
 ## Decision Log
@@ -270,6 +284,16 @@ boundary remain for EP-24's cookbook and EP-25's final distillation.
   all three on every text line would be noisy; the generic JSON representation already
   preserves them for detailed tooling. Durable semantics are in ADR 0011 and the core
   renderer contract amendment is in ADR 0003.
+  Date: 2026-07-20
+
+- Decision: Kubernetes deployment collateral has a mandatory offline validation path
+  (`examples/settei-service/deploy/validate.sh`) that renders all overlays and checks
+  their invariants. Kubeconform schema validation is an additional networked gate enabled
+  with `SETTEI_VALIDATE_SCHEMAS=1`.
+  Rationale: Kubeconform's default schemas are downloaded from a remote registry. Making
+  that implicit would contradict the repository's client-side/offline default, while
+  omitting schema validation entirely would discard a useful pinned tool. The split gives
+  every contributor a deterministic baseline and CI an explicit stronger option.
   Date: 2026-07-20
 
 

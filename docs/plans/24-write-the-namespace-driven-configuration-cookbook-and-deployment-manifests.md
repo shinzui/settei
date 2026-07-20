@@ -126,11 +126,24 @@ Milestone 3 — rescope the service guide and update indexes:
 
 Milestone 4 — validation, bookkeeping, closure:
 
-- [ ] Full validation pass: kustomize render transcript, validate.sh transcript, `nix develop -c cabal test all --test-show-details=direct` green from clean; paste evidence into this plan.
-- [ ] Read the finished cookbook start to finish as a novice; fix anything that requires outside knowledge.
-- [ ] Optional (outside CI): kind/minikube walkthrough following only the cookbook; record the outcome here.
-- [ ] MasterPlan bookkeeping: registry row EP-24 → Complete; check the two EP-24 Progress items in docs/masterplans/4-…md.
-- [ ] Fill this plan's Outcomes & Retrospective; confirm the no-ADR decision still holds (promotion happens in EP-25); final commit.
+- [x] (2026-07-20T03:00:20Z) Run the full validation pass from a clean tree: all three
+      overlays render and pass invariant checks; opt-in kubeconform validates three
+      resources per overlay; clean `cabal test all --test-show-details=direct` passes all
+      322 tests; `nix flake check` passes; concise evidence added below.
+- [x] (2026-07-20T03:00:20Z) Read the finished cookbook start to finish as a novice;
+      verify every local link and language-tagged fence; clarify namespace declaration,
+      validated binding composition, mounted-source error handling, missing-Secret pod
+      events, and commands that contact a cluster.
+- [x] (2026-07-20T03:00:20Z) Skip the optional kind/minikube walkthrough: the repository
+      intentionally supplies an unpullable image and placeholder Secret, no disposable
+      cluster was placed in scope, and ADR 0007 keeps live-cluster acceptance outside
+      required CI.
+- [x] (2026-07-20T03:00:20Z) Mark MasterPlan registry row EP-24 Complete and check its
+      cookbook and runnable-manifest Progress items; add cross-plan findings for EP-25.
+- [x] (2026-07-20T03:00:20Z) Fill Outcomes & Retrospective and perform the ADR
+      distillation review. No new ADR is needed here; restart-to-reload and the
+      no-cluster-client boundary remain explicitly queued for EP-25's initiative-wide
+      distillation. Commit EP-24 closure.
 
 
 ## Surprises & Discoveries
@@ -224,14 +237,15 @@ Milestone 4 — validation, bookkeeping, closure:
   Date: 2026-07-19
 
 - Decision: Validation tooling — `kubectl` (whose `kubectl kustomize` subcommand
-  renders overlays client-side with no cluster) and `kubeconform` (offline schema
-  validation) are added to the Nix dev shell via a new tracked `flake.module.nix`
+  renders overlays client-side with no cluster) and `kubeconform` (the optional
+  network-backed schema validator described by the following decision) are added to
+  the Nix dev shell via a new tracked `flake.module.nix`
   setting `haskellProject.extraDevPackages`, the extension point `nix/haskell.nix`
   declares for exactly this purpose. The mandatory mechanical gate is
   `examples/settei-service/deploy/validate.sh`: it renders every overlay with
   `kubectl kustomize` and greps for expected per-namespace values; kubeconform runs
-  inside it when available and is skipped with a notice otherwise. The script is NOT
-  wired into `cabal test all`.
+  inside it only when `SETTEI_VALIDATE_SCHEMAS=1`. The script is NOT wired into
+  `cabal test all`.
   Rationale: Honest inventory: the dev shell today contains only zlib, just, and
   pkg-config (nix/haskell.nix `baseDevPackages`); kubectl and kustomize exist in the
   plan author's user profile but a novice or CI runner cannot rely on that.
@@ -358,7 +372,32 @@ Milestone 4 — validation, bookkeeping, closure:
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+EP-24 delivered the initiative's centerpiece: a ten-section namespace deployment
+cookbook backed by a runnable client-side manifest set rather than copied inline YAML.
+The namespace-agnostic base and dev/test/production overlays make the one-image promotion
+model structural, inject namespace identity through the downward API, deliver explicit
+`HASKELL_ENV` and Secret data, and run the same image and inputs through a
+`--check-config` init container. The old single-namespace manifest directory is gone,
+and the service guide now owns application code while the cookbook owns deployment and
+operations.
+
+The repository-specific validation path is reproducible from the pinned dev shell.
+Offline rendering and invariant checks pass for all three overlays; the opt-in remote
+schema pass validates all nine rendered resources; a clean rebuild passes all 322
+Haskell tests; and `nix flake check` passes package evaluation, treefmt, and pre-commit.
+Real successful and failing service output in the cookbook confirms exit behavior,
+default-rule provenance, and password redaction.
+
+Two implementation-time corrections improved the authored design. Kubeconform's default
+schemas are remote, so schema validation is explicit rather than silently making the
+mandatory gate network-dependent. Also, a missing non-optional Kubernetes Secret blocks
+pod startup before the init container, while typed failures after the checker starts use
+exit code 4; the incident runbook distinguishes pod events from application logs. The
+optional live-cluster walkthrough remains deliberately outside acceptance.
+
+The ADR review found no new project decision to promote in this child plan. The durable
+restart-to-reload posture and process-only/no-cluster-client boundary were already
+identified by the MasterPlan and remain queued for EP-25's final distillation pass.
 
 
 ## Context and Orientation
@@ -1116,6 +1155,36 @@ Progress, fill this plan's living sections. Commit:
 ## Validation and Acceptance
 
 Acceptance is behavioral, verified from the repository root.
+
+Implementation evidence captured on 2026-07-20 from a clean worktree:
+
+```text
+== overlay: dev
+ok:   namespace stamped
+ok:   downward API namespace
+ok:   secret-backed password
+ok:   check-config gate
+ok:   no real secret committed
+...
+ok:   production environment value
+ok:   production database host
+```
+
+The opt-in schema run ended once per overlay with:
+
+```text
+Summary: 3 resources found parsing stdin - Valid: 3, Invalid: 0, Errors: 0, Skipped: 0
+```
+
+After `nix develop -c cabal clean`, the full suite reported every component `PASS`: 105
+core, 7 Dhall prototype, 45 YAML, 34 KDL, 9 optparse, 20 environment, 26 Dhall, 32
+Kubernetes, 15 formats, 8 service, 10 CLI, and 11 conformance tests (322 total). The Nix
+closure gate then reported:
+
+```text
+✅ checks.aarch64-darwin.pre-commit
+✅ checks.aarch64-darwin.treefmt
+```
 
 1. Manifest rendering: `nix develop -c kubectl kustomize
    examples/settei-service/deploy/overlays/production` succeeds with no cluster access
