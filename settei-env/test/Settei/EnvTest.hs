@@ -16,6 +16,7 @@ tests =
   testGroup
     "Settei.Env"
     [ errorRenderingTests,
+      bindingMergingTests,
       testCase "explicit binding records variable origin" $ do
         input <- expectSource [binding (EnvName "HASKELL_ENV") runtimeEnvironment] [("HASKELL_ENV", "Production")]
         case lookupSource runtimeEnvironment input of
@@ -101,6 +102,32 @@ tests =
         let output = renderResolutionText (result ^. #report)
         assertBool "ConfigMap metadata was omitted" ("service-network" `Text.isInfixOf` output)
         assertBool "public value was omitted" ("api.internal" `Text.isInfixOf` output)
+    ]
+
+bindingMergingTests :: TestTree
+bindingMergingTests =
+  testGroup
+    "merging validated bindings"
+    [ testCase "preserves disjoint collections in order" $ do
+        let firstValues = [binding (EnvName "SERVICE_HOST") serviceHost]
+            secondValues = [binding (EnvName "DATABASE_PASSWORD") databasePassword]
+        first <- expectBindings firstValues
+        second <- expectBindings secondValues
+        merged <- either (fail . show) pure (mergeBindings [first, second])
+        assertBool
+          "merged bindings did not preserve collection order"
+          (bindingsList merged == firstValues <> secondValues),
+      testCase "rejects a cross-collection duplicate variable name" $ do
+        first <- expectBindings [binding (EnvName "SERVICE_VALUE") serviceHost]
+        second <- expectBindings [binding (EnvName "SERVICE_VALUE") databasePassword]
+        assertLeftContains isDuplicateName (mergeBindings [first, second]),
+      testCase "rejects cross-collection overlapping target keys" $ do
+        first <- expectBindings [binding (EnvName "SERVICE") (validKey "service")]
+        second <- expectBindings [binding (EnvName "SERVICE_PORT") (validKey "service.port")]
+        assertLeftContains isConflict (mergeBindings [first, second]),
+      testCase "accepts an empty collection list" $ do
+        merged <- either (fail . show) pure (mergeBindings [])
+        assertBool "empty merge produced bindings" (null (bindingsList merged))
     ]
 
 errorRenderingTests :: TestTree

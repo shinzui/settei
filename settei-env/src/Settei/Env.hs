@@ -18,6 +18,7 @@ module Settei.Env
     envSource,
     environmentSource,
     fromKubernetesObject,
+    mergeBindings,
     prefixedBindings,
     readEnvSource,
     readEnvironmentSource,
@@ -104,6 +105,15 @@ bindings values =
 -- | Inspect the validated bindings, for example to count or display them.
 bindingsList :: Bindings -> [EnvBinding]
 bindingsList (Bindings values) = values
+
+-- | Merge validated collections into one, re-validating cross-collection conflicts.
+--
+-- Two individually valid collections can still collide with each other (a variable
+-- name bound in both, or target keys that overlap across them), so merging returns
+-- the same 'EnvError' vocabulary as 'bindings'. The empty list yields the valid empty
+-- collection. Order is preserved: earlier collections contribute earlier bindings.
+mergeBindings :: [Bindings] -> Either (NonEmpty EnvError) Bindings
+mergeBindings = bindings . concatMap bindingsList
 
 -- | Render one binding-validation failure as a single operator-readable sentence.
 --

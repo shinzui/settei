@@ -62,12 +62,12 @@ rendering its resolution report: the report line ends with something like
 
 ## Progress
 
-- [ ] Step 0 preflight: EP-22, EP-18, and EP-17 landing status verified against the
+- [x] (2026-07-20T02:05:46Z) Step 0 preflight: EP-22, EP-18, and EP-17 landing status verified against the
       working tree; actual `settei-kubernetes` module layout, source-reader name, error
       type, and test-suite name recorded in Surprises & Discoveries; actual post-EP-18
       `Settei.Env` surface (`Bindings`, `bindings`, `bindingsList`) confirmed; baseline
       `cabal test all` green.
-- [ ] Milestone 1: `mergeBindings` added to settei-env/src/Settei/Env.hs with haddock and
+- [x] (2026-07-20T02:07:46Z) Milestone 1: `mergeBindings` added to settei-env/src/Settei/Env.hs with haddock and
       export-list entry; merge tests (valid merge, cross-collection duplicate name,
       cross-collection overlapping keys, empty list) in
       settei-env/test/Settei/EnvTest.hs; settei-env/CHANGELOG.md Unreleased entry;
@@ -104,7 +104,26 @@ rendering its resolution report: the report line ends with something like
 Document unexpected behaviors, bugs, optimizations, or insights discovered during
 implementation. Provide concise evidence.
 
-(None yet.)
+- EP-22 landed with the provisional public surface intact: module
+  `Settei.Kubernetes`, opaque `FileBindings`, smart constructors `fileBindings` and
+  `mountedDirectoryOptions`, reader `readMountedDirectorySource`, error type
+  `KubernetesSourceError`, source kind `CustomSource
+  "kubernetes-mounted-directory"`, and test suite `settei-kubernetes-tests`. Its
+  durable semantics are recorded in
+  docs/adr/0011-kubernetes-mounted-directory-input-semantics.md.
+  Evidence: the preflight `rg` found the reader at
+  settei-kubernetes/src/Settei/Kubernetes.hs:217 and the suite at
+  settei-kubernetes/settei-kubernetes.cabal:49.
+
+- EP-18 and EP-17 landed with the names assumed by this plan: `Bindings`, `bindings`,
+  `bindingsList`, and `renderEnvErrorsText` are exported by
+  settei-env/src/Settei/Env.hs. No existing `mergeBindings` definition was found, so
+  Milestone 1 remains necessary.
+
+- The 2026-07-20 preflight full-suite baseline passed before implementation: 102 core
+  tests, 26 settei-kubernetes tests, 16 settei-env tests, and every other workspace
+  suite reported `PASS`. This establishes that later failures are changes introduced
+  under EP-23 rather than inherited breakage.
 
 
 ## Decision Log
