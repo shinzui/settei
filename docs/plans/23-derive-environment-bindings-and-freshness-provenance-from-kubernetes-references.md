@@ -81,7 +81,7 @@ rendering its resolution report: the report line ends with something like
       service Secret entry (annotation maps equal), ConfigMap analog, namespace handling,
       invalid-list rejection, merge with a manual collection; settei-kubernetes suite
       green; settei-kubernetes/CHANGELOG.md entry; commit 2 with required trailers.
-- [ ] Milestone 3: freshness annotations wired into EP-22's mounted-directory reader —
+- [x] (2026-07-20T02:17:37Z) Milestone 3: freshness annotations wired into EP-22's mounted-directory reader —
       `kubernetes.mount-path` and `kubernetes.read-at` source-wide via `annotateSource`,
       `kubernetes.file-modified` per key via `annotateSourceAt`; temp-dir fixture tests
       asserting presence and ISO-8601 parseability; settei-kubernetes suite green;
@@ -124,6 +124,13 @@ implementation. Provide concise evidence.
   tests, 26 settei-kubernetes tests, 16 settei-env tests, and every other workspace
   suite reported `PASS`. This establishes that later failures are changes introduced
   under EP-23 rather than inherited breakage.
+
+- Dependency lookup found `haskell/time` in Mori, with the required `getCurrentTime`,
+  `formatTime`, and `parseTimeM` APIs present in its source; Mori had no registered
+  projects for `directory` or `temporary`. Those two dependencies and their bounds
+  already belonged to EP-22, so EP-23 introduced no guess or compatibility change for
+  them. The authoritative Hackage package index and upstream tag list both reported
+  `time-1.16`, while the GHC 9.12.4 dev shell provides `time-1.14`.
 
 
 ## Decision Log
@@ -262,6 +269,13 @@ implementation. Provide concise evidence.
   service to the new constructors; EP-24/EP-25 own guide and cookbook coverage. This
   follows the MasterPlan's convention that EP-22/EP-23 keep example edits minimal.
   Date: 2026-07-19
+
+- Decision: Bound the new settei-kubernetes `time` dependency as `>=1.14 && <1.17`.
+  Rationale: 1.14 is the version shipped by this repository's GHC 9.12.4 development
+  environment, the source APIs used by Milestone 3 are present there and in Mori's
+  1.16 corpus, and both Hackage's live package index and the upstream repository tag
+  1.16 as the current release. The next minor boundary is excluded under PVP.
+  Date: 2026-07-20
 
 
 ## Outcomes & Retrospective

@@ -9,3 +9,6 @@
 - Add `Settei.Kubernetes.Bindings`: derive validated environment bindings from a
   ConfigMap or Secret reference in one construction, so each binding's provenance
   annotation is generated from the same data key that feeds it.
+- Mounted-directory origins now carry freshness identity: `kubernetes.mount-path`,
+  per-key `kubernetes.file-modified`, and source-wide `kubernetes.read-at`
+  (ISO-8601 UTC). Descriptive only; precedence is unchanged.

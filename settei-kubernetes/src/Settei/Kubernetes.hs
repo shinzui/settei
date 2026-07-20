@@ -66,6 +66,8 @@ import Data.Map.Strict qualified as Map
 import Data.Maybe (fromMaybe)
 import Data.Text qualified as Text
 import Data.Text.Encoding qualified as TextEncoding
+import Data.Time.Clock (UTCTime, getCurrentTime)
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import Settei
 import Settei.Prelude
 import System.Directory qualified as Directory
@@ -213,7 +215,8 @@ kubernetesErrorMessage problem = problem ^. #message
 -- Visible file symlinks are followed normally. Bound files that do not exist contribute
 -- no leaf. All other I/O and UTF-8 failures are accumulated, and no raw content enters
 -- an error. Each present leaf receives its exact file path and Kubernetes object/key
--- annotations.
+-- annotations. Source-wide annotations retain the requested mount path and read time;
+-- each present key also records the modification time of the file that was read.
 readMountedDirectorySource ::
   MountedDirectoryOptions ->
   FileBindings ->
@@ -224,12 +227,13 @@ readMountedDirectorySource options (ValidatedFileBindings bindingsValue) directo
   if not isDirectory
     then pure (Left (NonEmpty.singleton (notDirectoryError options directory)))
     else do
+      readAt <- getCurrentTime
       outcomes <- traverse (readBinding options directory) bindingsValue
       let errors = [problem | Left problem <- outcomes]
           present = [value | Right (Just value) <- outcomes]
       pure $ case NonEmpty.nonEmpty errors of
         Just found -> Left found
-        Nothing -> Right (buildSource options present)
+        Nothing -> Right (buildSource options directory readAt present)
 
 -- | List visible mounted entries that have no explicit binding.
 --
@@ -266,7 +270,7 @@ renderKubernetesErrorsText :: NonEmpty KubernetesSourceError -> Text
 renderKubernetesErrorsText =
   Text.unlines . fmap renderKubernetesErrorText . NonEmpty.toList
 
-type PresentBinding = (FileBinding, Text, FilePath)
+type PresentBinding = (FileBinding, Text, FilePath, UTCTime)
 
 readBinding ::
   MountedDirectoryOptions ->
@@ -275,7 +279,11 @@ readBinding ::
   IO (Either KubernetesSourceError (Maybe PresentBinding))
 readBinding options directory bindingValue = do
   let filePath = directory </> Text.unpack (bindingValue ^. #fileName)
-  result <- try @IOException (ByteString.readFile filePath)
+  result <-
+    try @IOException $ do
+      bytes <- ByteString.readFile filePath
+      modifiedAt <- Directory.getModificationTime filePath
+      pure (bytes, modifiedAt)
   pure $ case result of
     Left exception
       | IOError.isDoesNotExistError exception -> Right Nothing
@@ -287,7 +295,7 @@ readBinding options directory bindingValue = do
                 (Just filePath)
                 (Text.pack (displayException exception))
             )
-    Right bytes -> case TextEncoding.decodeUtf8' bytes of
+    Right (bytes, modifiedAt) -> case TextEncoding.decodeUtf8' bytes of
       Left _ ->
         Left
           ( sourceError
@@ -301,7 +309,8 @@ readBinding options directory bindingValue = do
           ( Just
               ( bindingValue,
                 applyNewlinePolicy options decoded,
-                filePath
+                filePath,
+                modifiedAt
               )
           )
 
@@ -310,9 +319,11 @@ applyNewlinePolicy options value
   | options ^. #keepsTrailingNewline = value
   | otherwise = fromMaybe value (Text.stripSuffix "\n" value)
 
-buildSource :: MountedDirectoryOptions -> [PresentBinding] -> Source
-buildSource options present =
-  annotateSource (options ^. #annotations)
+buildSource :: MountedDirectoryOptions -> FilePath -> UTCTime -> [PresentBinding] -> Source
+buildSource options directory readAt present =
+  annotateSource freshnessAnnotations
+    . annotateSource (options ^. #annotations)
+    . annotateSourceAt freshnessFor
     . annotateSourceAt annotationsFor
     . locateSource locationFor
     $ source
@@ -322,7 +333,7 @@ buildSource options present =
   where
     root =
       foldl
-        (\tree (bindingValue, value, _) -> insertRawValue (bindingValue ^. #key) (RawText value) tree)
+        (\tree (bindingValue, value, _, _) -> insertRawValue (bindingValue ^. #key) (RawText value) tree)
         (RawObject Map.empty)
         present
     locations =
@@ -334,7 +345,7 @@ buildSource options present =
                 column = Nothing
               }
           )
-        | (bindingValue, _, filePath) <- present
+        | (bindingValue, _, filePath, _) <- present
         ]
     annotationsByKey =
       Map.fromList
@@ -342,10 +353,28 @@ buildSource options present =
             kubernetesAnnotations (options ^. #ref & #key .~ Just (bindingValue ^. #fileName))
               <> bindingValue ^. #annotations
           )
-        | (bindingValue, _, _) <- present
+        | (bindingValue, _, _, _) <- present
+        ]
+    modifiedByKey =
+      Map.fromList
+        [ (bindingValue ^. #key, modifiedAt)
+        | (bindingValue, _, _, modifiedAt) <- present
+        ]
+    freshnessAnnotations =
+      Map.fromList
+        [ ("kubernetes.mount-path", Text.pack directory),
+          ("kubernetes.read-at", renderUtcTime readAt)
         ]
     locationFor target = Map.lookup target locations
     annotationsFor target = Map.findWithDefault Map.empty target annotationsByKey
+    freshnessFor target =
+      maybe
+        Map.empty
+        (Map.singleton "kubernetes.file-modified" . renderUtcTime)
+        (Map.lookup target modifiedByKey)
+
+renderUtcTime :: UTCTime -> Text
+renderUtcTime = Text.pack . formatTime defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ"
 
 bindingErrors :: [FileBinding] -> [KubernetesSourceError]
 bindingErrors values =

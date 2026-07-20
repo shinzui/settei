@@ -9,6 +9,8 @@ import Data.Generics.Labels ()
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as Text
+import Data.Time.Clock (UTCTime)
+import Data.Time.Format (defaultTimeLocale, parseTimeM)
 import Settei
 import Settei.Env
 import Settei.Kubernetes
@@ -309,7 +311,61 @@ provenanceTests =
         mountedDirectoryRef options @?= secretReference
         mountedDirectoryAnnotations options @?= Map.singleton "deployment" "blue"
         mountedDirectoryKeepsTrailingNewline options @?= False
-        mountedDirectoryKeepsTrailingNewline (keepTrailingNewline options) @?= True
+        mountedDirectoryKeepsTrailingNewline (keepTrailingNewline options) @?= True,
+      testCase "records source-wide identity and per-file modification times" $
+        withSystemTempDirectory "settei-kubernetes" $ \root -> do
+          atomicWriterFixture
+            root
+            [ ("password", ByteString8.pack "s3cr3t"),
+              ("http-host", ByteString8.pack "api.internal")
+            ]
+          passwordModified <- expectUtc "2026-07-19T12:00:00Z"
+          hostModified <- expectUtc "2026-07-19T12:05:00Z"
+          Directory.setModificationTime (root </> "password") passwordModified
+          Directory.setModificationTime (root </> "http-host") hostModified
+          let freshnessOptions =
+                annotateMountedDirectoryOptions
+                  ( Map.fromList
+                      [ ("kubernetes.mount-path", "wrong"),
+                        ("kubernetes.read-at", "wrong")
+                      ]
+                  )
+                  defaultOptions
+          validated <-
+            expectBindings
+              [ annotateFileBinding
+                  (Map.singleton "kubernetes.file-modified" "wrong")
+                  (fileBinding "password" passwordKey),
+                fileBinding "http-host" hostKey
+              ]
+          input <- expectSource =<< readMountedDirectorySource freshnessOptions validated root
+          passwordOrigin <- expectOriginAt passwordKey input
+          hostOrigin <- expectOriginAt hostKey input
+
+          passwordOrigin ^. #annotations . at "kubernetes.mount-path"
+            @?= Just (Text.pack root)
+          hostOrigin ^. #annotations . at "kubernetes.mount-path"
+            @?= Just (Text.pack root)
+          passwordReadAt <- expectOriginUtc "kubernetes.read-at" passwordOrigin
+          hostReadAt <- expectOriginUtc "kubernetes.read-at" hostOrigin
+          passwordReadAt @?= hostReadAt
+          observedPasswordModified <-
+            expectOriginUtc "kubernetes.file-modified" passwordOrigin
+          observedHostModified <-
+            expectOriginUtc "kubernetes.file-modified" hostOrigin
+          observedPasswordModified @?= passwordModified
+          observedHostModified @?= hostModified
+          assertBool
+            "per-file modification annotations unexpectedly matched"
+            (observedPasswordModified /= observedHostModified)
+          passwordOrigin ^. #annotations . at "kubernetes.object-kind"
+            @?= Just "Secret"
+          passwordOrigin ^. #annotations . at "kubernetes.object-name"
+            @?= Just "app-credentials"
+          passwordOrigin ^. #annotations . at "kubernetes.object-key"
+            @?= Just "password"
+          hostOrigin ^. #annotations . at "kubernetes.object-key"
+            @?= Just "http-host"
     ]
 
 rendererTests :: TestTree
@@ -420,6 +476,27 @@ expectAnswer :: ResolveResult a -> IO a
 expectAnswer result = case result ^. #answer of
   Left _ -> fail "expected configuration resolution to succeed"
   Right value -> pure value
+
+expectOriginAt :: Key -> Source -> IO Origin
+expectOriginAt target input = case lookupSource target input of
+  Right (Just found) -> pure (found ^. to candidateOrigin)
+  _ -> fail "expected a candidate origin at the bound key"
+
+expectOriginUtc :: Text -> Origin -> IO UTCTime
+expectOriginUtc annotationName origin = case origin ^. #annotations . at annotationName of
+  Nothing -> fail ("missing annotation " <> Text.unpack annotationName)
+  Just rendered -> expectUtc rendered
+
+expectUtc :: Text -> IO UTCTime
+expectUtc rendered =
+  maybe
+    (fail ("invalid UTC timestamp " <> Text.unpack rendered))
+    pure
+    (parseUtc rendered)
+
+parseUtc :: Text -> Maybe UTCTime
+parseUtc =
+  parseTimeM True defaultTimeLocale "%Y-%m-%dT%H:%M:%SZ" . Text.unpack
 
 expectDerivedBindings :: Either (NonEmpty EnvError) Bindings -> IO Bindings
 expectDerivedBindings = either (fail . Text.unpack . renderEnvErrorsText) pure
