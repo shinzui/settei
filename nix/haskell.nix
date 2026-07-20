@@ -92,6 +92,7 @@
             settei = setteiPackage;
             settei-dhall = setteiDhallPackage;
             settei-env = setteiEnvPackage;
+            settei-formats = setteiFormatsPackage;
             settei-kdl = setteiKdlPackage;
             settei-optparse-applicative = setteiOptparseApplicativePackage;
             settei-yaml = setteiYamlPackage;
@@ -104,6 +105,7 @@
             settei = setteiPackage;
             settei-dhall = setteiDhallPackage;
             settei-env = setteiEnvPackage;
+            settei-formats = setteiFormatsPackage;
             settei-kdl = setteiKdlPackage;
             settei-optparse-applicative = setteiOptparseApplicativePackage;
             settei-yaml = setteiYamlPackage;
