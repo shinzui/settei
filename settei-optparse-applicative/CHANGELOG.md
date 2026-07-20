@@ -1,6 +1,6 @@
 # Changelog for settei-optparse-applicative
 
-## Unreleased
+## 0.2.0.0 — 2026-07-19
 
 - Breaking: replace `ExplainMode` and its parsers with `DiagnosticMode`, which also
   supports `--check-config`, `--describe-config`, and `--describe-config-json`.

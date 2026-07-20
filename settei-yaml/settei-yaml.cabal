@@ -1,6 +1,6 @@
 cabal-version:      3.8
 name:               settei-yaml
-version:            0.1.0.0
+version:            0.2.0.0
 synopsis:           YAML sources for Settei
 description:
   Translate one strict YAML document into a provenance-aware Settei source
@@ -46,7 +46,7 @@ library
     , generic-lens  >=2.2     && <2.4
     , libyaml       >=0.1.4   && <0.2
     , scientific    >=0.3.7   && <0.4
-    , settei        ==0.1.0.0
+    , settei        ==0.2.0.0
     , text          >=2.1     && <2.2
 
 test-suite settei-yaml-tests
@@ -65,8 +65,8 @@ test-suite settei-yaml-tests
     , bytestring    >=0.12    && <0.13
     , containers    >=0.6.8   && <0.8
     , generic-lens  >=2.2     && <2.4
-    , settei        ==0.1.0.0
-    , settei-yaml   ==0.1.0.0
+    , settei        ==0.2.0.0
+    , settei-yaml   ==0.2.0.0
     , tasty         >=1.5     && <1.6
     , tasty-hunit   >=0.10.2  && <0.11
     , text          >=2.1     && <2.2

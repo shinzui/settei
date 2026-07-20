@@ -1,6 +1,6 @@
 # Changelog for settei-yaml
 
-## Unreleased
+## 0.2.0.0 — 2026-07-19
 
 - Add `renderYamlErrorText` and `renderYamlErrorsText` for stable, operator-readable,
   secret-safe adapter diagnostics.

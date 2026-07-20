@@ -1,6 +1,6 @@
 cabal-version:   3.8
 name:            settei-env
-version:         0.1.0.0
+version:         0.2.0.0
 synopsis:        Environment sources for Settei
 description:
   Translate explicit environment-variable bindings into provenance-aware
@@ -39,7 +39,7 @@ library
     , base          >=4.21    && <5
     , containers    >=0.6.8   && <0.8
     , generic-lens  >=2.2     && <2.4
-    , settei        ==0.1.0.0
+    , settei        ==0.2.0.0
     , text          >=2.1     && <2.2
 
 test-suite settei-env-tests
@@ -52,8 +52,8 @@ test-suite settei-env-tests
     , base          >=4.21    && <5
     , containers    >=0.6.8   && <0.8
     , generic-lens  >=2.2     && <2.4
-    , settei        ==0.1.0.0
-    , settei-env    ==0.1.0.0
+    , settei        ==0.2.0.0
+    , settei-env    ==0.2.0.0
     , tasty         >=1.5     && <1.6
     , tasty-hunit   >=0.10.2  && <0.11
     , text          >=2.1     && <2.2

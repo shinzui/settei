@@ -1,6 +1,6 @@
 cabal-version:      3.8
 name:               settei-kdl
-version:            0.1.0.0
+version:            0.2.0.0
 synopsis:           KDL v2 sources for Settei
 description:
   Translate a canonical KDL v2 document into a provenance-aware Settei
@@ -43,7 +43,7 @@ library
     , generic-lens  >=2.2     && <2.4
     , kdl-hs        >=1.1.1   && <1.2
     , scientific    >=0.3.7   && <0.4
-    , settei        ==0.1.0.0
+    , settei        ==0.2.0.0
     , text          >=2.1     && <2.2
 
 test-suite settei-kdl-tests
@@ -61,8 +61,8 @@ test-suite settei-kdl-tests
     , base          >=4.21    && <5
     , containers    >=0.6.8   && <0.8
     , generic-lens  >=2.2     && <2.4
-    , settei        ==0.1.0.0
-    , settei-kdl    ==0.1.0.0
+    , settei        ==0.2.0.0
+    , settei-kdl    ==0.2.0.0
     , tasty         >=1.5     && <1.6
     , tasty-hunit   >=0.10.2  && <0.11
     , text          >=2.1     && <2.2

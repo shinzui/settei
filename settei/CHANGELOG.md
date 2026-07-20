@@ -1,6 +1,6 @@
 # Changelog for settei
 
-## Unreleased
+## 0.2.0.0 — 2026-07-19
 
 - `Settei.Prelude` is now documented as internal to the settei package family and is
   excluded from the PVP-stable public surface; adopters should import the documented

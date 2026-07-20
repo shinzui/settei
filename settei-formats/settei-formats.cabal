@@ -1,6 +1,6 @@
 cabal-version:   3.8
 name:            settei-formats
-version:         0.1.0.0
+version:         0.2.0.0
 synopsis:        Tagged multi-format configuration loading for Settei
 description:
   Parse tagged FORMAT:PATH configuration inputs and load them through the
@@ -48,11 +48,11 @@ library
     , containers                   >=0.6.8   && <0.8
     , generic-lens                 >=2.2     && <2.4
     , optparse-applicative         >=0.19    && <0.20
-    , settei                       ==0.1.0.0
-    , settei-dhall                 ==0.1.0.0
-    , settei-kdl                   ==0.1.0.0
-    , settei-optparse-applicative  ==0.1.0.0
-    , settei-yaml                  ==0.1.0.0
+    , settei                       ==0.2.0.0
+    , settei-dhall                 ==0.2.0.0
+    , settei-kdl                   ==0.2.0.0
+    , settei-optparse-applicative  ==0.2.0.0
+    , settei-yaml                  ==0.2.0.0
     , text                         >=2.1     && <2.2
 
 test-suite settei-formats-tests
@@ -71,11 +71,11 @@ test-suite settei-formats-tests
     , containers            >=0.6.8   && <0.8
     , generic-lens          >=2.2     && <2.4
     , optparse-applicative  >=0.19    && <0.20
-    , settei                ==0.1.0.0
-    , settei-dhall          ==0.1.0.0
-    , settei-formats        ==0.1.0.0
-    , settei-kdl            ==0.1.0.0
-    , settei-yaml           ==0.1.0.0
+    , settei                ==0.2.0.0
+    , settei-dhall          ==0.2.0.0
+    , settei-formats        ==0.2.0.0
+    , settei-kdl            ==0.2.0.0
+    , settei-yaml           ==0.2.0.0
     , tasty                 >=1.5     && <1.6
     , tasty-hunit           >=0.10.2  && <0.11
     , text                  >=2.1     && <2.2

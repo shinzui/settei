@@ -1,6 +1,6 @@
 # Changelog for settei-env
 
-## Unreleased
+## 0.2.0.0 — 2026-07-19
 
 - BREAKING: environment bindings are validated once at construction. `Bindings` is an
   opaque validated collection built by `bindings` or `prefixedBindings`; `envSource`

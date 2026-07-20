@@ -1,6 +1,6 @@
 # Changelog for settei-dhall
 
-## Unreleased
+## 0.2.0.0 — 2026-07-19
 
 - Use the family-standard `lens` package in test suites instead of the leftover
   `microlens` prototype dependency.
