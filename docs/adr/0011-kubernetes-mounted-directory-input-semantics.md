@@ -87,6 +87,21 @@ rejected because mount path and timestamps exist only for mounted-file reads and
 force unrelated adapters and callers to handle fields they cannot truthfully populate.
 
 
+## Process Boundary and Reload Posture
+
+The adapter interprets only the directory path, explicit bindings, and `KubernetesRef`
+provided by its caller. It does not contain a Kubernetes client, inspect a pod or volume
+specification, query cluster state, or verify that the asserted object identity matches
+the files. The reference is trusted explanation metadata rather than attestation; cluster
+access and verification remain outside Settei's public boundary.
+
+Reads are eager, one-shot startup operations. The returned `Source` is a snapshot and the
+adapter does not watch the atomic-writer links for later generations. Applications may
+explicitly read and resolve again, but the maintained Kubernetes deployment posture is
+restart-to-reload: roll out new processes, re-read every source, and admit each pod only
+after the complete typed configuration passes its startup validation gate.
+
+
 ## Consequences
 
 Projected ConfigMap and Secret volumes compose as ordinary ordered Settei sources while

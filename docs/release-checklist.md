@@ -3,8 +3,10 @@
 This checklist prepares the eight publishable Settei packages for an initial 0.1.0.0
 release. The three packages beneath `examples/` are internal validation artifacts and must
 not be uploaded. Completing this document does not authorize publication, tag creation,
-signing, or credential use. The checked automated evidence was re-validated on 2026-07-19
-after the fleet-adoption correctness-hardening pass.
+signing, or credential use. The full checked release matrix was re-validated on
+2026-07-19 after the fleet-adoption correctness-hardening pass; the Kubernetes
+integration's build, test, package, render, smoke, and Nix gates were re-validated on
+2026-07-20.
 
 
 ## Scope and metadata
@@ -51,10 +53,10 @@ after the fleet-adoption correctness-hardening pass.
 - [x] A forced resolution failure retains a provenance report, and its errors and report
   redact a secret sentinel.
 - [x] `mori registry show shinzui/settei --full`
-- [ ] Every overlay under `examples/settei-service/deploy/` renders without error via
+- [x] Every overlay under `examples/settei-service/deploy/` renders without error via
   `kubectl kustomize` or `kustomize build`; when neither binary is available in the
   shell, record an equivalent client-side render transcript from a machine that has it.
-- [ ] Mounted-fixture smoke: the reference service exits 0 for `--check-config` with a
+- [x] Mounted-fixture smoke: the reference service exits 0 for `--check-config` with a
   temporary mounted Secret directory and exits 3 when that directory does not exist.
 - [x] `nix flake check`
 - [x] `git diff --check`

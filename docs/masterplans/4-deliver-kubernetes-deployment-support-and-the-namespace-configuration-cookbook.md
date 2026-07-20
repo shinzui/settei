@@ -89,7 +89,7 @@ the renderer contract and may be added to settei-formats only as a follow-up dec
 | 22 | Create the settei-kubernetes mounted-directory source adapter | docs/plans/22-create-the-settei-kubernetes-mounted-directory-source-adapter.md | None | None | Complete |
 | 23 | Derive environment bindings and freshness provenance from Kubernetes references | docs/plans/23-derive-environment-bindings-and-freshness-provenance-from-kubernetes-references.md | EP-22 | None | Complete |
 | 24 | Write the namespace-driven configuration cookbook and deployment manifests | docs/plans/24-write-the-namespace-driven-configuration-cookbook-and-deployment-manifests.md | None | EP-22, EP-23 | Complete |
-| 25 | Integrate Kubernetes support into the reference service and release collateral | docs/plans/25-integrate-kubernetes-support-into-the-reference-service-and-release-collateral.md | EP-22, EP-23, EP-24 | None | In Progress |
+| 25 | Integrate Kubernetes support into the reference service and release collateral | docs/plans/25-integrate-kubernetes-support-into-the-reference-service-and-release-collateral.md | EP-22, EP-23, EP-24 | None | Complete |
 
 Status values: Not Started, In Progress, Complete, Cancelled.
 Hard Deps and Soft Deps reference other rows by their # prefix (e.g., EP-22).
@@ -175,9 +175,9 @@ boundary remain for EP-24's cookbook and EP-25's final distillation.
 - [x] EP-23: freshness/identity annotations and renderer decision, ADRs amended
 - [x] EP-24: namespace cookbook written with downward API, check-config gate, runbook
 - [x] EP-24: runnable base+overlay manifests under examples/settei-service/deploy/
-- [ ] EP-25: reference service exercises the mounted-directory source end to end
-- [ ] EP-25: conformance/smoke coverage, compatibility matrix, changelogs, README
-- [ ] EP-25: ADR distillation and MasterPlan closure
+- [x] EP-25: reference service exercises the mounted-directory source end to end
+- [x] EP-25: conformance/smoke coverage, compatibility matrix, changelogs, README
+- [x] EP-25: ADR distillation and MasterPlan closure
 
 
 ## Surprises & Discoveries
@@ -230,6 +230,16 @@ boundary remain for EP-24's cookbook and EP-25's final distillation.
   the `--check-config` init container can run. EP-24's cookbook distinguishes this pod
   event from typed checker failures (exit 4). EP-25's final service/manifests validation
   must preserve that distinction in tests and release prose.
+- EP-25 found that a `CustomSource` text origin renders its stable source name but not
+  `SourceLocation.path`. The service therefore names mounted inputs `mounted service
+  secrets at PATH`; JSON still retains the exact file location and
+  `kubernetes.mount-path` annotation. This keeps the operator-visible mount path without
+  changing the generic renderer contract.
+- The installed Mori corpus entry for `shinzui/settei` lagged the live repository and
+  omitted `settei-formats` and `settei-kubernetes`. Dependency discovery still began
+  through Mori, then used the current registered project source for API verification.
+  The checked-in `mori.dhall`, Cabal project, and Nix graph all contain the complete
+  eleven-package workspace.
 
 
 ## Decision Log
@@ -296,7 +306,65 @@ boundary remain for EP-24's cookbook and EP-25's final distillation.
   every contributor a deterministic baseline and CI an explicit stronger option.
   Date: 2026-07-20
 
+- Decision: The reference Deployment demonstrates the same Secret through both a
+  mounted `password` file and `DATABASE_PASSWORD`, ordered mounted file < environment,
+  and binds `POD_NAMESPACE` to an optional public setting.
+  Rationale: Keeping both delivery paths makes their precedence and shadow provenance
+  observable in a real application. The optional namespace preserves the same binary's
+  local usability while Kubernetes-only consumers may declare their namespace required.
+  Date: 2026-07-20
+
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+The initiative delivered every in-scope outcome.
+
+- EP-22 created and registered `settei-kubernetes`. Its explicit `FileBindings` API
+  reads projected ConfigMap/Secret directories through visible atomic-writer symlinks,
+  keeps per-file locations, treats missing bound files as absent resolver inputs, and
+  returns categorized value-free errors for invalid UTF-8 and I/O failures.
+- EP-23 added `Settei.Kubernetes.Bindings`, so ConfigMap/Secret object-key rows derive
+  validated environment bindings and provenance together. Mounted origins carry
+  `kubernetes.mount-path`, `kubernetes.file-modified`, and `kubernetes.read-at`; text
+  shows the concise modification suffix and JSON retains the full ordered annotations.
+- EP-24 delivered the centerpiece namespace cookbook plus a namespace-agnostic base and
+  dev/test/production Kustomize overlays. The manifests inject downward-API namespace,
+  per-namespace public and secret data, and an init-container `--check-config` gate;
+  the runbook covers redacted explanations, rollout failures, and restart-to-reload.
+- EP-25 moved the adapter into the reference application's exercised boundary. Both
+  containers mount `/etc/settei/secrets` and pass `--secrets-dir`; the service reads
+  `password` as `database.password`, retains env-over-mounted precedence, explains the
+  namespace, and proves its flags against the packaged manifests. Service and
+  conformance coverage locks provenance, freshness, shadowing, exit codes, and secret
+  redaction.
+
+The release view is now coherent at eight publishable and eleven workspace packages.
+The final pinned run built all packages and passed 333 tests across 12 suites, `cabal
+check`, `nix flake check`, an isolated unpacked `settei-kubernetes` sdist test, offline
+renders, the networked kubeconform pass, and mounted-directory exit-0/exit-3 smokes.
+Compatibility, README, security, checklist, changelog, application guide, cookbook, and
+deployment README all match that result.
+
+The deliberate exclusions remained exclusions: there is no Kubernetes client or
+cluster-state verification, no automatic discovery, watch, or hot reload, no Helm
+chart, and no operator/CRD tooling. Settei consumes only process-visible files and
+environment variables; asserted object identity is trusted metadata and deployments
+restart to adopt new values. ADR 0011 owns those adapter and reload semantics, ADR 0010
+owns derived validated bindings, ADR 0003 owns renderer behavior, and ADR 0007 now
+records the mounted source as part of the exercised public-API conformance boundary.
+
+The main implementation lesson was to preserve deployment and library boundaries while
+making them test each other. Kustomize/schema checks prove Kubernetes topology;
+parser-derived manifest tests prove that topology calls real binary flags; application
+and conformance tests prove the same ordinary sources resolve safely without a cluster.
+The only remaining inventory caveat is the separately installed Mori corpus lag; the
+repository registration itself is complete.
+
+
+## Revision Notes
+
+2026-07-20: Closed EP-25 and the initiative after the reference-service integration,
+333-test conformance run, release-collateral reconciliation, package/flake/sdist gates,
+offline and networked manifest validation, mounted-directory smokes, and ADR
+distillation. Recorded the final dual-delivery precedence, optional reference namespace,
+renderer constraint, Mori corpus lag, validated outcomes, and deliberate exclusions.

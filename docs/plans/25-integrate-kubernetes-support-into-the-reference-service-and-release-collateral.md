@@ -170,18 +170,21 @@ Milestone 3 — release collateral:
 
 Milestone 4 — full validation and MasterPlan closure:
 
-- [ ] `nix develop -c cabal build all` green.
-- [ ] `nix develop -c cabal test all --test-show-details=direct` green; new total test
+- [x] (2026-07-20T04:02:07Z) `nix develop -c cabal build all` green.
+- [x] (2026-07-20T04:02:07Z) `nix develop -c cabal test all --test-show-details=direct` green; new total test
       count recorded here and in README.
-- [ ] `nix flake check` green (new files `git add`-ed first).
-- [ ] sdist round-trip for settei-kubernetes via the isolated-unpack procedure.
-- [ ] kustomize render checks from EP-24 re-run against the final service flags.
-- [ ] MasterPlan: registry rows Complete, Progress boxes checked, Outcomes &
+- [x] (2026-07-20T04:02:07Z) `nix flake check` green; the worktree contained no untracked inputs.
+- [x] (2026-07-20T04:02:07Z) sdist round-trip for settei-kubernetes via the isolated-unpack procedure:
+      32 tests passed from the unpacked eight-package workspace.
+- [x] (2026-07-20T04:02:07Z) Kustomize render and invariant checks from EP-24 re-run against the final service
+      flags for dev, test, and production; the opt-in kubeconform pass also reports all
+      nine rendered resources valid.
+- [x] (2026-07-20T04:02:07Z) MasterPlan: registry rows Complete, Progress boxes checked, Outcomes &
       Retrospective written.
-- [ ] ADR distillation: settei-kubernetes semantics ADR (from EP-22/EP-23) verified
+- [x] (2026-07-20T04:02:07Z) ADR distillation: settei-kubernetes semantics ADR (from EP-22/EP-23) verified
       coherent; restart-to-reload posture and no-cluster-client boundary promoted;
       dated note appended to docs/adr/0007 pointing at the adapter ADR.
-- [ ] This plan's Outcomes & Retrospective written; final commit.
+- [x] (2026-07-20T04:02:07Z) This plan's Outcomes & Retrospective written; final commit.
 
 
 ## Surprises & Discoveries
@@ -392,7 +395,40 @@ Compare the result against the original purpose. Before marking the plan complet
 distill durable project context from the Decision Log, Surprises & Discoveries, and
 this section into docs/adr/. Keep task-local execution details here.
 
-(To be filled during and after implementation.)
+EP-25 brought `settei-kubernetes` across the reference-application boundary it was
+missing. The service now accepts `--secrets-dir`, binds `password` explicitly to
+`database.password`, and orders the general config document < mounted Secret directory <
+environment. Both containers in the checked-in Deployment use the same option and mount,
+while the retained environment delivery demonstrates a real shadow trace. The optional
+`POD_NAMESPACE` setting makes the downward-API identity visible without breaking local
+runs.
+
+The public behavior is constrained at two levels. The service suite grew from 8 to 17
+tests for mounted reads, provenance, freshness, redaction, precedence, source/resolution
+exit codes, CLI smokes, and manifest flag drift. The independent conformance suite grew
+from 11 to 13 tests for mounted/env/CLI precedence and mounted-secret sentinel safety.
+The whole workspace increased from the EP-24 baseline of 322 tests to 333 across 12
+suites.
+
+Release collateral now describes eight publishable and eleven workspace packages, the
+293 publishable and 333 workspace tests, the exact adapter dependencies and public
+modules, the kubelet-filesystem and unverified-reference trust model, approximate
+freshness, and restart-to-reload. The service guide, namespace cookbook, Deployment
+README, release checklist, and consolidated changelog all describe the landed dual
+delivery example rather than the pre-integration design.
+
+Final validation passed the full Cabal build and test gates, `cabal check`, `nix flake
+check`, the isolated `settei-kubernetes` sdist test, offline renders, networked schema
+validation, and both mounted-directory process smokes. The ADR sweep found no additional
+durable decisions in EP-22 through EP-24: mapping and freshness already lived in ADR
+0011, binding derivation in ADR 0010, and rendering in ADR 0003. ADR 0011 now states the
+no-client and one-shot restart boundary directly, and ADR 0007 records that the mounted
+adapter is exercised by both reference suites.
+
+The only remaining operational caveat is outside repository correctness: the installed
+Mori corpus entry still lags the live project inventory. The checked-in Mori definition,
+Cabal project, and Nix graph are aligned; no package publication, tag, cluster operation,
+watch/reload mechanism, Helm chart, operator, or Kubernetes client was added.
 
 
 ## Context and Orientation
@@ -1045,13 +1081,21 @@ file-modified clock caveat, and the restart-to-reload posture; docs/release-chec
 contains the render and mounted-smoke gates; settei-kubernetes/CHANGELOG.md has exactly
 one consolidated 0.1.0.0 entry.
 
-Full validation and closure (Milestone 4). Each of the following exits 0 from the
-repository root: `nix develop -c cabal build all`; `nix develop -c cabal test all
---test-show-details=direct` with every suite PASS and the recorded total strictly
-greater than the preflight-recorded total; `nix flake check`; `cabal check` in
-settei-kubernetes/; the isolated sdist workspace test for settei-kubernetes; every
-overlay render printing `RENDER OK`; the mounted smoke printing `configuration valid` /
-`exit=0` and the missing-directory smoke printing `exit=3` with a rendered error.
+Full validation and closure (Milestone 4). The final runs exited 0: `nix develop -c
+cabal build all`; `nix develop -c cabal test all --test-show-details=direct` with all
+333 tests across 12 suites passing; `nix flake check`; `cabal check` in
+settei-kubernetes/; and the isolated eight-package sdist workspace test with all 32
+settei-kubernetes tests passing. `deploy/validate.sh` rendered every overlay and checked
+the mounted option/path invariants; its opt-in kubeconform pass reported three valid
+resources for each of dev, test, and production. The mounted smoke transcript was:
+
+```text
+configuration valid
+VALID_EXIT=0
+mounted service secrets at .../missing (.../missing): mounted path is not a directory
+MISSING_EXIT=3
+```
+
 `grep -n "Complete" docs/masterplans/4-deliver-kubernetes-deployment-support-and-the-namespace-configuration-cookbook.md`
 shows all four registry rows Complete; the MasterPlan's Progress boxes are all checked
 and its Outcomes & Retrospective is non-empty; docs/adr/0007 ends with a dated
@@ -1174,3 +1218,9 @@ the Kubernetes dependency and public-module matrix, mounted-file trust and fresh
 limits, durable render/smoke gates, the consolidated adapter changelog, both Kubernetes
 guides, and the deployment README against the reference implementation. Reverified the
 Cabal, Nix, and Mori registration in the live tree.
+
+2026-07-20: Completed Milestone 4 and the plan. Recorded the final 333-test result,
+isolated adapter sdist, package, Nix, offline/networked manifest, and exit-code smoke
+evidence; distilled the no-client and restart-to-reload boundary into ADR 0011 and the
+exercised conformance boundary into ADR 0007; and closed the parent MasterPlan after
+confirming that every deliberate out-of-scope item remained out of scope.

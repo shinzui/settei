@@ -4,7 +4,7 @@ Status: Accepted
 
 Date: 2026-07-18
 
-Amended: 2026-07-19
+Amended: 2026-07-19, 2026-07-20
 
 
 ## Context
@@ -108,3 +108,19 @@ and still exit 0. Warnings are advisory; applications that require unknown keys 
 must select the resolver's `RejectUnknownKeys` policy, which turns them into structured
 resolution errors. Reference applications do not add a second CLI-level strictness flag
 or combine advisory warning output with an already failing diagnostic.
+
+
+## Amendment 2026-07-20: mounted Kubernetes inputs join the conformance boundary
+
+The reference service now consumes `Settei.Kubernetes` through an explicit mounted
+Secret directory, composes its source below environment variables, and exposes the same
+path in the checked-in Deployment and its `--check-config` init-container gate. The
+service suite verifies option parsing, source and resolution exit codes, provenance,
+freshness metadata, redaction, and manifest flags. The independent conformance suite
+locks mounted-file/env/CLI precedence and scans a secret delivered through a mounted file
+across text, JSON, stdout, and stderr.
+
+This exercises every maintained package through an application composition without
+changing the process boundary. No example or adapter contacts a cluster. Mounted-source
+mapping, trusted identity, one-shot reads, and restart-to-reload are governed by
+[ADR 0011](0011-kubernetes-mounted-directory-input-semantics.md).
