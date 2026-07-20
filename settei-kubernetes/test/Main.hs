@@ -1,6 +1,7 @@
 module Main (main) where
 
-import Test.Tasty qualified as Tasty
+import Settei.KubernetesTest qualified as KubernetesTest
+import Test.Tasty (defaultMain, testGroup)
 
 main :: IO ()
-main = Tasty.defaultMain (Tasty.testGroup "settei-kubernetes" [])
+main = defaultMain (testGroup "settei-kubernetes" [KubernetesTest.tests])

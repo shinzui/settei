@@ -101,30 +101,30 @@ Milestone 3 — error renderers per the EP-17 contract:
 - [x] 2026-07-19 `renderKubernetesErrorText` and `renderKubernetesErrorsText` implemented and
       exported, one line per problem, graceful omission of absent name/path, never
       echoing file content.
-- [ ] Commit 3 with required trailers (may be folded into the Milestone 4 commit if
+- [x] 2026-07-19 Commit 3 folded into the Milestone 4 test commit, with required trailers (as
       renderers and their tests land together).
 
 Milestone 4 — test suite:
 
-- [ ] `settei-kubernetes/test/Main.hs` and `settei-kubernetes/test/Settei/KubernetesTest.hs`
+- [x] 2026-07-19 `settei-kubernetes/test/Main.hs` and `settei-kubernetes/test/Settei/KubernetesTest.hs`
       created; test suite wired in the cabal file with `tasty`, `tasty-hunit`,
       `temporary`, `directory`, `filepath`, `bytestring` dependencies.
-- [ ] Atomic-writer fixture helper: temp directory with `..TIMESTAMP` payload directory,
+- [x] 2026-07-19 Atomic-writer fixture helper: temp directory with `..TIMESTAMP` payload directory,
       `..data` directory symlink, and per-key file symlinks.
-- [ ] Reading-through-symlinks test and hidden-entry-skipping test
+- [x] 2026-07-19 Reading-through-symlinks test and hidden-entry-skipping test
       (`unboundMountedFiles` never lists `..data` or the timestamped directory).
-- [ ] Binding-validation tests: one per error category produced by `fileBindings`.
-- [ ] Absent-bound-file test: resolution through core `resolve` reports the key missing.
-- [ ] Invalid-UTF-8 test: error carries `KubernetesInvalidUtf8`, message contains no
+- [x] 2026-07-19 Binding-validation tests: one per error category produced by `fileBindings`.
+- [x] 2026-07-19 Absent-bound-file test: resolution through core `resolve` reports the key missing.
+- [x] 2026-07-19 Invalid-UTF-8 test: error carries `KubernetesInvalidUtf8`, message contains no
       bytes from the file.
-- [ ] Trailing-newline tests: default strips exactly one `\n`; `keepTrailingNewline`
+- [x] 2026-07-19 Trailing-newline tests: default strips exactly one `\n`; `keepTrailingNewline`
       preserves it; two trailing newlines lose only one.
-- [ ] Provenance tests: origin kind is `CustomSource "kubernetes-mounted-directory"`,
+- [x] 2026-07-19 Provenance tests: origin kind is `CustomSource "kubernetes-mounted-directory"`,
       location path is the full file path, `kubernetes.*` annotations present with
       `kubernetes.object-key` equal to the file name, binding annotations merged; report
       text contains the expected rendered origin line.
-- [ ] Renderer string tests pinning exact output for every error category.
-- [ ] `nix develop -c cabal test settei-kubernetes-tests --test-show-details=direct`
+- [x] 2026-07-19 Renderer string tests pinning exact output for every error category.
+- [x] 2026-07-19 `nix develop -c cabal test settei-kubernetes-tests --test-show-details=direct`
       green; commit 4 with required trailers.
 
 Milestone 5 — documentation, collateral, and closure:
@@ -147,6 +147,10 @@ Milestone 5 — documentation, collateral, and closure:
   convention has landed (`renderYamlErrorText` exists), settei-env has the opaque
   validated `Bindings` collection, and the highest ADR is 0010. The mapping-semantics
   ADR for this plan will therefore be 0011 unless another change lands first.
+- 2026-07-19: On the validated aarch64-darwin platform, opening a dangling visible
+  symlink raises the same does-not-exist condition as a missing regular entry. The
+  reader therefore treats it as an absent leaf, preserving the plan's stated acceptable
+  behavior. A bound directory entry independently exercises `KubernetesIoError`.
 
 
 ## Decision Log
