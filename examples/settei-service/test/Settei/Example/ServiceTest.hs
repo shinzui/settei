@@ -2,6 +2,7 @@ module Settei.Example.ServiceTest (tests) where
 
 import Data.Foldable (for_)
 import Data.Generics.Labels ()
+import Data.List (nub)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Maybe (isNothing, listToMaybe)
@@ -202,7 +203,57 @@ tests =
         _ <- expectResolution result
         let rendered = renderResolutionText (result ^. #report)
         assertBool "namespace setting missing" ("kubernetes.namespace" `Text.isInfixOf` rendered)
-        assertBool "namespace value missing" ("production" `Text.isInfixOf` rendered)
+        assertBool "namespace value missing" ("production" `Text.isInfixOf` rendered),
+      testCase "check-config accepts a mounted Secret directory" $
+        withMountedSecret secretSentinel $ \directory -> do
+          fixture <- Paths.getDataFileName "test/fixtures/application.yaml"
+          options <-
+            expectOptions
+              [ "--config",
+                "yaml:" <> fixture,
+                "--secrets-dir",
+                directory,
+                "--check-config"
+              ]
+          result <- runServiceWithSnapshot (envSnapshot [("HASKELL_ENV", "production")]) options
+          serviceExitCode result @?= 0
+          serviceStandardOutput result @?= "configuration valid\n"
+          assertBool "check output leaked mounted secret" (not (secretSentinel `Text.isInfixOf` serviceStandardOutput result)),
+      testCase "explain-config reports the mounted Secret safely" $
+        withMountedSecret secretSentinel $ \directory -> do
+          fixture <- Paths.getDataFileName "test/fixtures/application.yaml"
+          options <-
+            expectOptions
+              [ "--config",
+                "yaml:" <> fixture,
+                "--secrets-dir",
+                directory,
+                "--explain-config"
+              ]
+          result <- runServiceWithSnapshot (envSnapshot [("HASKELL_ENV", "production")]) options
+          serviceExitCode result @?= 0
+          let output = serviceStandardOutput result
+          assertBool "mounted object identity missing" ("settei-example-service-database" `Text.isInfixOf` output)
+          assertBool "mounted path missing" (Text.pack directory `Text.isInfixOf` output)
+          assertBool "freshness suffix missing" ("(modified " `Text.isInfixOf` output)
+          assertBool "explanation leaked mounted secret" (not (secretSentinel `Text.isInfixOf` output))
+          assertBool "explanation omitted redaction" ("<redacted>" `Text.isInfixOf` output),
+      testCase "deploy manifests reference only real service flags" $ do
+        paths <- traverse Paths.getDataFileName deployManifestPaths
+        manifests <- traverse TextIO.readFile paths
+        let manifestFlags =
+              nub
+                [ token
+                | manifest <- manifests,
+                  token <- Text.words manifest,
+                  "--" `Text.isPrefixOf` token
+                ]
+            helpText = serviceHelpText
+        assertBool "deploy manifests contain no service flags" (not (null manifestFlags))
+        for_ manifestFlags $ \flag ->
+          assertBool
+            ("deploy manifest references unknown flag " <> Text.unpack flag)
+            (flag `Text.isInfixOf` helpText)
     ]
 
 publicSource :: Source
@@ -278,6 +329,27 @@ expectOptions arguments =
   case Options.execParserPure Options.defaultPrefs serviceParserInfo arguments of
     Options.Success value -> pure value
     _ -> fail "expected service options to parse"
+
+serviceHelpText :: Text
+serviceHelpText =
+  case Options.execParserPure Options.defaultPrefs serviceParserInfo ["--help"] of
+    Options.Failure failure -> Text.pack (fst (Options.renderFailure failure "settei-example-service"))
+    _ -> error "service --help unexpectedly parsed without producing help"
+
+deployManifestPaths :: [FilePath]
+deployManifestPaths =
+  [ "deploy/base/deployment.yaml",
+    "deploy/base/kustomization.yaml",
+    "deploy/overlays/dev/configmap.yaml",
+    "deploy/overlays/dev/kustomization.yaml",
+    "deploy/overlays/dev/secret.yaml",
+    "deploy/overlays/production/configmap.yaml",
+    "deploy/overlays/production/kustomization.yaml",
+    "deploy/overlays/production/secret.yaml",
+    "deploy/overlays/test/configmap.yaml",
+    "deploy/overlays/test/kustomization.yaml",
+    "deploy/overlays/test/secret.yaml"
+  ]
 
 validKey :: Text -> Key
 validKey value = either (error . show) id (parseKey value)

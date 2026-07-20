@@ -133,6 +133,8 @@ in  Schema.Project::{
           , Schema.Dependency.ByName "settei-example-cli"
           , Schema.Dependency.ByName "settei-example-service"
           , Schema.Dependency.ByName "settei-kdl"
+          , Schema.Dependency.ByName "settei-kubernetes"
+          , Schema.Dependency.ByName "settei-optparse-applicative"
           , Schema.Dependency.ByName "settei-yaml"
           ]
         }

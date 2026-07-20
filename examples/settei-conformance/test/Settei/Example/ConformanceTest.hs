@@ -5,6 +5,7 @@ import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Maybe (isJust)
 import Data.Text qualified as Text
+import Data.Text.IO qualified as TextIO
 import Options.Applicative (ParserInfo)
 import Options.Applicative qualified as Options
 import Paths_settei_example_conformance qualified as Paths
@@ -14,8 +15,12 @@ import Settei.Env qualified as Env
 import Settei.Example.Cli qualified as Cli
 import Settei.Example.Service qualified as Service
 import Settei.Kdl qualified as Kdl
+import Settei.Kubernetes qualified as Kubernetes
+import Settei.Optparse qualified as SetteiOptparse
 import Settei.Prelude
 import Settei.Yaml qualified as Yaml
+import System.FilePath ((</>))
+import System.IO.Temp (withSystemTempDirectory)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit (assertBool, testCase, (@?=))
 
@@ -101,6 +106,54 @@ tests =
             _ <- expectResolution result
             resolvedAnswer result ^. #timeout @?= 9001
             assertShadowCount "service.timeout" 4 result,
+          testCase "mounted directory participates in cross-source precedence" $
+            withSystemTempDirectory "settei-conformance-mounted-precedence" $ \directory -> do
+              TextIO.writeFile (directory </> "http-port") "7100"
+              TextIO.writeFile (directory </> "service-timeout") "7000"
+              mounted <-
+                mountedSource
+                  directory
+                  [ Kubernetes.fileBinding "http-port" httpPortKey,
+                    Kubernetes.fileBinding "service-timeout" serviceTimeoutKey
+                  ]
+                  ConfigMapObject
+                  "settei-example-service-config"
+
+              let serviceEnvironment =
+                    expectEnvSource (Env.envSnapshot [("HTTP_PORT", "8000")])
+              serviceResult <-
+                expectResolution
+                  ( resolve
+                      defaultResolveOptions
+                      [minimalServiceSource 7000, mounted, serviceEnvironment]
+                      Service.serviceConfig
+                  )
+              resolvedAnswer serviceResult ^. #http . #port @?= 8000
+              assertShadowCount "http.port" 2 serviceResult
+
+              let cliEnvironment =
+                    Env.environmentSource
+                      Cli.environmentBindings
+                      ( Env.envSnapshot
+                          [ ("HASKELL_ENV", "development"),
+                            ("SERVICE_ENDPOINT", "https://example.invalid"),
+                            ("SERVICE_TIMEOUT", "8000"),
+                            ("OUTPUT_FORMAT", "text")
+                          ]
+                      )
+                  commandLine =
+                    SetteiOptparse.cliSources
+                      "arguments"
+                      [SetteiOptparse.cliOverride serviceTimeoutKey "9001"]
+              cliResult <-
+                expectResolution
+                  ( resolve
+                      defaultResolveOptions
+                      ([mounted, cliEnvironment] <> commandLine)
+                      Cli.cliConfig
+                  )
+              resolvedAnswer cliResult ^. #timeout @?= 9001
+              assertShadowCount "service.timeout" 2 cliResult,
           testCase "Development and Production select the password branch correctly" $ do
             sources <- loadFixtureSources
             development <- expectResolution (resolve defaultResolveOptions [sources ^. #yaml] Service.serviceConfig)
@@ -185,6 +238,41 @@ tests =
                     <> Service.serviceStandardError serviceRun
             assertBool "captured output leaked a secret sentinel" (not (secretSentinel `Text.isInfixOf` captured))
             assertBool "captured explanations did not show redaction" ("<redacted>" `Text.isInfixOf` captured),
+          testCase "mounted-file secrets never render" $
+            withSystemTempDirectory "settei-conformance-mounted-secret" $ \directory -> do
+              TextIO.writeFile (directory </> "password") secretSentinel
+              mounted <-
+                mountedSource
+                  directory
+                  [Kubernetes.fileBinding "password" databasePasswordKey]
+                  SecretObject
+                  "settei-example-service-database"
+              let result =
+                    Service.resolveServiceSources
+                      [minimalServiceSource 7000, mounted]
+                      (Env.envSnapshot [("HASKELL_ENV", "production")])
+              _ <- expectResolution result
+              options <-
+                expectOptions
+                  Service.serviceParserInfo
+                  ["--secrets-dir", directory, "--explain-config"]
+              run <-
+                Service.runServiceWithSnapshot
+                  ( Env.envSnapshot
+                      [ ("HASKELL_ENV", "production"),
+                        ("HTTP_HOST", "0.0.0.0"),
+                        ("DATABASE_HOST", "postgres.internal")
+                      ]
+                  )
+                  options
+              let rendered =
+                    renderResolutionText (result ^. #report)
+                      <> renderResolutionJson (result ^. #report)
+                      <> Service.serviceStandardOutput run
+                      <> Service.serviceStandardError run
+              Service.serviceExitCode run @?= 0
+              assertBool "mounted-file output leaked a secret sentinel" (not (secretSentinel `Text.isInfixOf` rendered))
+              assertBool "mounted-file output omitted redaction" ("<redacted>" `Text.isInfixOf` rendered),
           testCase "failure-path reports and errors redact secret sentinels" $ do
             sources <- loadNamedFixtureSources "failure"
             let environment =
@@ -382,6 +470,22 @@ expectCandidate key input =
 expectLoaded :: (Show error) => Either (NonEmpty error) Source -> IO Source
 expectLoaded = either (fail . show) pure
 
+mountedSource :: FilePath -> [Kubernetes.FileBinding] -> KubernetesObjectKind -> Text -> IO Source
+mountedSource directory bindingValues objectKind objectName = do
+  validated <-
+    either
+      (fail . Text.unpack . Kubernetes.renderKubernetesErrorsText)
+      pure
+      (Kubernetes.fileBindings bindingValues)
+  Kubernetes.readMountedDirectorySource
+    ( Kubernetes.mountedDirectoryOptions
+        "conformance mounted directory"
+        (kubernetesRef objectKind Nothing objectName Nothing)
+    )
+    validated
+    directory
+    >>= either (fail . Text.unpack . Kubernetes.renderKubernetesErrorsText) pure
+
 expectResolution :: ResolveResult value -> IO (ResolveResult value)
 expectResolution result = case result ^. #answer of
   Left errors -> fail (Text.unpack (renderErrorsText errors))
@@ -450,11 +554,12 @@ problemKey = \case
 validKey :: Text -> Key
 validKey value = either (error . show) id (parseKey value)
 
-httpHostKey, httpPortKey, databaseHostKey, databasePasswordKey, regionCountryKey, regionTelemetryKey, regionEnabledKey, regionDisabledKey :: Key
+httpHostKey, httpPortKey, databaseHostKey, databasePasswordKey, serviceTimeoutKey, regionCountryKey, regionTelemetryKey, regionEnabledKey, regionDisabledKey :: Key
 httpHostKey = validKey "http.host"
 httpPortKey = validKey "http.port"
 databaseHostKey = validKey "database.host"
 databasePasswordKey = validKey "database.password"
+serviceTimeoutKey = validKey "service.timeout"
 regionCountryKey = validKey "region.country"
 regionTelemetryKey = validKey "region.telemetry"
 regionEnabledKey = validKey "region.enabled"

@@ -138,17 +138,17 @@ Milestone 1 — reference service integration:
 
 Milestone 2 — conformance and smoke coverage:
 
-- [ ] Conformance: mounted-directory source participates in cross-source precedence
+- [x] (2026-07-20T03:49:58Z) Conformance: mounted-directory source participates in cross-source precedence
       laws (env shadows mounted value; CLI shadows env where the CLI example applies;
       shadow trace retained).
-- [ ] Conformance: secret-sentinel scan covers a sentinel delivered via a mounted file
+- [x] (2026-07-20T03:49:58Z) Conformance: secret-sentinel scan covers a sentinel delivered via a mounted file
       (never appears in any rendered output).
-- [ ] Service tests: `--check-config` and `--explain-config` transcripts including
-      `--secrets-dir` (expected transcripts recorded in this plan, replaced with real
-      output when run).
-- [ ] Service tests: manifest-flag validation — every long option named in the deploy/
+- [x] (2026-07-20T03:49:58Z) Service tests: `--check-config` and `--explain-config` cases include
+      `--secrets-dir`; the real explanation transcript is recorded below.
+- [x] (2026-07-20T03:49:58Z) Service tests: manifest-flag validation — every long option named in the deploy/
       manifests' container args parses against `serviceParserInfo`.
-- [ ] `nix develop -c cabal test all --test-show-details=direct` green; commit.
+- [x] (2026-07-20T03:49:58Z) `nix develop -c cabal test all --test-show-details=direct` green: 333
+      tests across 12 suites; commit.
 
 Milestone 3 — release collateral:
 
@@ -219,6 +219,12 @@ Milestone 4 — full validation and MasterPlan closure:
   retained `kubernetes.mount-path`. The service now includes the requested directory in
   its mounted source name; the adapter annotation and exact file location remain intact.
 
+- The conformance suite already consumed the CLI example's parser but not the public
+  `Settei.Optparse` module directly. The new mounted/env/CLI precedence case constructs
+  a command-line source through that module, which exposed the missing direct package
+  edge. Cabal, Nix, and Mori now all declare both `settei-kubernetes` and
+  `settei-optparse-applicative` for the conformance package.
+
 
 ## Decision Log
 
@@ -287,6 +293,15 @@ Record every decision made while working on the plan.
   The kustomize render is environment-dependent (external binary), so it stays a
   checklist gate rather than a cabal test.
   Date: 2026-07-19
+
+- Decision: Manifest-flag validation packages the deployment YAML as service data files,
+  extracts every token beginning with `--`, and checks membership in the help text
+  rendered from `serviceParserInfo`.
+  Rationale: The landed parser has no required positional arguments, so its rendered
+  help is a stable inventory of accepted long options. Packaging the manifests removes
+  dependence on the repository checkout and makes this check survive source
+  distribution builds.
+  Date: 2026-07-20
 
 - Decision: ADR distillation recommendation — do not write a second Kubernetes ADR from
   this plan. Verify the adapter-semantics ADR that EP-22/EP-23 created (number assigned
@@ -673,18 +688,23 @@ captured-run API (`runServiceWithSnapshot` and `Options.execParserPure` over
 `serviceParserInfo`, as existing tests do), assert: `--check-config --config
 yaml:<fixture> --secrets-dir <tempdir>` with a valid mounted password exits 0 printing
 `configuration valid`; `--explain-config` under the same setup exits 0 and its stdout
-contains the mounted path and object identity. Record the expected transcript shape in
-this plan now and replace it with real output when run:
+contains the mounted path and object identity. The real Milestone 2 explanation
+transcript was captured with a temporary mount. The temporary path and modification
+time naturally vary, and the file content never appears:
 
 ```text
-$ settei-example-service --config yaml:/etc/settei/application.yaml \
-    --secrets-dir /etc/settei/secrets --explain-config
+$ HASKELL_ENV=production settei-example-service \
+    --config yaml:examples/settei-service/test/fixtures/application.yaml \
+    --secrets-dir /var/folders/.../tmp.Kf1UZTjYve --explain-config
 ...
-database.password  <redacted>
-  origin: kubernetes secret settei-example-service-database key password
-          (mounted at /etc/settei/secrets, file password, modified <timestamp>)
-  shadowed: (env DATABASE_PASSWORD, if also set)
-...
+database.password = <redacted>
+  from kubernetes-mounted-directory source mounted service secrets at \
+       /var/folders/.../tmp.Kf1UZTjYve from Kubernetes Secret \
+       settei-example-service-database key password \
+       (modified 2026-07-20T03:48:59Z)
+runtime.environment = "production"
+  from environment variable HASKELL_ENV
+branch 1 [selected]: runtime.environment -> database.password
 ```
 
 (The exact renderer layout comes from settei/src/Settei/Render.hs and the adapter's
@@ -1007,13 +1027,14 @@ check: temporarily pointing the file binding at a wrong file name must make the
 the test constrains behavior. Do not commit the temporary change.
 
 Conformance and manifests (Milestone 2). `nix develop -c cabal test
-settei-example-conformance-tests --test-show-details=direct` passes naming the mounted
+settei-example-conformance-tests --test-show-details=direct` passed 13 tests, naming the mounted
 precedence and mounted-sentinel cases; grepping any captured output for
 `never-render-this-conformance-secret` and `never-render-this-service-secret` finds
 nothing. The manifest test fails if any deploy/ manifest names a flag the parser does
 not accept — verify by temporarily misspelling a flag in a manifest copy and observing
-the failure (do not commit). The expected `--explain-config` transcript sketch in
-Milestone 2 is replaced by the real captured transcript when run.
+the failure (do not commit). The service suite passed 17 tests, including both CLI
+smokes and the manifest-flag check. The complete workspace run passed 333 tests across
+12 suites. The real `--explain-config` transcript is recorded in Milestone 2 above.
 
 Collateral truthfulness (Milestone 3). Cross-reads: `grep -n settei-kubernetes
 docs/compatibility.md` shows input-contract and public-module rows matching the landed
@@ -1141,3 +1162,9 @@ settei-kubernetes and settei-env names; recorded the 322-test/eight-publishable-
 baseline and stale Mori/README inventory; corrected absent-bound-file semantics; added
 the delegated `POD_NAMESPACE` binding; and made EP-25 responsible for extending the
 landed manifests with the mounted Secret path now that `--secrets-dir` exists.
+
+2026-07-20: Completed Milestones 1 and 2. Recorded the shipped service integration,
+deployment mount, 17 service tests, 13 conformance tests, the parser-derived manifest
+flag check, the real redacted explanation transcript, and the 333-test/12-suite
+workspace result. Added the direct conformance dependency edges exposed by the public
+CLI-source construction.

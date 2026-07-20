@@ -124,6 +124,8 @@
               settei-example-cli = setteiExampleCliPackage;
               settei-example-service = setteiExampleServicePackage;
               settei-kdl = setteiKdlPackage;
+              settei-kubernetes = setteiKubernetesPackage;
+              settei-optparse-applicative = setteiOptparseApplicativePackage;
               settei-yaml = setteiYamlPackage;
             }
         );
