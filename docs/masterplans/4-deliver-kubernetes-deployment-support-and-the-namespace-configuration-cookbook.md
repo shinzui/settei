@@ -86,7 +86,7 @@ the renderer contract and may be added to settei-formats only as a follow-up dec
 
 | # | Title | Path | Hard Deps | Soft Deps | Status |
 |---|-------|------|-----------|-----------|--------|
-| 22 | Create the settei-kubernetes mounted-directory source adapter | docs/plans/22-create-the-settei-kubernetes-mounted-directory-source-adapter.md | None | None | In Progress |
+| 22 | Create the settei-kubernetes mounted-directory source adapter | docs/plans/22-create-the-settei-kubernetes-mounted-directory-source-adapter.md | None | None | Complete |
 | 23 | Derive environment bindings and freshness provenance from Kubernetes references | docs/plans/23-derive-environment-bindings-and-freshness-provenance-from-kubernetes-references.md | EP-22 | None | Not Started |
 | 24 | Write the namespace-driven configuration cookbook and deployment manifests | docs/plans/24-write-the-namespace-driven-configuration-cookbook-and-deployment-manifests.md | None | EP-22, EP-23 | Not Started |
 | 25 | Integrate Kubernetes support into the reference service and release collateral | docs/plans/25-integrate-kubernetes-support-into-the-reference-service-and-release-collateral.md | EP-22, EP-23, EP-24 | None | Not Started |
@@ -161,9 +161,9 @@ reaffirmed (EP-24 records it in the cookbook; EP-25 promotes it during distillat
 
 ## Progress
 
-- [ ] EP-22: settei-kubernetes package scaffolded and registered in cabal/nix/mori
-- [ ] EP-22: mounted-directory source with explicit file bindings, symlink handling, tests
-- [ ] EP-22: error type plus renderer per the adapter renderer contract
+- [x] EP-22: settei-kubernetes package scaffolded and registered in cabal/nix/mori
+- [x] EP-22: mounted-directory source with explicit file bindings, symlink handling, tests
+- [x] EP-22: error type plus renderer per the adapter renderer contract
 - [ ] EP-23: bindingsFrom* derivation returning validated Bindings, tests
 - [ ] EP-23: freshness/identity annotations and renderer decision, ADR drafted
 - [ ] EP-24: namespace cookbook written with downward API, check-config gate, runbook
@@ -188,6 +188,16 @@ reaffirmed (EP-24 records it in the cookbook; EP-25 promotes it during distillat
 - EP-24 research confirmed the nix dev shell currently ships no kubectl/kustomize/
   kubeconform; the manifest-validation tooling is added via the flake's extension
   point, and manifest rendering stays a checklist gate rather than a cabal test.
+- EP-22's full Nix gate exposed stale wiring from the earlier formats work: the CLI and
+  service Cabal packages depended on `settei-formats`, but their `callCabal2nix`
+  overrides did not pass `setteiFormatsPackage`. EP-22 repaired those two overrides;
+  later plans may rely on `nix flake check` evaluating both reference applications.
+- EP-22 landed the provisional mounted-directory interface without renaming: the public
+  collection is `FileBindings`, its smart constructor is `fileBindings`, options begin
+  with `mountedDirectoryOptions`, and reads use `readMountedDirectorySource`. The durable
+  semantics live in docs/adr/0011-kubernetes-mounted-directory-input-semantics.md. EP-23
+  can extend this surface directly but must still reconcile its planned environment-
+  binding constructor names against the live opaque `Bindings` API.
 
 
 ## Decision Log

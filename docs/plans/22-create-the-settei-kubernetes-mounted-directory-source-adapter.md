@@ -129,15 +129,15 @@ Milestone 4 — test suite:
 
 Milestone 5 — documentation, collateral, and closure:
 
-- [ ] Haddocks reviewed for every export; module header describes the projected-volume
+- [x] 2026-07-19 Haddocks reviewed for every export; module header describes the projected-volume
       shape and the atomic-writer convention in one paragraph.
-- [ ] `settei-kubernetes/CHANGELOG.md` initial entry finalized.
-- [ ] Mounted-directory mapping-semantics ADR drafted at the next free number (see
+- [x] 2026-07-19 `settei-kubernetes/CHANGELOG.md` initial entry finalized.
+- [x] 2026-07-19 Mounted-directory mapping-semantics ADR drafted as docs/adr/0011 (see
       Decision Log for the numbering coordination rule).
-- [ ] MasterPlan registry row EP-22 set to Complete; its Progress checkboxes for EP-22
+- [x] 2026-07-19 MasterPlan registry row EP-22 set to Complete; its Progress checkboxes for EP-22
       updated.
-- [ ] Full validation: `nix develop -c cabal test all` and `nix flake check` green.
-- [ ] Living sections of this plan updated; Outcomes & Retrospective written; ADR
+- [x] 2026-07-19 Full validation: `nix develop -c cabal test all` and `nix flake check` green.
+- [x] 2026-07-19 Living sections of this plan updated; Outcomes & Retrospective written; ADR
       distillation pass performed; final commit with required trailers.
 
 
@@ -151,6 +151,17 @@ Milestone 5 — documentation, collateral, and closure:
   symlink raises the same does-not-exist condition as a missing regular entry. The
   reader therefore treats it as an absent leaf, preserving the plan's stated acceptable
   behavior. A bound directory entry independently exercises `KubernetesIoError`.
+- 2026-07-19: The release-registry audit found Hackage `containers-0.8`, while the
+  family-wide upper bound is `<0.8`. The live GHC 9.12.4 workspace uses 0.7, and every
+  existing package that shares Settei's public `Map`-bearing types excludes 0.8. This
+  adapter therefore retains `<0.8` as a family compatibility constraint; widening the
+  whole package family is separate release work. All other selected bounds include
+  their current Hackage releases.
+- 2026-07-19: The first `nix flake check` reached the new package successfully but found
+  that the pre-existing `settei-example-cli` and `settei-example-service` Nix
+  derivations omitted the `settei-formats` override required by their live Cabal files.
+  Adding those two direct overrides repaired the repository-wide evaluation gate; no
+  Haskell source or package interface changed.
 
 
 ## Decision Log
@@ -293,7 +304,8 @@ Milestone 5 — documentation, collateral, and closure:
   ADR written during Milestone 5, at the next free number in docs/adr/. Coordination
   rule: the ergonomics MasterPlan's plans are expected to have created 0008 and 0009 by
   the time this plan runs; at implementation time list docs/adr/, take the highest
-  existing number plus one (expected 0010), and record the actual number here.
+  existing number plus one; implementation allocated 0011 after confirming 0010 already
+  existed, and recorded the actual number here.
   Rationale: ADR numbers are allocated by landing order across initiatives; hard-coding
   one now would collide if the ergonomics plans add or renumber.
   Date: 2026-07-19
@@ -317,6 +329,23 @@ Milestone 5 — documentation, collateral, and closure:
   settei-yaml and settei-env — its tests can run in both Cabal and Nix.
   Date: 2026-07-19
 
+- Decision: Retain the package family's `containers >=0.6.8 && <0.8` bound even though
+  Hackage currently publishes 0.8.
+  Rationale: Core `settei` and every sibling adapter expose or consume the same
+  `containers`-backed types and all currently require `<0.8`; the validated GHC 9.12.4
+  workspace uses 0.7. A standalone wider bound here cannot make a `containers-0.8`
+  component graph solvable. Family-wide 0.8 qualification is separate release work,
+  not an adapter-specific promise.
+  Date: 2026-07-19
+
+- Decision: Export `mountedDirectoryOptions` alongside the accessors and combinators,
+  correcting its accidental omission from the illustrative export list in Interfaces
+  and Dependencies.
+  Rationale: The same section specifies its public signature, the module example calls
+  it, and `MountedDirectoryOptions` has a private constructor. Without this smart
+  constructor callers could not create options or use the package at all.
+  Date: 2026-07-19
+
 - Decision: This plan assumes the correctness MasterPlan
   (docs/masterplans/2-harden-settei-correctness-before-fleet-wide-adoption.md) and the
   ergonomics MasterPlan
@@ -337,7 +366,26 @@ Milestone 5 — documentation, collateral, and closure:
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+Completed 2026-07-19. The repository now contains a registered, publishable
+`settei-kubernetes-0.1.0.0` package whose public `Settei.Kubernetes` module validates
+explicit file bindings, reads kubelet atomic-writer mounts through their visible
+symlinks, accumulates secret-safe I/O and UTF-8 errors, strips exactly one trailing
+newline by default, and attaches exact per-file Kubernetes provenance. The separate
+`unboundMountedFiles` diagnostic makes visible typos observable without inventing a
+second unknown-key policy.
+
+The package suite has 26 passing tests covering every stable error category, binding
+accumulation, missing-vs-optional resolution, atomic-writer enumeration, newline modes,
+origin rendering, and accessors. `cabal haddock settei-kubernetes` reports 100% export
+coverage (28 of 28), the full Cabal workspace suite passes, and `nix flake check` passes
+after repairing two stale pre-existing `settei-formats` overrides in the CLI and service
+Nix derivations.
+
+ADR docs/adr/0011-kubernetes-mounted-directory-input-semantics.md now owns the durable
+mapping and atomic-writer contract. EP-23 remains responsible for reference-derived
+environment bindings and freshness annotations; EP-24 owns cookbook guidance; EP-25
+owns reference-service and release-collateral integration. No cluster client, watch loop,
+or core data-type expansion entered this plan.
 
 
 ## Context and Orientation
@@ -845,8 +893,8 @@ Acceptance: `nix develop -c cabal test settei-kubernetes-tests
 Scope: finish haddocks, finalize `settei-kubernetes/CHANGELOG.md`, draft the ADR, update
 the MasterPlan bookkeeping, run full validation, and close the plan.
 
-The new ADR (next free number per the coordination rule in the Decision Log; expected
-docs/adr/0010) records the mounted-directory mapping semantics as durable context:
+The new ADR (next free number per the coordination rule in the Decision Log;
+docs/adr/0011 at implementation time) records the mounted-directory mapping semantics as durable context:
 explicit per-file bindings with the dotted-key rationale; the atomic-writer handling
 contract (skip `..`-prefixed entries when enumerating, follow symlinks when reading,
 never descend); absent-bound-file-is-absent-leaf; unbound files surfaced only through
@@ -1079,6 +1127,7 @@ module Settei.Kubernetes
     mountedDirectoryAnnotations,
     mountedDirectoryKeepsTrailingNewline,
     mountedDirectoryName,
+    mountedDirectoryOptions,
     mountedDirectoryRef,
     readMountedDirectorySource,
     renderKubernetesErrorText,   -- Milestone 3
