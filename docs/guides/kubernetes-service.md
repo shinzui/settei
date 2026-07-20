@@ -1,8 +1,8 @@
 # Building a Kubernetes service
 
 This is the application-code half of running Settei on Kubernetes. It configures a
-service from a mounted public file, direct environment values, and a Secret-backed
-environment variable. The deployment half—namespaces, ConfigMaps, Secrets, rollout
+service from a mounted public file, a mounted Secret directory, and explicit environment
+values. The deployment half—namespaces, ConfigMaps, Secrets, rollout
 gates, and the incident runbook—is in the
 [namespace deployment cookbook](kubernetes-cookbook.md).
 
@@ -17,12 +17,13 @@ The complete working implementation and manifests are in
 A practical deployment uses a low-to-high source order such as:
 
 ```text
-mounted ConfigMap file < environment variables < optional command-line overrides
+mounted ConfigMap file < mounted Secret directory < environment variables < optional command-line overrides
 ```
 
 Keep public, structured settings in a mounted YAML, KDL, or Dhall file. Use explicit
-environment bindings for deployment-specific values and Secret references. The source
-order belongs in application code, not in the Kubernetes manifest.
+file bindings for projected directories and explicit environment bindings for
+deployment-specific values. The source order belongs in application code, not in the
+Kubernetes manifest.
 
 For a YAML and environment deployment, add:
 
@@ -30,6 +31,7 @@ For a YAML and environment deployment, add:
 build-depends:
   , settei
   , settei-env
+  , settei-kubernetes
   , settei-yaml
   , text
 ```
@@ -49,6 +51,8 @@ import Data.Text (Text)
 import Data.Text qualified as Text
 import Settei
 import Settei.Env
+import Settei.Kubernetes qualified as Kubernetes
+import Settei.Kubernetes.Bindings qualified as KubernetesBindings
 import Settei.Yaml
 ```
 
@@ -147,30 +151,34 @@ Map only supported variables:
 environmentBindings :: Bindings
 environmentBindings =
   either (error . Text.unpack . renderEnvErrorsText) id
-    ( bindings
-        [ binding (EnvName "HASKELL_ENV") (validKey "runtime.environment"),
-          binding (EnvName "HTTP_HOST") (validKey "http.host"),
-          binding (EnvName "HTTP_PORT") (validKey "http.port"),
-          binding (EnvName "DATABASE_HOST") (validKey "database.host"),
-          binding (EnvName "DATABASE_PORT") (validKey "database.port"),
-          binding (EnvName "DATABASE_POOL_SIZE") (validKey "database.poolSize"),
-          fromKubernetesObject
-            ( kubernetesRef
-                SecretObject
-                Nothing
-                "my-service-database"
-                (Just "password")
-            )
-            (binding (EnvName "DATABASE_PASSWORD") (validKey "database.password"))
-        ]
+    ( do
+        ordinaryBindings <-
+          bindings
+            [ binding (EnvName "HASKELL_ENV") (validKey "runtime.environment"),
+              binding (EnvName "HTTP_HOST") (validKey "http.host"),
+              binding (EnvName "HTTP_PORT") (validKey "http.port"),
+              binding (EnvName "DATABASE_HOST") (validKey "database.host"),
+              binding (EnvName "DATABASE_PORT") (validKey "database.port"),
+              binding (EnvName "DATABASE_POOL_SIZE") (validKey "database.poolSize")
+            ]
+        secretBindings <-
+          KubernetesBindings.bindingsFromSecret
+            Nothing
+            "my-service-database"
+            [ KubernetesBindings.objectKeyBinding
+                "password"
+                (EnvName "DATABASE_PASSWORD")
+                (validKey "database.password")
+            ]
+        mergeBindings [ordinaryBindings, secretBindings]
     )
 ```
 
-`fromKubernetesObject` records how the application expects the variable to be delivered.
-It does not query Kubernetes or verify the pod spec. The annotation may name the Secret
-and key in reports, while the setting value remains `<redacted>`. Its
-`KubernetesRef -> EnvBinding -> EnvBinding` flow is unchanged: it annotates one binding
-before `bindings` validates the complete list, and its metadata semantics do not move.
+`bindingsFromSecret` derives every environment binding and its Kubernetes provenance
+from the same object-key row. It does not query Kubernetes or verify the pod spec. The
+annotation may name the Secret and key in reports, while the setting value remains
+`<redacted>`. `mergeBindings` revalidates cross-collection variable names and target
+keys, so derived and ordinary bindings cannot silently overlap.
 
 ## Load an annotated mounted file
 
@@ -199,6 +207,34 @@ Dhall, start with its safe `NoImports` default or set a narrow `LocalImportsWith
 The annotation is trusted metadata supplied by application code. It does not prove that a
 volume is current or mounted from the named object.
 
+For a projected Secret directory, map each visible file explicitly and load it through
+`Settei.Kubernetes`:
+
+```haskell
+passwordFiles :: Kubernetes.FileBindings
+passwordFiles =
+  either (error . Text.unpack . Kubernetes.renderKubernetesErrorsText) id
+    ( Kubernetes.fileBindings
+        [Kubernetes.fileBinding "password" (validKey "database.password")]
+    )
+
+loadMountedSecret :: IO (Either Text Source)
+loadMountedSecret = do
+  loaded <-
+    Kubernetes.readMountedDirectorySource
+      ( Kubernetes.mountedDirectoryOptions
+          "mounted database secret"
+          (kubernetesRef SecretObject Nothing "my-service-database" Nothing)
+      )
+      passwordFiles
+      "/etc/my-service/secrets"
+  pure (either (Left . Kubernetes.renderKubernetesErrorsText) Right loaded)
+```
+
+The adapter follows Kubernetes' atomic-writer symlinks, records the mount path and file
+modification time, and leaves an absent bound file absent for the typed resolver to
+diagnose. Its object reference is trusted explanation metadata, not cluster attestation.
+
 ## Resolve once at startup
 
 Load each effectful source before starting listeners or worker threads:
@@ -207,11 +243,12 @@ Load each effectful source before starting listeners or worker threads:
 resolveService
   :: Source
   -> Source
+  -> Source
   -> ResolveResult ServiceConfig
-resolveService mountedFile environmentSource =
+resolveService mountedFile mountedSecret environmentSource =
   resolve
     defaultResolveOptions
-    [mountedFile, environmentSource]
+    [mountedFile, mountedSecret, environmentSource]
     serviceConfig
 ```
 

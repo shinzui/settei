@@ -71,6 +71,25 @@ Kubernetes annotations record an asserted object kind, namespace, name, and key 
 explanation; they do not contact the API server, validate RBAC, attest the object, rotate a
 credential, or erase it from process memory.
 
+The mounted-directory adapter trusts the kubelet-managed filesystem at the path supplied
+by its caller. Whatever bound files exist there are read as the asserted object's data.
+The attached `KubernetesRef` is also caller-supplied, unverified metadata: Settei does not
+compare it with a volume specification or cluster object. A mistaken reference therefore
+produces a mistaken but confident explanation. Treat that identity as operational
+documentation, not attestation.
+
+`kubernetes.file-modified` is the visible file's modification time as observed through
+the atomic-writer symlink layout, and `kubernetes.read-at` is the adapter read time. Both
+use the process/node clock. Clock skew, UTC rendering, the kubelet synchronization
+interval, and cache propagation make them approximate incident-triage hints, not proof
+that a credential rotated or that every pod observed the same revision.
+
+Settei reads mounted files eagerly during startup and does not watch them. A running
+process keeps its already-resolved typed configuration after Kubernetes updates a
+projected volume; adopt rotated ConfigMaps and Secrets by restarting the process. The
+namespace cookbook documents the deployment-side rollout pattern and its validation
+gate.
+
 Mount files read-only, restrict pod and node access, use an external secret-management and
 rotation policy where required, and never put a real secret in the example manifests or
 test fixtures.

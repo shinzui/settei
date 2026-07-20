@@ -10,6 +10,12 @@ Every Secret value is an unmistakable placeholder. Never commit a real credentia
 encoded real credential, or any value that could be mistaken for one. Replace the
 placeholder object through your secret-management pipeline before deploying.
 
+The base mounts `settei-example-service-database` at `/etc/settei/secrets` and passes
+that directory through `--secrets-dir`. It also exposes the same `password` key through
+`DATABASE_PASSWORD`, intentionally demonstrating the reference service's mounted-file <
+environment precedence and shadow trace. Applications may choose either delivery form;
+the duplicate delivery is a conformance example, not a requirement.
+
 Run the offline render and invariant checks from the repository root:
 
 ```bash

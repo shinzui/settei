@@ -9,7 +9,7 @@ to “where did this value come from?”
 
 ## Release status
 
-Settei 0.1.0.0 is implementation-complete and prepared for its initial release. The six
+Settei 0.1.0.0 is implementation-complete and prepared for its initial release. The eight
 publishable packages have aligned version, license, changelog, dependency-bound, and
 `tested-with` metadata. The
 [original build MasterPlan](docs/masterplans/1-build-settei-as-a-provenance-aware-configuration-library-for-haskell.md)
@@ -17,13 +17,13 @@ and the
 [fleet-adoption correctness MasterPlan](docs/masterplans/2-harden-settei-correctness-before-fleet-wide-adoption.md)
 are complete.
 
-The release candidate was first validated on 2026-07-18 and re-validated after the
-correctness-hardening pass on 2026-07-19, with GHC 9.12.4 and Cabal 3.16.1.0 on
-`aarch64-darwin`:
+The release candidate was first validated on 2026-07-18, re-validated after the
+correctness-hardening pass on 2026-07-19, and re-validated after the Kubernetes
+integration on 2026-07-20, with GHC 9.12.4 and Cabal 3.16.1.0 on `aarch64-darwin`:
 
-- All nine workspace packages build, including the three internal example packages.
-- All 192 workspace tests pass across 10 suites; the six publishable packages also pass
-  all 169 of their tests from isolated unpacked source distributions.
+- All eleven workspace packages build, including the three internal example packages.
+- All 333 workspace tests pass across 12 suites; the eight publishable packages also pass
+  all 293 of their tests from isolated unpacked source distributions.
 - Package checks, Haddocks, source distributions, formatting, Mori inventory, example
   Nix outputs, CLI smoke tests, and `nix flake check` pass.
 - Package-family guides, security guidance, compatibility policy, release metadata, and
@@ -33,6 +33,9 @@ Since the first validation, conflicting sensitivities have become structured err
 most-restrictive redaction, YAML and KDL reject impractically large numeric exponents,
 YAML booleans follow the 1.2 core schema, failed resolutions retain provenance reports,
 and custom-source construction plus YAML/Dhall diagnostics have been hardened.
+The Kubernetes initiative added a mounted ConfigMap/Secret directory adapter, derived
+environment bindings, namespace-specific runnable manifests and cookbook, and end-to-end
+reference-service integration without adding cluster access to application processes.
 
 The release has **not** been tagged, signed, or uploaded to Hackage. Those manual actions,
 including a public-registry installation smoke test, require separate authorization and
@@ -52,6 +55,7 @@ platform, dependency bounds, and public adoption surface.
 | [`settei-yaml`](settei-yaml/) | Strict YAML input with exact node locations. |
 | [`settei-kdl`](settei-kdl/) | Canonical KDL v2 input with exact node spans. |
 | [`settei-dhall`](settei-dhall/) | Typed Dhall input with enforceable import policies and root/import-closure provenance. |
+| [`settei-kubernetes`](settei-kubernetes/) | Mounted ConfigMap/Secret directory source with explicit file bindings, derived env bindings, and freshness provenance. |
 
 The non-published [`examples/`](examples/) workspace contains a layered CLI, a
 Kubernetes-shaped service, and a YAML/KDL/Dhall conformance suite.

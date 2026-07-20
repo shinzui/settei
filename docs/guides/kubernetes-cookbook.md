@@ -63,11 +63,12 @@ namespaceBinding :: EnvBinding
 namespaceBinding = binding (EnvName "POD_NAMESPACE") namespaceKey
 ```
 
-Include `required namespaceSetting` in the service's `Config` declaration. The namespace
-value then records where the running instance lives without selecting application
-behavior. `--explain-config` includes it among the ordinary resolved settings, which
-answers the first question during an incident without coupling the declaration to
-cluster naming.
+The reference service includes `optional namespaceSetting` in its `Config` declaration
+because the same binary also runs locally outside Kubernetes. A service that runs only
+in Kubernetes can make it `required`. In either form, the namespace value records where
+the running instance lives without selecting application behavior. `--explain-config`
+includes it among the ordinary resolved settings, which answers the first question
+during an incident without coupling the declaration to cluster naming.
 
 
 ## 3. Choose the environment explicitly
@@ -191,7 +192,7 @@ let secretRef =
     options = mountedDirectoryOptions "database-secret" secretRef
 
 loaded <-
-  readMountedDirectorySource options passwordFiles "/etc/settei/database-secret"
+  readMountedDirectorySource options passwordFiles "/etc/settei/secrets"
 
 secretSource <-
   either (fail . show) pure loaded
@@ -202,6 +203,13 @@ exiting. Add the successful `Source` to the normal low-to-high precedence list. 
 origins record the mounted path, per-file location and modification time, and the source
 read time. Those annotations are descriptive; source list position still controls
 precedence.
+
+The checked-in Deployment passes `--secrets-dir /etc/settei/secrets`, mounts the same
+Secret there, and also retains `DATABASE_PASSWORD` through `secretKeyRef`. The reference
+service orders the inputs as configuration file < mounted Secret directory < environment,
+so the environment value wins while the explanation retains the mounted file as a
+shadowed origin. This deliberately demonstrates both common delivery modes and their
+precedence rather than prescribing that production applications must enable both.
 
 
 ## 5. Walk through the manifests
@@ -276,6 +284,8 @@ initContainers:
     args:
       - --config
       - yaml:/etc/settei/application.yaml
+      - --secrets-dir
+      - /etc/settei/secrets
       - --check-config
 ```
 
@@ -347,19 +357,21 @@ with the same image and inputs rather than expecting it to remain available for 
 kubectl -n production exec POD_NAME -c service -- \
   settei-example-service \
     --config yaml:/etc/settei/application.yaml \
+    --secrets-dir /etc/settei/secrets \
     --explain-config
 ```
 
 Use `--explain-config-json` instead when tooling needs the versioned structured report.
-The following output was captured from the built reference binary with the production
-overlay's public data and a non-secret sentinel supplied as `DATABASE_PASSWORD`; the
-sentinel does not appear:
+The following output shape was captured from the built reference binary with a temporary
+mounted `password`, the production environment, and a different non-secret sentinel in
+`DATABASE_PASSWORD`; neither value appears:
 
 ```text
 database.host = "postgres.production.internal"
   from file source /dev/stdin (YAML) from Kubernetes ConfigMap settei-example-service key application.yaml
 database.password = <redacted>
   from environment variable DATABASE_PASSWORD from Kubernetes Secret settei-example-service-database key password
+  shadowed: kubernetes-mounted-directory source mounted service secrets at /etc/settei/secrets from Kubernetes Secret settei-example-service-database key password (modified 2026-07-20T03:53:35Z)
 database.poolSize = 20
   from default rule database-pool-size-by-environment
   because runtime.environment = "production"
@@ -372,14 +384,18 @@ http.port = 8080
   from default rule http-port-by-environment
   because runtime.environment = "production"
     from environment variable HASKELL_ENV
+kubernetes.namespace = "production"
+  from environment variable POD_NAMESPACE
 runtime.environment = "production"
   from environment variable HASKELL_ENV
 branch 1 [selected]: runtime.environment -> database.password
 ```
 
-The mounted path is `/dev/stdin` only because this capture was deliberately performed
-without a cluster. Inside the pod it is `/etc/settei/application.yaml`; the ConfigMap and
-key annotations are otherwise identical.
+The ConfigMap path is `/dev/stdin` only because the public document capture was
+deliberately performed without a cluster; inside the pod it is
+`/etc/settei/application.yaml`. The mounted Secret line above normalizes the temporary
+test directory to the deployed `/etc/settei/secrets` path; the object, key, shadow, and
+redaction behavior are otherwise identical.
 
 When the binary is launched without a Production password—for example in a local image
 check independent of the non-optional Kubernetes reference—`--check-config` exits `4`.

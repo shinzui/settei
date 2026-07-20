@@ -152,21 +152,21 @@ Milestone 2 — conformance and smoke coverage:
 
 Milestone 3 — release collateral:
 
-- [ ] docs/compatibility.md: settei-kubernetes toolchain/bounds/input-contract/public-
+- [x] (2026-07-20T03:56:41Z) docs/compatibility.md: settei-kubernetes toolchain/bounds/input-contract/public-
       module rows added in the file's existing structure.
-- [ ] README.md: package map row with a one-line role; release-status wording updated
+- [x] (2026-07-20T03:56:41Z) README.md: package map row with a one-line role; release-status wording updated
       (package count, test count, initiative summary sentence).
-- [ ] docs/security.md: mounted-file trust model (kubelet-managed filesystem trusted;
+- [x] (2026-07-20T03:56:41Z) docs/security.md: mounted-file trust model (kubelet-managed filesystem trusted;
       asserted KubernetesRef is caller-trusted, unverified metadata) plus the EP-23
       freshness-annotation clock caveat.
-- [ ] docs/release-checklist.md: manifest render check and mounted-fixture smoke added
+- [x] (2026-07-20T03:56:41Z) docs/release-checklist.md: manifest render check and mounted-fixture smoke added
       to Automated validation.
-- [ ] Changelogs: settei-kubernetes/CHANGELOG.md consolidated 0.1.0.0 entry;
+- [x] (2026-07-20T03:56:41Z) Changelogs: settei-kubernetes/CHANGELOG.md consolidated 0.1.0.0 entry;
       settei-env/CHANGELOG.md line if EP-23 touched it; no changelogs invented for
       examples (they have none).
-- [ ] Registration verification: mori.dhall row for settei-kubernetes, nix/haskell.nix
+- [x] (2026-07-20T03:56:41Z) Registration verification: mori.dhall row for settei-kubernetes, nix/haskell.nix
       derivation, cabal.project entry all present (EP-22 wired them; re-verify).
-- [ ] Commit.
+- [x] (2026-07-20T03:56:41Z) Commit.
 
 Milestone 4 — full validation and MasterPlan closure:
 
@@ -1168,3 +1168,9 @@ deployment mount, 17 service tests, 13 conformance tests, the parser-derived man
 flag check, the real redacted explanation transcript, and the 333-test/12-suite
 workspace result. Added the direct conformance dependency edges exposed by the public
 CLI-source construction.
+
+2026-07-20: Completed Milestone 3. Reconciled the eight-package/333-test release story,
+the Kubernetes dependency and public-module matrix, mounted-file trust and freshness
+limits, durable render/smoke gates, the consolidated adapter changelog, both Kubernetes
+guides, and the deployment README against the reference implementation. Reverified the
+Cabal, Nix, and Mori registration in the live tree.

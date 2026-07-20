@@ -14,7 +14,7 @@ after the fleet-adoption correctness-hardening pass.
   source repository metadata pass `cabal check`.
 - [x] `tested-with` and the compatibility matrix match the validated GHC.
 - [x] Exposed modules match the compatibility matrix; no `Settei.Internal` module is
-  exposed.
+  exposed, including both `settei-kubernetes` public modules.
 - [x] Each package source distribution includes `LICENSE`, `CHANGELOG.md`, and required
   fixtures or goldens.
 - [x] Dependency bounds match the versions actually resolved in the pinned workspace.
@@ -51,6 +51,11 @@ after the fleet-adoption correctness-hardening pass.
 - [x] A forced resolution failure retains a provenance report, and its errors and report
   redact a secret sentinel.
 - [x] `mori registry show shinzui/settei --full`
+- [ ] Every overlay under `examples/settei-service/deploy/` renders without error via
+  `kubectl kustomize` or `kustomize build`; when neither binary is available in the
+  shell, record an equivalent client-side render transcript from a machine that has it.
+- [ ] Mounted-fixture smoke: the reference service exits 0 for `--check-config` with a
+  temporary mounted Secret directory and exits 3 when that directory does not exist.
 - [x] `nix flake check`
 - [x] `git diff --check`
 

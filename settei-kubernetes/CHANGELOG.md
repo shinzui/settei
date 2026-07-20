@@ -1,6 +1,6 @@
 # Changelog for settei-kubernetes
 
-## 0.1.0.0 — Unreleased
+## 0.1.0.0 — 2026-07-20
 
 - Initial experimental release.
 - Add a mounted-directory source for projected ConfigMap and Secret volumes with

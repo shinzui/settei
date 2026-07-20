@@ -1,6 +1,6 @@
 # Compatibility matrix
 
-This matrix records the workspace actually validated for Settei 0.1.0.0 on 2026-07-19.
+This matrix records the workspace actually validated for Settei 0.1.0.0 on 2026-07-20.
 Dependency bounds describe the intended solver range; they do not claim that every point
 in a range has been tested.
 
@@ -33,6 +33,9 @@ The host's unrelated GHC 9.10 installation cannot satisfy `base >=4.21`; use
 | JSON values/reports | `aeson-2.2.5.0` | Dhall adapter: `>=2.2 && <2.3` |
 | Exact numeric conversion | `scientific-0.3.8.1` | YAML, KDL, and Dhall adapters: `>=0.3.7 && <0.4` |
 | Dhall parse positions | `megaparsec-9.8.1` | Dhall adapter: `>=9 && <10` |
+| Mounted-directory traversal | `directory-1.3.10.1` | Kubernetes adapter: `>=1.3.8 && <1.4` |
+| Mounted path handling | `filepath-1.5.5.0` | Kubernetes adapter: `>=1.5.4 && <1.6` |
+| Freshness timestamps | `time-1.14` | Kubernetes adapter: `>=1.14 && <1.17` |
 | Test framework | `tasty-1.5.4` | `>=1.5 && <1.6` |
 
 Nix overrides Dhall and dhall-json to the pinned optparse-applicative 0.19 derivation so
@@ -50,6 +53,7 @@ affected package artifacts without mixing those test closures.
 | YAML | One strict mapping document with exact locations; only case-insensitive `true` and `false` are booleans, YAML 1.1 spellings remain text, exponent magnitudes above 4096 fail, and ambiguous features fail. |
 | KDL | Canonical KDL v2 mapping with exact spans; one argument is scalar, two or more are an array, and numeric exponent magnitudes above 4096 fail. |
 | Dhall | JSON-compatible normalized values under `NoImports` or explicit `LocalImportsWithin`; root and local-import parse failures carry one-based positions. |
+| `settei-kubernetes` | Mounted ConfigMap/Secret directories with explicit per-file key bindings and atomic-writer symlink handling; no cluster access. |
 
 
 ## Public modules
@@ -63,6 +67,8 @@ The supported adoption surface is:
 - Adapters: `Settei.Env`, `Settei.Optparse`, `Settei.Yaml`, `Settei.Kdl`, and
   `Settei.Dhall`.
 - Multi-format umbrella: `Settei.Formats` and `Settei.Formats.Optparse`.
+- `settei-kubernetes` adapter: `Settei.Kubernetes` and
+  `Settei.Kubernetes.Bindings`.
 
 Modules beneath `Settei.Internal` and all packages beneath `examples/` are not public API.
 Version 0.1.0.0 is experimental and does not promise semantic stability beyond these
