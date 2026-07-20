@@ -65,7 +65,10 @@ EP-25's job (docs/plans/25-integrate-kubernetes-support-into-the-reference-servi
 
 Milestone 1 — validation tooling and the manifest set:
 
-- [ ] Create `flake.module.nix` from `flake.module.nix.example` adding `pkgs.kubectl` and `pkgs.kubeconform` to `haskellProject.extraDevPackages`; `git add` it; verify `nix develop -c kubectl version --client` works.
+- [x] (2026-07-20T02:39:03Z) Create `flake.module.nix` from
+      `flake.module.nix.example`, adding `pkgs.kubectl` and `pkgs.kubeconform` to
+      `haskellProject.extraDevPackages`; track it; verify `nix develop -c kubectl
+      version --client` and `nix develop -c kubeconform -v` work.
 - [ ] Create `examples/settei-service/deploy/base/deployment.yaml` (downward-API env, ConfigMap-keyed `HASKELL_ENV`, Secret-backed `DATABASE_PASSWORD`, ConfigMap volume mount, `--check-config` init container, commented probe template).
 - [ ] Create `examples/settei-service/deploy/base/kustomization.yaml`.
 - [ ] Create `examples/settei-service/deploy/overlays/dev/` (kustomization.yaml, configmap.yaml, secret.yaml with placeholder).
@@ -103,7 +106,11 @@ Milestone 4 — validation, bookkeeping, closure:
 
 ## Surprises & Discoveries
 
-(None yet.)
+- Mori has no registered project matching either `kubectl` or `kubeconform`, so there
+  was no local source corpus to inspect for these deployment tools. The repository's
+  locked Nix package set is the executable authority for this plan: the new dev shell
+  evaluates and provides kubectl v1.36.1 with kustomize v5.8.1 and kubeconform v0.7.0.
+  Evidence: both version commands exited 0 on 2026-07-20.
 
 
 ## Decision Log
