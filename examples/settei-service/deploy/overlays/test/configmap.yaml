@@ -3,9 +3,10 @@ kind: ConfigMap
 metadata:
   name: settei-example-service
 data:
+  HASKELL_ENV: test
   application.yaml: |
     http:
       host: 0.0.0.0
     database:
-      host: postgres.internal
+      host: postgres.test.internal
       port: 5432

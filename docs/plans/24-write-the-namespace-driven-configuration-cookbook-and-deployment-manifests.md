@@ -69,15 +69,28 @@ Milestone 1 — validation tooling and the manifest set:
       `flake.module.nix.example`, adding `pkgs.kubectl` and `pkgs.kubeconform` to
       `haskellProject.extraDevPackages`; track it; verify `nix develop -c kubectl
       version --client` and `nix develop -c kubeconform -v` work.
-- [ ] Create `examples/settei-service/deploy/base/deployment.yaml` (downward-API env, ConfigMap-keyed `HASKELL_ENV`, Secret-backed `DATABASE_PASSWORD`, ConfigMap volume mount, `--check-config` init container, commented probe template).
-- [ ] Create `examples/settei-service/deploy/base/kustomization.yaml`.
-- [ ] Create `examples/settei-service/deploy/overlays/dev/` (kustomization.yaml, configmap.yaml, secret.yaml with placeholder).
-- [ ] Create `examples/settei-service/deploy/overlays/test/` (same three files, test values).
-- [ ] Create `examples/settei-service/deploy/overlays/production/` (same three files, production values).
-- [ ] Create `examples/settei-service/deploy/README.md` (short pointer to the cookbook plus the secret-hygiene warning).
-- [ ] Create `examples/settei-service/deploy/validate.sh` (render every overlay, grep per-namespace expectations, assert placeholder marker, optionally kubeconform).
-- [ ] Delete `examples/settei-service/kubernetes/` and update its two referrers (docs/guides/kubernetes-service.md closing paragraph, examples/settei-service/README.md) to point at `deploy/`.
-- [ ] `nix develop -c bash examples/settei-service/deploy/validate.sh` passes; `nix develop -c cabal test all` still green; commit.
+- [x] (2026-07-20T02:45:13Z) Create
+      `examples/settei-service/deploy/base/deployment.yaml` with downward-API namespace,
+      ConfigMap-keyed `HASKELL_ENV`, Secret-backed `DATABASE_PASSWORD`, projected
+      ConfigMap file, `--check-config` init container, and commented probe template.
+- [x] (2026-07-20T02:45:13Z) Create
+      `examples/settei-service/deploy/base/kustomization.yaml`.
+- [x] (2026-07-20T02:45:13Z) Create the dev overlay with its kustomization, ConfigMap,
+      and loud placeholder Secret.
+- [x] (2026-07-20T02:45:13Z) Create the test overlay with its test-specific values.
+- [x] (2026-07-20T02:45:13Z) Create the production overlay with its
+      production-specific values.
+- [x] (2026-07-20T02:45:13Z) Create `examples/settei-service/deploy/README.md` with the
+      cookbook pointer, secret-hygiene warning, offline gate, and opt-in schema gate.
+- [x] (2026-07-20T02:45:13Z) Create executable
+      `examples/settei-service/deploy/validate.sh`; all render and value expectations
+      pass, and opt-in kubeconform reports three valid resources for each overlay.
+- [x] (2026-07-20T02:45:13Z) Delete the superseded
+      `examples/settei-service/kubernetes/` tree and update its two immediate referrers
+      to `deploy/`.
+- [x] (2026-07-20T02:45:13Z) Manifest render, offline validation, opt-in schema
+      validation, and the full `cabal test all --test-show-details=direct` suite pass;
+      commit the manifest milestone.
 
 Milestone 2 — the cookbook guide:
 
@@ -111,6 +124,13 @@ Milestone 4 — validation, bookkeeping, closure:
   locked Nix package set is the executable authority for this plan: the new dev shell
   evaluates and provides kubectl v1.36.1 with kustomize v5.8.1 and kubeconform v0.7.0.
   Evidence: both version commands exited 0 on 2026-07-20.
+
+- Kubeconform's default schema location is a remote GitHub registry rather than an
+  embedded offline schema set. The mandatory `validate.sh` path therefore keeps
+  client-side kustomize rendering and invariant greps offline and makes schema checking
+  explicit through `SETTEI_VALIDATE_SCHEMAS=1`. Evidence: the opt-in run validated all
+  three resources in each of dev, test, and production with zero invalid resources or
+  errors.
 
 
 ## Decision Log
@@ -183,6 +203,15 @@ Milestone 4 — validation, bookkeeping, closure:
   pipeline is introduced it should invoke that exact command (recorded here for
   whoever adds CI).
   Date: 2026-07-19
+
+- Decision: Kubeconform validation is opt-in through `SETTEI_VALIDATE_SCHEMAS=1`; the
+  default `validate.sh` gate is the offline kustomize render plus invariant checks.
+  Rationale: Kubeconform's authoritative documentation confirms that its default schema
+  location downloads schemas from a remote registry. Vendoring the Kubernetes schema
+  corpus solely for three standard resources is disproportionate, while silently
+  introducing network access would contradict the plan's offline default. The opt-in
+  path remains reproducible through the pinned dev shell and passed for all overlays.
+  Date: 2026-07-20
 
 - Decision: The pre-existing hand-written manifest directory
   `examples/settei-service/kubernetes/` (configmap.yaml, deployment.yaml,

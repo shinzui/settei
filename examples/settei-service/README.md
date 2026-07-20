@@ -6,4 +6,6 @@ accepts one explicitly tagged mounted YAML, KDL, or import-free Dhall file follo
 explicit environment bindings.
 
 The executable prints only a safe startup summary or Settei's redacted explanation. The
-Kubernetes manifests are local examples and require no Kubernetes SDK or live cluster.
+checked-in [namespace deployment manifests](deploy/) accompany the
+[Kubernetes cookbook](../../docs/guides/kubernetes-cookbook.md). They are rendered and
+validated client-side and require no Kubernetes SDK or live cluster.

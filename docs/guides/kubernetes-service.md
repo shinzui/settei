@@ -383,7 +383,7 @@ all text and JSON output.
 - Test every environment-dependent default and Selective branch.
 - Assert that secret sentinels never appear in stdout, stderr, logs, errors, or reports.
 
-Review the example [Kubernetes manifests](../../examples/settei-service/kubernetes/) and
+Review the example [Kubernetes manifests](../../examples/settei-service/deploy/) and
 the full [`Settei.Example.Service`](../../examples/settei-service/src/Settei/Example/Service.hs)
 composition together; the Haskell annotations and manifest object names must remain in
 sync.

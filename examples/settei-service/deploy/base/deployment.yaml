@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: settei-example-service
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: settei-example-service
+  template:
+    metadata:
+      labels:
+        app: settei-example-service
+    spec:
+      initContainers:
+        # Deploy-time gate: the SAME image validates the SAME inputs the service
+        # will see. Exit 3 (unreadable/unparseable file) or 4 (resolution failure)
+        # fails the pod, halting the rollout before traffic shifts.
+        - name: check-config
+          image: example.invalid/settei-example-service:replace-me
+          args:
+            - --config
+            - yaml:/etc/settei/application.yaml
+            - --check-config
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: HASKELL_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: settei-example-service
+                  key: HASKELL_ENV
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: settei-example-service-database
+                  key: password
+          volumeMounts:
+            - name: configuration
+              mountPath: /etc/settei
+              readOnly: true
+      containers:
+        - name: service
+          image: example.invalid/settei-example-service:replace-me
+          args:
+            - --config
+            - yaml:/etc/settei/application.yaml
+          env:
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: HASKELL_ENV
+              valueFrom:
+                configMapKeyRef:
+                  name: settei-example-service
+                  key: HASKELL_ENV
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: settei-example-service-database
+                  key: password
+          volumeMounts:
+            - name: configuration
+              mountPath: /etc/settei
+              readOnly: true
+          # For a real long-running service, gate traffic on readiness, e.g.:
+          #   readinessProbe:
+          #     httpGet:
+          #       path: /health
+          #       port: 8080
+          # The reference binary prints its startup summary and exits (it models
+          # startup, not serving), so a live probe is deliberately not set here.
+      volumes:
+        - name: configuration
+          configMap:
+            name: settei-example-service
+            items:
+              - key: HASKELL_ENV
+                path: HASKELL_ENV
+              - key: application.yaml
+                path: application.yaml

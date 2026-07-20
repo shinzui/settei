@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: settei-example-service
+data:
+  HASKELL_ENV: development
+  application.yaml: |
+    http:
+      host: 0.0.0.0
+    database:
+      host: postgres.dev.internal
+      port: 5432
