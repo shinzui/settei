@@ -84,7 +84,7 @@ data FileBinding = FileBinding
 --
 -- The constructor is private. 'fileBindings' rejects invalid or reserved names,
 -- duplicates, and target keys whose tree positions overlap.
-newtype FileBindings = FileBindings [FileBinding]
+newtype FileBindings = ValidatedFileBindings [FileBinding]
   deriving stock (Eq)
 
 -- | Stable classes of mounted-directory and binding failure.
@@ -151,11 +151,11 @@ fileBindings :: [FileBinding] -> Either (NonEmpty KubernetesSourceError) FileBin
 fileBindings values =
   case NonEmpty.nonEmpty (bindingErrors values) of
     Just errors -> Left errors
-    Nothing -> Right (FileBindings values)
+    Nothing -> Right (ValidatedFileBindings values)
 
 -- | Inspect validated bindings without exposing the collection constructor.
 fileBindingsList :: FileBindings -> [FileBinding]
-fileBindingsList (FileBindings values) = values
+fileBindingsList (ValidatedFileBindings values) = values
 
 -- | Start options for one asserted Kubernetes object and stable source name.
 mountedDirectoryOptions :: Text -> KubernetesRef -> MountedDirectoryOptions
@@ -219,7 +219,7 @@ readMountedDirectorySource ::
   FileBindings ->
   FilePath ->
   IO (Either (NonEmpty KubernetesSourceError) Source)
-readMountedDirectorySource options (FileBindings bindingsValue) directory = do
+readMountedDirectorySource options (ValidatedFileBindings bindingsValue) directory = do
   isDirectory <- Directory.doesDirectoryExist directory
   if not isDirectory
     then pure (Left (NonEmpty.singleton (notDirectoryError options directory)))
@@ -237,7 +237,7 @@ readMountedDirectorySource options (FileBindings bindingsValue) directory = do
 -- traversed. Directory-listing 'IOException's propagate. This helper is intended for a
 -- deliberate startup diagnostic rather than source construction.
 unboundMountedFiles :: FileBindings -> FilePath -> IO [Text]
-unboundMountedFiles (FileBindings bindingsValue) directory = do
+unboundMountedFiles (ValidatedFileBindings bindingsValue) directory = do
   entries <- fmap Text.pack <$> Directory.listDirectory directory
   let boundNames = Map.fromList [(bindingValue ^. #fileName, ()) | bindingValue <- bindingsValue]
   pure

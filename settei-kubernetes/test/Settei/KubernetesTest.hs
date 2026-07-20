@@ -124,8 +124,9 @@ missingAndErrorTests =
           kubernetesErrorCategory problem @?= KubernetesInvalidUtf8
           kubernetesErrorPath problem @?= Just (root </> "password")
           kubernetesErrorMessage problem @?= "file content is not valid UTF-8"
-          let rendered = renderKubernetesErrorText problem
-          assertBool "rendered error exposed hexadecimal content" (not ("ff" `Text.isInfixOf` Text.toLower rendered)),
+          let safeMessage = Text.toLower (kubernetesErrorMessage problem)
+          assertBool "error message exposed hexadecimal content" (not ("ff" `Text.isInfixOf` safeMessage))
+          assertBool "error message exposed decimal content" (not ("255" `Text.isInfixOf` safeMessage)),
       testCase "a regular file cannot be used as the mount directory" $
         withSystemTempDirectory "settei-kubernetes" $ \root -> do
           let regularFile = root </> "mount"
