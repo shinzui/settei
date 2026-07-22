@@ -1,6 +1,6 @@
 # Compatibility matrix
 
-This matrix records the workspace actually validated for Settei 0.1.0.0 on 2026-07-20.
+This matrix records the workspace actually validated for Settei 0.2.0.0 on 2026-07-20.
 Dependency bounds describe the intended solver range; they do not claim that every point
 in a range has been tested.
 
@@ -71,7 +71,7 @@ The supported adoption surface is:
   `Settei.Kubernetes.Bindings`.
 
 Modules beneath `Settei.Internal` and all packages beneath `examples/` are not public API.
-Version 0.1.0.0 is experimental and does not promise semantic stability beyond these
+Version 0.2.0.0 is experimental and does not promise semantic stability beyond these
 documented modules and their release notes.
 
 ### Versioning policy

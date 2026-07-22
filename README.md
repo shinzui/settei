@@ -9,7 +9,7 @@ to “where did this value come from?”
 
 ## Release status
 
-Settei 0.1.0.0 is implementation-complete and prepared for its initial release. The eight
+Settei 0.2.0.0 is the current released package family. The eight
 publishable packages have aligned version, license, changelog, dependency-bound, and
 `tested-with` metadata. The
 [original build MasterPlan](docs/masterplans/1-build-settei-as-a-provenance-aware-configuration-library-for-haskell.md)
@@ -37,11 +37,11 @@ The Kubernetes initiative added a mounted ConfigMap/Secret directory adapter, de
 environment bindings, namespace-specific runnable manifests and cookbook, and end-to-end
 reference-service integration without adding cluster access to application processes.
 
-The release has **not** been tagged, signed, or uploaded to Hackage. Those manual actions,
-including a public-registry installation smoke test, require separate authorization and
-remain tracked in the [release checklist](docs/release-checklist.md). Version 0.1.0.0 is
-experimental; consult the [compatibility matrix](docs/compatibility.md) for the validated
-platform, dependency bounds, and public adoption surface.
+The annotated `v0.2.0.0` tag and all eight public packages are available from Hackage.
+The [release checklist](docs/release-checklist.md) remains the historical record of the
+initial release preparation. Version 0.2.0.0 is experimental; consult the
+[compatibility matrix](docs/compatibility.md) for the validated platform, dependency
+bounds, and public adoption surface.
 
 
 ## Package map
