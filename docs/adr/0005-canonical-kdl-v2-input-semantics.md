@@ -1,3 +1,16 @@
+---
+type: Architecture Decision Record
+title: Adopt a canonical span-preserving KDL v2 mapping
+description: Adopt a canonical, span-preserving mapping from KDL v2 into Settei's core raw value tree.
+timestamp: 2026-07-19T00:00:00Z
+docId: ADR-5
+status: Accepted
+date: 2026-07-17
+generated:
+  by: human:nadeem
+  at: 2026-07-19T00:00:00Z
+---
+
 # ADR 0005: Adopt a canonical span-preserving KDL v2 mapping
 
 Status: Accepted

@@ -1,3 +1,16 @@
+---
+type: Architecture Decision Record
+title: Validate environment bindings at construction
+description: Validate environment bindings once at construction through an opaque Bindings collection.
+timestamp: 2026-07-20T00:00:00Z
+docId: ADR-10
+status: Accepted
+date: 2026-07-19
+generated:
+  by: human:nadeem
+  at: 2026-07-20T00:00:00Z
+---
+
 # ADR 0010: Validate environment bindings at construction
 
 Status: Accepted

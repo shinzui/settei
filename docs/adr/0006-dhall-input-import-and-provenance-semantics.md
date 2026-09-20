@@ -1,3 +1,16 @@
+---
+type: Architecture Decision Record
+title: Bound Dhall evaluation to observable import policies
+description: Bound Dhall evaluation to explicit, observable local-import capability policies.
+timestamp: 2026-07-18T00:00:00Z
+docId: ADR-6
+status: Accepted
+date: 2026-07-18
+generated:
+  by: human:nadeem
+  at: 2026-07-18T00:00:00Z
+---
+
 # ADR 0006: Bound Dhall evaluation to observable import policies
 
 Status: Accepted

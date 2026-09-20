@@ -1,3 +1,16 @@
+---
+type: Architecture Decision Record
+title: Adopt the Haskell project conventions
+description: Adopt a shared repository-wide Haskell convention baseline drawn from the shinzui/haskell-jitsurei corpus.
+timestamp: 2026-07-19T00:00:00Z
+docId: ADR-1
+status: Accepted
+date: 2026-07-16
+generated:
+  by: human:nadeem
+  at: 2026-07-19T00:00:00Z
+---
+
 # ADR 0001: Adopt the Haskell project conventions
 
 Status: Accepted

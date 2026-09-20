@@ -1,3 +1,16 @@
+---
+type: Architecture Decision Record
+title: Isolate multi-format loading in an umbrella package
+description: Isolate shared multi-format input parsing and dispatch in the settei-formats umbrella package.
+timestamp: 2026-07-19T00:00:00Z
+docId: ADR-8
+status: Accepted
+date: 2026-07-19
+generated:
+  by: human:nadeem
+  at: 2026-07-19T00:00:00Z
+---
+
 # ADR 0008: Isolate multi-format loading in an umbrella package
 
 Status: Accepted

@@ -1,3 +1,16 @@
+---
+type: Architecture Decision Record
+title: Map Kubernetes mounted directories through explicit file bindings
+description: Map Kubernetes mounted directories to Settei keys through explicit validated file bindings.
+timestamp: 2026-07-20T00:00:00Z
+docId: ADR-11
+status: Accepted
+date: 2026-07-19
+generated:
+  by: human:nadeem
+  at: 2026-07-20T00:00:00Z
+---
+
 # ADR 0011: Map Kubernetes mounted directories through explicit file bindings
 
 Status: Accepted

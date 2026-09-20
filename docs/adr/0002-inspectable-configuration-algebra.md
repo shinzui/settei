@@ -1,3 +1,16 @@
+---
+type: Architecture Decision Record
+title: Use an explicit inspectable selective configuration algebra
+description: Represent configuration declarations as a private inspectable GADT-based selective algebra.
+timestamp: 2026-07-17T00:00:00Z
+docId: ADR-2
+status: Accepted
+date: 2026-07-17
+generated:
+  by: human:nadeem
+  at: 2026-07-17T00:00:00Z
+---
+
 # ADR 0002: Use an explicit inspectable selective configuration algebra
 
 Status: Accepted

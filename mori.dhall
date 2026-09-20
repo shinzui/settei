@@ -139,4 +139,13 @@ in  Schema.Project::{
           ]
         }
       ]
+    , okfBundles =
+      [ Schema.OkfBundle::{
+        , name = "adrs"
+        , path = "docs/adr"
+        , profile = Some "docs/adr/profile.dhall"
+        , okfVersion = "0.2"
+        , description = Some "Durable architecture decisions"
+        }
+      ]
     }

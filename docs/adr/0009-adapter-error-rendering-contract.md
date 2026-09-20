@@ -1,3 +1,16 @@
+---
+type: Architecture Decision Record
+title: Give every source adapter an operator-readable error renderer
+description: Give every source adapter a shared operator-readable error rendering contract.
+timestamp: 2026-07-19T00:00:00Z
+docId: ADR-9
+status: Accepted
+date: 2026-07-19
+generated:
+  by: human:nadeem
+  at: 2026-07-19T00:00:00Z
+---
+
 # ADR 0009: Give every source adapter an operator-readable error renderer
 
 Status: Accepted

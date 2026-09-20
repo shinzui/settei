@@ -1,3 +1,16 @@
+---
+type: Architecture Decision Record
+title: Use internal reference applications as the public-API conformance boundary
+description: Use three internal reference applications as the conformance boundary that proves the public API composes.
+timestamp: 2026-07-20T00:00:00Z
+docId: ADR-7
+status: Accepted
+date: 2026-07-18
+generated:
+  by: human:nadeem
+  at: 2026-07-20T00:00:00Z
+---
+
 # ADR 0007: Use internal reference applications as the public-API conformance boundary
 
 Status: Accepted

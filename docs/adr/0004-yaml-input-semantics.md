@@ -1,3 +1,16 @@
+---
+type: Architecture Decision Record
+title: Parse a strict marked-event YAML subset
+description: Parse YAML through libyaml's strict marked-event stream, rejecting duplicate keys and preserving honest source locations.
+timestamp: 2026-07-19T00:00:00Z
+docId: ADR-4
+status: Accepted
+date: 2026-07-17
+generated:
+  by: human:nadeem
+  at: 2026-07-19T00:00:00Z
+---
+
 # ADR 0004: Parse a strict marked-event YAML subset
 
 Status: Accepted
