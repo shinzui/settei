@@ -148,9 +148,11 @@
       packages.settei-optparse-applicative = setteiOptparseApplicativePackage;
       packages.settei-yaml = setteiYamlPackage;
 
-      # Keep both profile-governed documentation bundles strictly validated and
-      # verify that their Markdown link graphs remain readable. `okf` is not in
-      # nixpkgs, so this system hook uses the copy already available on PATH.
+      # Keep every profile-governed documentation bundle validated and verify that
+      # its Markdown link graph remains readable. ADRs and guides are human-authored
+      # and use strict recommendations; the machine-authored capability catalog does
+      # not claim the profile's recommended review provenance. `okf` is not in nixpkgs,
+      # so this system hook uses the copy already available on PATH.
       pre-commit.settings.hooks.okf-documentation-check = {
         enable = true;
         name = "okf-documentation-check";
@@ -161,10 +163,12 @@
           okf graph docs/adr --json >/dev/null
           okf validate docs/guides --strict --profile mori/user-documentation-profile.dhall --profile-enforce --log-enforce
           okf graph docs/guides --json >/dev/null
+          okf validate docs/capabilities --profile docs/capabilities/profile.dhall --profile-enforce --log-enforce
+          okf graph docs/capabilities --json >/dev/null
         ''}";
         language = "system";
         pass_filenames = false;
-        files = "^(docs/(adr|guides)/|mori/user-documentation-profile\\.dhall$|mori\\.dhall$)";
+        files = "^(docs/(adr|capabilities|guides)/|mori/user-documentation-profile\\.dhall$|mori\\.dhall$)";
       };
     };
 }

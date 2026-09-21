@@ -154,5 +154,13 @@ in  Schema.Project::{
         , okfVersion = "0.2"
         , description = Some "Reader-facing product guides"
         }
+      , Schema.OkfBundle::{
+        , name = "capabilities"
+        , path = "docs/capabilities"
+        , profile = Some "docs/capabilities/profile.dhall"
+        , okfVersion = "0.2"
+        , description = Some
+            "What Settei provides today, one concept per capability, with evidence"
+        }
       ]
     }
