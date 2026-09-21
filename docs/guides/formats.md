@@ -1,3 +1,14 @@
+---
+type: Guide
+title: Tagged multi-format configuration
+description: Accept explicitly tagged YAML, KDL, and Dhall configuration inputs through one ordered loader.
+docId: DOC-5
+tags: [settei, formats, configuration]
+generated:
+  by: human:nadeem
+  at: 2026-07-19T20:15:39Z
+---
+
 # Tagged multi-format configuration
 
 Use `settei-formats` when an application accepts YAML, KDL, and Dhall files through one

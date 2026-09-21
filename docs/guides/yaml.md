@@ -1,3 +1,14 @@
+---
+type: Guide
+title: YAML configuration
+description: Load strict YAML configuration with precise locations and resolve it with Settei.
+docId: DOC-10
+tags: [settei, yaml, configuration]
+generated:
+  by: human:nadeem
+  at: 2026-07-19T20:34:48Z
+---
+
 # YAML configuration
 
 Use `settei-yaml` to load a YAML mapping as a provenance-aware `Source`. YAML supplies

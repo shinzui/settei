@@ -147,5 +147,24 @@
       packages.settei-kubernetes = setteiKubernetesPackage;
       packages.settei-optparse-applicative = setteiOptparseApplicativePackage;
       packages.settei-yaml = setteiYamlPackage;
+
+      # Keep both profile-governed documentation bundles strictly validated and
+      # verify that their Markdown link graphs remain readable. `okf` is not in
+      # nixpkgs, so this system hook uses the copy already available on PATH.
+      pre-commit.settings.hooks.okf-documentation-check = {
+        enable = true;
+        name = "okf-documentation-check";
+        description = "Validate and graph the repository's profiled OKF documentation.";
+        entry = "${pkgs.writeShellScript "okf-documentation-check" ''
+          set -eu
+          okf validate docs/adr --strict --profile docs/adr/profile.dhall --profile-enforce --log-enforce
+          okf graph docs/adr --json >/dev/null
+          okf validate docs/guides --strict --profile mori/user-documentation-profile.dhall --profile-enforce --log-enforce
+          okf graph docs/guides --json >/dev/null
+        ''}";
+        language = "system";
+        pass_filenames = false;
+        files = "^(docs/(adr|guides)/|mori/user-documentation-profile\\.dhall$|mori\\.dhall$)";
+      };
     };
 }

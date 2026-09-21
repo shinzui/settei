@@ -1,3 +1,14 @@
+---
+type: Guide
+title: Building a CLI application
+description: Build a CLI application that layers files, environment variables, overrides, and safe diagnostics with Settei.
+docId: DOC-2
+tags: [settei, cli, configuration]
+generated:
+  by: human:nadeem
+  at: 2026-07-19T23:44:23Z
+---
+
 # Building a CLI application
 
 This guide assembles a command-line application with built-in values, explicit config

@@ -1,3 +1,14 @@
+---
+type: Guide
+title: Deploying one image across Kubernetes namespaces
+description: Deploy one unchanged service image across Kubernetes namespaces with explicit configuration and rollout diagnostics.
+docId: DOC-8
+tags: [settei, kubernetes, deployment]
+generated:
+  by: human:nadeem
+  at: 2026-07-20T03:57:17Z
+---
+
 # Deploying one image across Kubernetes namespaces
 
 This cookbook is the deployment half of the

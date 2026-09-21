@@ -1,3 +1,14 @@
+---
+type: Tutorial
+title: Getting started with Settei
+description: Build and resolve a typed Settei configuration while preserving provenance and diagnostics.
+docId: DOC-6
+tags: [settei, getting-started, configuration]
+generated:
+  by: human:nadeem
+  at: 2026-07-19T23:44:23Z
+---
+
 # Getting started with Settei
 
 This guide builds a small typed configuration from declaration through resolution. By the

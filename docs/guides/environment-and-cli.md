@@ -1,3 +1,14 @@
+---
+type: Guide
+title: Environment and command-line configuration
+description: Bind environment variables and command-line overrides explicitly, then render Settei diagnostics safely.
+docId: DOC-4
+tags: [settei, environment, cli]
+generated:
+  by: human:nadeem
+  at: 2026-07-19T23:44:23Z
+---
+
 # Environment and command-line configuration
 
 Use `settei-env` to map selected environment variables to Settei keys and

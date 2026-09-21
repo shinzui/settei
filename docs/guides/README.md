@@ -1,3 +1,14 @@
+---
+type: Navigation
+title: Settei guides
+description: Navigate Settei guides for core declarations, supported inputs, and CLI and Kubernetes applications.
+docId: DOC-1
+tags: [settei, guides, navigation]
+generated:
+  by: human:nadeem
+  at: 2026-07-20T02:57:29Z
+---
+
 # Settei guides
 
 These guides show how to add Settei to a Haskell application, declare typed settings,

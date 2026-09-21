@@ -1,3 +1,14 @@
+---
+type: Guide
+title: Building a Kubernetes service
+description: Build a Kubernetes service that resolves mounted files and environment variables through Settei.
+docId: DOC-9
+tags: [settei, kubernetes, configuration]
+generated:
+  by: human:nadeem
+  at: 2026-07-20T03:57:17Z
+---
+
 # Building a Kubernetes service
 
 This is the application-code half of running Settei on Kubernetes. It configures a

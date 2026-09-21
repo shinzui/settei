@@ -1,3 +1,14 @@
+---
+type: Guide
+title: KDL configuration
+description: Load canonical KDL v2 configuration with precise source spans and resolve it with Settei.
+docId: DOC-7
+tags: [settei, kdl, configuration]
+generated:
+  by: human:nadeem
+  at: 2026-07-19T20:34:48Z
+---
+
 # KDL configuration
 
 Use `settei-kdl` to load a KDL v2 document as a provenance-aware `Source`. The adapter

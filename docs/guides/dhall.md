@@ -1,3 +1,14 @@
+---
+type: Guide
+title: Dhall configuration
+description: Load typed Dhall configuration through explicit import policies and resolve it with Settei.
+docId: DOC-3
+tags: [settei, dhall, configuration]
+generated:
+  by: human:nadeem
+  at: 2026-07-19T20:34:48Z
+---
+
 # Dhall configuration
 
 Use `settei-dhall` to evaluate a typed Dhall expression into a provenance-aware `Source`.

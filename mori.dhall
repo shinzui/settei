@@ -147,5 +147,12 @@ in  Schema.Project::{
         , okfVersion = "0.2"
         , description = Some "Durable architecture decisions"
         }
+      , Schema.OkfBundle::{
+        , name = "guides"
+        , path = "docs/guides"
+        , profile = Some "mori/user-documentation-profile.dhall"
+        , okfVersion = "0.2"
+        , description = Some "Reader-facing product guides"
+        }
       ]
     }
