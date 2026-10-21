@@ -46,6 +46,7 @@ tests =
           ["--deployment-contract", "--deployment-contract-json"],
       testCase "environment bindings validate at construction" $
         length (bindingsList environmentBindings) @?= 5,
+      suppliedEnvironmentTests,
       testCase "cli overrides environment overrides ordered files" $ do
         fixture <- Paths.getDataFileName "test/fixtures/application.yaml"
         options <- expectOptions ["--config", "yaml:" <> fixture, "--set", "service.timeout=9000", "--set", "service.timeout=9001", "--check-config"]
@@ -77,6 +78,8 @@ tests =
             let (helpText, _) = Options.renderFailure failure "settei-example-cli"
             assertBool "Configuration group missing" ("Configuration\n" `isInfixOf` helpText)
             assertBool "Diagnostics group missing" ("Diagnostics\n" `isInfixOf` helpText)
+            let configurationHelp = takeWhile (/= "Diagnostics") (lines helpText)
+            assertBool "supplied-env missing from Configuration group" ("--supplied-env NAME" `isInfixOf` unlines configurationHelp)
           _ -> fail "expected --help to return a rendered help failure",
       testCase "source and resolution failures use distinct exit codes" $ do
         missing <- expectOptions ["--config", "yaml:/definitely/missing.yaml", "--check-config"]
@@ -127,6 +130,108 @@ tests =
             let (_, exit) = Options.renderFailure failure "settei-example-cli"
             exit @?= ExitFailure usageExitCode
           _ -> fail "expected unknown format to fail"
+    ]
+
+suppliedEnvironmentTests :: TestTree
+suppliedEnvironmentTests =
+  testGroup
+    "supplied environment names"
+    [ testCase "accepted environment names validate at construction" $
+        length (acceptedNamesList acceptedEnvironmentNames) @?= 6,
+      testCase "absent bound variables use built-in defaults" $ do
+        options <- expectOptions ["--supplied-env", "HASKELL_ENV", "--supplied-env", "SERVICE_ENDPOINT", "--check-config"]
+        let snapshot = envSnapshot [("HASKELL_ENV", "production"), ("SERVICE_ENDPOINT", "https://environment.example")]
+        result <- runCliWithSnapshot snapshot options
+        cliExitCode result @?= 0
+        cliStandardOutput result @?= "configuration valid\n"
+        resolved <- resolveCliOptions snapshot options >>= expectResolution
+        config <- expectAnswer resolved
+        config ^. #timeout @?= 30
+        config ^. #outputFormat @?= TextOutput
+        mapM_
+          ( \key -> case resolved ^. #report . #nodes . at (validKey key) of
+              Just node -> do
+                fmap (^. #kind) (node ^. #origin) @?= Just BuiltInSource
+                fmap (^. #name) (node ^. #origin) @?= Just "CLI built-in defaults"
+              Nothing -> fail "expected defaulted report node"
+          )
+          ["service.timeout", "output.format"],
+      testCase "typo is rejected only when explicitly supplied" $ do
+        let snapshot = envSnapshot [("ENVIRONMENT", "production")]
+        permissive <- expectOptions ["--check-config"] >>= runCliWithSnapshot snapshot
+        cliExitCode permissive @?= 0
+        options <- expectOptions ["--supplied-env", "ENVIRONMENT", "--check-config"]
+        result <- runCliWithSnapshot snapshot options
+        cliExitCode result @?= sourceExitCode
+        cliStandardOutput result @?= ""
+        cliStandardError result @?= "supplied environment variable ENVIRONMENT: no binding or allowance accepts it\n",
+      testCase "allowance and bound name ignore inherited process names" $ do
+        options <- expectOptions ["--supplied-env", "HTTPS_PROXY", "--supplied-env", "HASKELL_ENV", "--check-config"]
+        result <- runCliWithSnapshot (envSnapshot [("HTTPS_PROXY", "https://proxy.example"), ("HASKELL_ENV", "production"), ("PATH", "bin"), ("HOME", "home")]) options
+        cliExitCode result @?= 0
+        cliStandardOutput result @?= "configuration valid\n",
+      testCase "rejects duplicate declarations" $ do
+        options <- expectOptions ["--supplied-env", "HASKELL_ENV", "--supplied-env", "HASKELL_ENV", "--check-config"]
+        result <- runCliWithSnapshot (envSnapshot []) options
+        cliExitCode result @?= sourceExitCode
+        cliStandardError result @?= "supplied environment variable HASKELL_ENV: supplied more than once\n",
+      testCase "name validation precedes file loading" $ do
+        options <- expectOptions ["--config", "yaml:/definitely/missing.yaml", "--supplied-env", "BOGUS", "--check-config"]
+        result <- runCliWithSnapshot (envSnapshot []) options
+        cliExitCode result @?= sourceExitCode
+        cliStandardError result @?= "supplied environment variable BOGUS: no binding or allowance accepts it\n",
+      testCase "schema and contract diagnostics precede name validation" $
+        mapM_
+          ( \flag -> do
+              options <- expectOptions ["--config", "yaml:/definitely/missing.yaml", "--supplied-env", "BOGUS", flag]
+              result <- runCliWithEnvironment (ioError (userError "unexpected environment read")) options
+              cliExitCode result @?= 0
+          )
+          ["--describe-config", "--describe-config-json", "--deployment-contract", "--deployment-contract-json"],
+      testCase "failure modes contain names only and JSON follows text" $
+        mapM_
+          ( \flag -> do
+              options <- expectOptions ["--supplied-env", "SERVICE_TOKEN", "--supplied-env", "BOGUS_SECRET", flag]
+              let unknownSentinel = "unknown-cli-value-sentinel"
+              result <- runCliWithSnapshot (envSnapshot [("SERVICE_TOKEN", secretSentinel), ("BOGUS_SECRET", unknownSentinel)]) options
+              cliExitCode result @?= sourceExitCode
+              cliStandardOutput result @?= ""
+              let expectedText = "supplied environment variable BOGUS_SECRET: no binding or allowance accepts it\n"
+                  expectedJson = "{\"schemaVersion\":1,\"type\":\"settei.supplied-names\",\"errors\":[{\"kind\":\"unsupported-supplied-name\",\"name\":\"BOGUS_SECRET\"}]}\n"
+              cliStandardError result @?= expectedText <> (if flag == "--explain-config-json" then expectedJson else "")
+              sequence_ [assertBool "sentinel leaked" (not (sentinel `Text.isInfixOf` output)) | output <- [Text.pack (show result), cliStandardOutput result, cliStandardError result], sentinel <- [secretSentinel, unknownSentinel]]
+          )
+          ["--check-config", "--explain-config", "--explain-config-json"],
+      testCase "ordinary unsupported name has exact JSON and text explain output" $
+        mapM_
+          ( \flag -> do
+              options <- expectOptions ["--supplied-env", "ENVIRONMENT", flag]
+              result <- runCliWithSnapshot (envSnapshot [("ENVIRONMENT", "production")]) options
+              cliExitCode result @?= sourceExitCode
+              cliStandardOutput result @?= ""
+              cliStandardError result
+                @?= "supplied environment variable ENVIRONMENT: no binding or allowance accepts it\n"
+                  <> (if flag == "--explain-config-json" then "{\"schemaVersion\":1,\"type\":\"settei.supplied-names\",\"errors\":[{\"kind\":\"unsupported-supplied-name\",\"name\":\"ENVIRONMENT\"}]}\n" else "")
+          )
+          ["--explain-config", "--explain-config-json"],
+      testCase "successful supplied-name check still redacts secret JSON" $ do
+        options <- expectOptions ["--supplied-env", "SERVICE_TOKEN", "--explain-config-json"]
+        result <- runCliWithSnapshot secretSnapshot options
+        cliExitCode result @?= 0
+        assertBool "secret leaked after successful name check" (not (secretSentinel `Text.isInfixOf` (cliStandardOutput result <> cliStandardError result))),
+      testCase "hostile supplied name cannot forge text lines or JSON documents" $
+        mapM_
+          ( \flag -> do
+              options <- expectOptions ["--supplied-env", "BAD\"\\\n\SOHNAME", flag]
+              result <- runCliWithSnapshot (envSnapshot []) options
+              cliExitCode result @?= sourceExitCode
+              cliStandardOutput result @?= ""
+              let expectedText = "supplied environment variable \"BAD\\\"\\\\\\n\\u0001NAME\": no binding or allowance accepts it"
+                  expectedJson = "{\"schemaVersion\":1,\"type\":\"settei.supplied-names\",\"errors\":[{\"kind\":\"unsupported-supplied-name\",\"name\":\"BAD\\\"\\\\\\n\\u0001NAME\"}]}"
+              Text.lines (cliStandardError result) @?= [expectedText] <> [expectedJson | flag == "--explain-config-json"]
+              cliStandardError result @?= Text.unlines ([expectedText] <> [expectedJson | flag == "--explain-config-json"])
+          )
+          ["--check-config", "--explain-config", "--explain-config-json"]
     ]
 
 environmentSnapshot :: EnvSnapshot

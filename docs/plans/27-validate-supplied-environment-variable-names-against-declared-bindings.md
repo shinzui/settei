@@ -107,12 +107,12 @@ shell variables such as `PATH` are never part of the checked collection.
       Completed 2026-10-21: `nix develop -c cabal test settei-env-tests --test-show-details=direct` passes (42 tests)
       with the new "supplied name validation" group, including the notification-hub-shaped
       `ENVIRONMENT`/`HASKELL_ENV` fixture and the sentinel scan.
-- [ ] Milestone 2 — Reference CLI application integration (AC-2, AC-3, AC-4 at the
+- [x] Milestone 2 — Reference CLI application integration (AC-2, AC-3, AC-4 at the
       application boundary): `settei-example-cli` accepts repeated `--supplied-env NAME`,
       declares one allowance, rejects unsupported supplied names with exit code 3 before
       loading any file, and keeps every existing test green;
       `nix develop -c cabal test settei-example-cli-tests --test-show-details=direct`
-      passes with the new cases.
+      passes with the new cases (24 tests, completed 2026-10-21).
 - [ ] Milestone 3 — Documentation and collateral (AC-5): the environment guide shows a
       deployment author checking exactly the variables a container specification supplies
       and explains that a missing variable is not an error; CAP-5, ADR-10, ADR-9, the

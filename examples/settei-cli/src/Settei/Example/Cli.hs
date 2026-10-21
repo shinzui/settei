@@ -10,6 +10,7 @@ module Settei.Example.Cli
     DiagnosticMode (..),
     OutputFormat (..),
     RuntimeEnvironment (..),
+    acceptedEnvironmentNames,
     cliConfig,
     cliExitCode,
     cliOptionsParser,
@@ -67,6 +68,7 @@ data CliConfig = CliConfig
 data CliOptions = CliOptions
   { configInputs :: ![ConfigInput],
     overrides :: ![CliOverride],
+    suppliedEnvironment :: ![EnvName],
     diagnosticMode :: !DiagnosticMode
   }
   deriving stock (Generic, Eq)
@@ -118,7 +120,19 @@ cliOptionsParser =
   CliOptions
     <$> Options.parserOptionGroup "Configuration" configInputOptions
     <*> Options.parserOptionGroup "Configuration" overrideOptions
+    <*> Options.parserOptionGroup "Configuration" suppliedEnvironmentOptions
     <*> Options.parserOptionGroup "Diagnostics" diagnosticModeOptions
+
+suppliedEnvironmentOptions :: Parser [EnvName]
+suppliedEnvironmentOptions =
+  Options.many
+    ( Options.option
+        (EnvName . Text.pack <$> Options.str)
+        ( Options.long "supplied-env"
+            <> Options.metavar "NAME"
+            <> Options.help "Declare an environment variable the deployment supplies; unsupported names are rejected"
+        )
+    )
 
 -- | Inspectable declaration shared by the executable and tests.
 cliConfig :: Config CliConfig
@@ -150,6 +164,15 @@ environmentBindings =
         ]
     )
 
+-- | Static bound names plus a representative HTTP-client proxy allowance.
+-- The example itself does not open a network connection.
+acceptedEnvironmentNames :: AcceptedNames
+acceptedEnvironmentNames =
+  either
+    (error . Text.unpack . renderEnvErrorsText)
+    id
+    (acceptedNames environmentBindings [allowance "http-client" (EnvName "HTTPS_PROXY")])
+
 -- | Load, resolve, and render one capturable run against an injected snapshot.
 runCliWithSnapshot :: EnvSnapshot -> CliOptions -> IO CliRun
 runCliWithSnapshot snapshot options =
@@ -160,19 +183,30 @@ runCliWithSnapshot snapshot options =
       (deploymentContract (ContractInputs (inputBindings environmentBindings) [builtInSource] Nothing) cliConfig) of
       Just (Left problems) -> pure (failedRun resolutionExitCode (renderErrorsText problems))
       Just (Right output) -> pure (successfulRun output "")
-      Nothing -> do
-        resolved <- resolveCliOptions snapshot options
-        pure $ case resolved of
-          Left (InputFailure message) -> failedRun sourceExitCode message
-          Right result -> case result ^. #answer of
-            Left problems ->
-              failedRun
-                resolutionExitCode
-                (renderErrorsText problems <> failureReport options result)
-            Right config ->
-              successfulRun
-                (maybe (renderSuccess config) id (resolutionDiagnostic (options ^. #diagnosticMode) result))
-                (renderWarningsText (result ^. #warnings))
+      Nothing -> case checkSuppliedNames acceptedEnvironmentNames (options ^. #suppliedEnvironment) of
+        Left problems ->
+          pure
+            ( failedRun
+                sourceExitCode
+                ( renderSuppliedNameErrorsText problems
+                    <> case options ^. #diagnosticMode of
+                      ExplainJson -> renderSuppliedNameErrorsJson problems <> "\n"
+                      _ -> ""
+                )
+            )
+        Right () -> do
+          resolved <- resolveCliOptions snapshot options
+          pure $ case resolved of
+            Left (InputFailure message) -> failedRun sourceExitCode message
+            Right result -> case result ^. #answer of
+              Left problems ->
+                failedRun
+                  resolutionExitCode
+                  (renderErrorsText problems <> failureReport options result)
+              Right config ->
+                successfulRun
+                  (maybe (renderSuccess config) id (resolutionDiagnostic (options ^. #diagnosticMode) result))
+                  (renderWarningsText (result ^. #warnings))
 
 -- | Resolve ordered built-ins, files, environment, and command-line sources.
 resolveCliOptions :: EnvSnapshot -> CliOptions -> IO (Either CliFailure (ResolveResult CliConfig))
