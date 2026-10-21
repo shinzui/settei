@@ -12,10 +12,12 @@ import System.IO qualified as IO
 main :: IO ()
 main = do
   options <- Options.execParser serviceParserInfo
-  environment <- Environment.getEnvironment
   result <-
-    runServiceWithSnapshot
-      (envSnapshot (fmap (\(name, value) -> (Text.pack name, Text.pack value)) environment))
+    runServiceWithEnvironment
+      ( do
+          environment <- Environment.getEnvironment
+          pure (envSnapshot (fmap (\(name, value) -> (Text.pack name, Text.pack value)) environment))
+      )
       options
   TextIO.putStr (serviceStandardOutput result)
   TextIO.hPutStr IO.stderr (serviceStandardError result)

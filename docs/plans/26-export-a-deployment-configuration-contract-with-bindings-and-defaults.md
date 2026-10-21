@@ -106,11 +106,11 @@ demonstrates the feature (see docs/adr/0007-reference-applications-are-the-publi
       bindings; `Settei.Optparse` adds the `--deployment-contract` and
       `--deployment-contract-json` modes and `contractDiagnostic`; the settei-env and
       settei-optparse-applicative suites pass with the new cases. Verified 2026-10-21: 21 environment and 11 optparse tests pass, including metadata precedence and lazy diagnostics.
-- [ ] Milestone 3 — Existing reference applications and conformance (AC-4, AC-5 at the
+- [x] Milestone 3 — Existing reference applications and conformance (AC-4, AC-5 at the
       application boundary): the reference CLI and Kubernetes-shaped service answer the
       new modes before opening any file or reading any environment value; the conformance
       suite scans a contract built through public modules for a secret sentinel; the
-      three example suites pass.
+      three example suites pass. Verified 2026-10-21: CLI 13, service 20, and conformance 14 tests pass; failing environment-reader actions stay uncalled in static modes and actual executable smoke exports succeed.
 - [ ] Milestone 4 — Notification-hub-shaped reference application (AC-4 instrumentation,
       AC-6 workflow): the new `examples/settei-deployment` package with server and worker
       executables, a built-in defaults source, `ENVIRONMENT`/`DATABASE_URL` bindings, a

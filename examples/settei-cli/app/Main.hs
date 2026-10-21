@@ -12,8 +12,13 @@ import System.IO qualified as IO
 main :: IO ()
 main = do
   options <- Options.execParser cliParserInfo
-  environment <- Environment.getEnvironment
-  result <- runCliWithSnapshot (envSnapshot (fmap (\(name, value) -> (Text.pack name, Text.pack value)) environment)) options
+  result <-
+    runCliWithEnvironment
+      ( do
+          environment <- Environment.getEnvironment
+          pure (envSnapshot (fmap (\(name, value) -> (Text.pack name, Text.pack value)) environment))
+      )
+      options
   TextIO.putStr (cliStandardOutput result)
   TextIO.hPutStr IO.stderr (cliStandardError result)
   exitWith (if cliExitCode result == 0 then ExitSuccess else ExitFailure (cliExitCode result))

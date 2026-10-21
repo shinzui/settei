@@ -28,7 +28,8 @@ tests :: TestTree
 tests =
   testGroup
     "Settei"
-    [ testGroup
+    [ deploymentContractTests,
+      testGroup
         "Conformance"
         [ testCase "YAML KDL and Dhall produce equal typed values" $ do
             sources <- loadFixtureSources
@@ -567,3 +568,29 @@ regionDisabledKey = validKey "region.disabled"
 
 secretSentinel :: Text
 secretSentinel = "never-render-this-conformance-secret"
+
+-- Public composition must retain redaction even when schema declarations conflict.
+deploymentContractTests :: TestTree
+deploymentContractTests =
+  testGroup
+    "Deployment contract"
+    [ testCase "public contract helpers redact source, constant, and conflicting defaults" $ do
+        let secret = secretSetting (validKey "contract.secret") "secret" textDecoder
+            mixedPublic = publicShowSetting (validKey "contract.mixed") "mixed" textDecoder
+            mixedSecret = secretSetting (validKey "contract.mixed") "mixed" textDecoder
+            declaration =
+              (,,)
+                <$> required secret
+                <*> withDefault mixedPublic (constantDefault (RuleName "mixed-contract") "mixed" secretSentinel)
+                <*> ((,) <$> optional mixedSecret <*> withDefault secret (constantDefault (RuleName "secret-contract") "secret" secretSentinel))
+            defaults = either (error . show) id (sourceFromPairs "defaults" BuiltInSource [(validKey "contract.secret", RawText secretSentinel)])
+            bound = either (error . show) id (Env.bindings [Env.binding (Env.EnvName "CONTRACT_SECRET") (validKey "contract.secret")])
+            contract = either (error . show) id (deploymentContract (ContractInputs (Env.inputBindings bound) [defaults] Nothing) declaration)
+            outputs =
+              [renderContractText contract, renderContractJson contract]
+                <> [ output
+                   | mode <- [SetteiOptparse.DeploymentContractText, SetteiOptparse.DeploymentContractJson],
+                     Just (Right output) <- [SetteiOptparse.contractDiagnostic mode (Right contract)]
+                   ]
+        mapM_ (\output -> assertBool "contract leaked secret" (not (secretSentinel `Text.isInfixOf` output))) outputs
+    ]

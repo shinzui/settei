@@ -1,5 +1,6 @@
 module Settei.Example.CliTest (tests) where
 
+import Control.Exception (IOException, try)
 import Data.Generics.Labels ()
 import Data.List (isInfixOf)
 import Data.Text qualified as Text
@@ -17,7 +18,33 @@ tests :: TestTree
 tests =
   testGroup
     "Settei.Example.Cli"
-    [ testCase "environment bindings validate at construction" $
+    [ testCase "all static modes skip the executable environment reader and file reads" $ do
+        mapM_
+          ( \flag -> do
+              options <- expectOptions (["--config", "yaml:/definitely/missing.yaml"] <> [flag])
+              result <- runCliWithEnvironment (ioError (userError "environment reader invoked")) options
+              cliExitCode result @?= 0
+          )
+          ["--describe-config", "--describe-config-json", "--deployment-contract", "--deployment-contract-json"],
+      testCase "check mode invokes the executable environment reader" $ do
+        options <- expectOptions ["--check-config"]
+        result <- try (runCliWithEnvironment (ioError (userError "environment reader invoked")) options) :: IO (Either IOException CliRun)
+        case result of Left _ -> pure (); Right _ -> fail "reader was skipped",
+      testCase "contract modes ignore snapshots and name bindings and defaults" $ do
+        mapM_
+          ( \flag -> do
+              options <- expectOptions (["--config", "yaml:/definitely/missing.yaml"] <> [flag])
+              empty <- runCliWithSnapshot (envSnapshot []) options
+              secret <- runCliWithSnapshot (envSnapshot [("DATABASE_PASSWORD", "CONTRACT-SNAPSHOT-SENTINEL"), ("SERVICE_TOKEN", "CONTRACT-SNAPSHOT-SENTINEL")]) options
+              empty @?= secret
+              cliExitCode empty @?= 0
+              assertBool "sentinel leaked" (not ("CONTRACT-SNAPSHOT-SENTINEL" `Text.isInfixOf` cliStandardOutput empty))
+              mapM_
+                (\value -> assertBool (Text.unpack value) (value `Text.isInfixOf` cliStandardOutput empty))
+                ["SERVICE_ENDPOINT", "credentials.token", "SERVICE_TOKEN", "settei-example-cli"]
+          )
+          ["--deployment-contract", "--deployment-contract-json"],
+      testCase "environment bindings validate at construction" $
         length (bindingsList environmentBindings) @?= 5,
       testCase "cli overrides environment overrides ordered files" $ do
         fixture <- Paths.getDataFileName "test/fixtures/application.yaml"

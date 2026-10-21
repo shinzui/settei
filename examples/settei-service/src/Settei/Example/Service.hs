@@ -15,6 +15,7 @@ module Settei.Example.Service
     resolutionExitCode,
     resolveServiceOptions,
     resolveServiceSources,
+    runServiceWithEnvironment,
     runServiceWithSnapshot,
     safeStartupSummary,
     serviceConfig,
@@ -254,19 +255,24 @@ runServiceWithSnapshot :: EnvSnapshot -> ServiceOptions -> IO ServiceRun
 runServiceWithSnapshot snapshot options = do
   case schemaDiagnostic (options ^. #diagnosticMode) (describe serviceConfig) of
     Just output -> pure (successfulRun output "")
-    Nothing -> do
-      resolved <- resolveServiceOptions snapshot options
-      pure $ case resolved of
-        Left (InputFailure message) -> failedRun sourceExitCode message
-        Right result -> case result ^. #answer of
-          Left problems ->
-            failedRun
-              resolutionExitCode
-              (renderErrorsText problems <> failureReport options result)
-          Right config ->
-            successfulRun
-              (maybe (safeStartupSummary config) id (resolutionDiagnostic (options ^. #diagnosticMode) result))
-              (renderWarningsText (result ^. #warnings))
+    Nothing -> case contractDiagnostic
+      (options ^. #diagnosticMode)
+      (deploymentContract (ContractInputs (inputBindings environmentBindings) [] Nothing) serviceConfig) of
+      Just (Left problems) -> pure (failedRun resolutionExitCode (renderErrorsText problems))
+      Just (Right output) -> pure (successfulRun output "")
+      Nothing -> do
+        resolved <- resolveServiceOptions snapshot options
+        pure $ case resolved of
+          Left (InputFailure message) -> failedRun sourceExitCode message
+          Right result -> case result ^. #answer of
+            Left problems ->
+              failedRun
+                resolutionExitCode
+                (renderErrorsText problems <> failureReport options result)
+            Right config ->
+              successfulRun
+                (maybe (safeStartupSummary config) id (resolutionDiagnostic (options ^. #diagnosticMode) result))
+                (renderWarningsText (result ^. #warnings))
 
 -- | Resolve the parsed mounted-file option followed by the environment source.
 resolveServiceOptions :: EnvSnapshot -> ServiceOptions -> IO (Either ServiceFailure (ResolveResult ServiceConfig))
@@ -410,3 +416,15 @@ serviceTagsKey = validKey "service.tags"
 
 validKey :: Text -> Key
 validKey value = either (error . show) id (parseKey value)
+
+-- | Select static diagnostics before running the process environment reader.
+runServiceWithEnvironment :: IO EnvSnapshot -> ServiceOptions -> IO ServiceRun
+runServiceWithEnvironment readEnvironment options =
+  case options ^. #diagnosticMode of
+    DescribeConfigText -> staticRun
+    DescribeConfigJson -> staticRun
+    DeploymentContractText -> staticRun
+    DeploymentContractJson -> staticRun
+    _ -> readEnvironment >>= \snapshot -> runServiceWithSnapshot snapshot options
+  where
+    staticRun = runServiceWithSnapshot (envSnapshot []) options

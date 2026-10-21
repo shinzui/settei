@@ -1,5 +1,6 @@
 module Settei.Example.ServiceTest (tests) where
 
+import Control.Exception (IOException, try)
 import Data.Foldable (for_)
 import Data.Generics.Labels ()
 import Data.List (nub)
@@ -24,7 +25,33 @@ tests :: TestTree
 tests =
   testGroup
     "Settei.Example.Service"
-    [ testCase "environment bindings validate at construction" $
+    [ testCase "all static modes skip the executable environment reader and file reads" $ do
+        mapM_
+          ( \flag -> do
+              options <- expectOptions (["--config", "yaml:/definitely/missing.yaml", "--secrets-dir", "/definitely/missing-secret"] <> [flag])
+              result <- runServiceWithEnvironment (ioError (userError "environment reader invoked")) options
+              serviceExitCode result @?= 0
+          )
+          ["--describe-config", "--describe-config-json", "--deployment-contract", "--deployment-contract-json"],
+      testCase "check mode invokes the executable environment reader" $ do
+        options <- expectOptions ["--check-config"]
+        result <- try (runServiceWithEnvironment (ioError (userError "environment reader invoked")) options) :: IO (Either IOException ServiceRun)
+        case result of Left _ -> pure (); Right _ -> fail "reader was skipped",
+      testCase "contract modes ignore snapshots and name bindings and defaults" $ do
+        mapM_
+          ( \flag -> do
+              options <- expectOptions (["--config", "yaml:/definitely/missing.yaml", "--secrets-dir", "/definitely/missing-secret"] <> [flag])
+              empty <- runServiceWithSnapshot (envSnapshot []) options
+              secret <- runServiceWithSnapshot (envSnapshot [("DATABASE_PASSWORD", "CONTRACT-SNAPSHOT-SENTINEL"), ("SERVICE_TOKEN", "CONTRACT-SNAPSHOT-SENTINEL")]) options
+              empty @?= secret
+              serviceExitCode empty @?= 0
+              assertBool "sentinel leaked" (not ("CONTRACT-SNAPSHOT-SENTINEL" `Text.isInfixOf` serviceStandardOutput empty))
+              mapM_
+                (\value -> assertBool (Text.unpack value) (value `Text.isInfixOf` serviceStandardOutput empty))
+                ["DATABASE_PASSWORD", "http-port-by-environment", "runtime.environment", "settei-example-service-database"]
+          )
+          ["--deployment-contract", "--deployment-contract-json"],
+      testCase "environment bindings validate at construction" $
         length (bindingsList environmentBindings) @?= 8,
       testCase "development derives defaults without a password" $ do
         let result = resolveServiceSources [publicSource] (envSnapshot [("HASKELL_ENV", "development")])

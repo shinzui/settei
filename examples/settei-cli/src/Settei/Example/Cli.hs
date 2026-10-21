@@ -20,6 +20,7 @@ module Settei.Example.Cli
     configInputPath,
     environmentBindings,
     resolveCliOptions,
+    runCliWithEnvironment,
     runCliWithSnapshot,
     sourceExitCode,
     usageExitCode,
@@ -154,19 +155,24 @@ runCliWithSnapshot :: EnvSnapshot -> CliOptions -> IO CliRun
 runCliWithSnapshot snapshot options =
   case schemaDiagnostic (options ^. #diagnosticMode) (describe cliConfig) of
     Just output -> pure (successfulRun output "")
-    Nothing -> do
-      resolved <- resolveCliOptions snapshot options
-      pure $ case resolved of
-        Left (InputFailure message) -> failedRun sourceExitCode message
-        Right result -> case result ^. #answer of
-          Left problems ->
-            failedRun
-              resolutionExitCode
-              (renderErrorsText problems <> failureReport options result)
-          Right config ->
-            successfulRun
-              (maybe (renderSuccess config) id (resolutionDiagnostic (options ^. #diagnosticMode) result))
-              (renderWarningsText (result ^. #warnings))
+    Nothing -> case contractDiagnostic
+      (options ^. #diagnosticMode)
+      (deploymentContract (ContractInputs (inputBindings environmentBindings) [builtInSource] Nothing) cliConfig) of
+      Just (Left problems) -> pure (failedRun resolutionExitCode (renderErrorsText problems))
+      Just (Right output) -> pure (successfulRun output "")
+      Nothing -> do
+        resolved <- resolveCliOptions snapshot options
+        pure $ case resolved of
+          Left (InputFailure message) -> failedRun sourceExitCode message
+          Right result -> case result ^. #answer of
+            Left problems ->
+              failedRun
+                resolutionExitCode
+                (renderErrorsText problems <> failureReport options result)
+            Right config ->
+              successfulRun
+                (maybe (renderSuccess config) id (resolutionDiagnostic (options ^. #diagnosticMode) result))
+                (renderWarningsText (result ^. #warnings))
 
 -- | Resolve ordered built-ins, files, environment, and command-line sources.
 resolveCliOptions :: EnvSnapshot -> CliOptions -> IO (Either CliFailure (ResolveResult CliConfig))
@@ -286,3 +292,15 @@ serviceTokenKey = validKey "credentials.token"
 
 validKey :: Text -> Key
 validKey value = either (error . show) id (parseKey value)
+
+-- | Select static diagnostics before running the process environment reader.
+runCliWithEnvironment :: IO EnvSnapshot -> CliOptions -> IO CliRun
+runCliWithEnvironment readEnvironment options =
+  case options ^. #diagnosticMode of
+    DescribeConfigText -> staticRun
+    DescribeConfigJson -> staticRun
+    DeploymentContractText -> staticRun
+    DeploymentContractJson -> staticRun
+    _ -> readEnvironment >>= \snapshot -> runCliWithSnapshot snapshot options
+  where
+    staticRun = runCliWithSnapshot (envSnapshot []) options
