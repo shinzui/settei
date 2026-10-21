@@ -10,6 +10,18 @@ provenance:
     model: "claude-fable-5-1"
     harness: "claude-code"
     at: 2026-10-21T12:23:47Z
+  reviews:
+    - model: "gpt-6-astra"
+      harness: "codex-cli"
+      at: 2026-10-21T12:43:33Z
+      verdict: "changes-requested"
+      note: "Verified core tests (105 passing), resolver counterexamples, ADRs, and example entry points; fix cycle-validator import cycle, conditional verdict semantics, contradictory required/default fixture, environment-read boundary, and ContractInputs Eq/Show requirements."
+  revisions:
+    - model: "gpt-6-astra"
+      harness: "codex-cli"
+      at: 2026-10-21T12:47:20Z
+      mode: "update"
+      note: "Address all five review findings: occurrence-aware verdicts, acyclic shared validation, consistent runnable defaults, tested environment-reader dispatch, and safe deriving requirements; align acceptance and documentation."
 ---
 
 # Export a deployment configuration contract with bindings and defaults
@@ -113,7 +125,18 @@ demonstrates the feature (see docs/adr/0007-reference-applications-are-the-publi
 
 ## Surprises & Discoveries
 
-(None yet.)
+- Review evidence (2026-10-21): the existing core suite passes all 105 tests. Runtime
+  probes show that `optional x` composed with a conditional `required x` has merged
+  schema metadata `Required/Necessary` but can resolve without `x`; a malformed source
+  value in an unselected branch likewise does not fail resolution. External-input
+  analysis must retain the presence of each request instead of interpreting the merged
+  schema as a runtime requirement. A separate probe confirmed that a `required x`
+  request still fails when another node provides a declaration default for `x`.
+- Review evidence (2026-10-21): `Settei.Error` imports `Settei.Default`, which imports
+  `Settei.Internal.Config`; moving a validator returning `ConfigError` into the latter
+  would create an import cycle. Also, both existing example `app/Main.hs` files call
+  `getEnvironment` before their runners, and `Source` deliberately has no `Eq` or
+  `Show` instance. The work below accounts for these existing boundaries.
 
 
 ## Decision Log
@@ -183,18 +206,44 @@ demonstrates the feature (see docs/adr/0007-reference-applications-are-the-publi
   keeps the existing examples stable while they also gain the new modes.
   Date: 2026-10-21
 
-- Decision: The per-setting external-input verdict is computed by this fixed precedence:
-  an explicit deployment-profile requirement wins; then an invalid winning default-source
-  candidate makes input required; then a valid default-source candidate marks the setting
-  defaulted; then a `required` schema requirement makes input required (conditional when
-  the setting's presence is conditional); then any declaration-level default marks the
-  setting defaulted; otherwise the setting is optional. A key that is both `required`
-  somewhere and `withDefault` elsewhere is reported as required, because the required
-  request fails without a source value.
-  Rationale: This is exactly what the resolver would do at runtime, read off statically:
-  `withDefault` consults sources before its rule, a required request never consults a
-  rule, and an invalid winner is never skipped (docs/adr/0003). Fixing the order in the
-  plan removes a judgment call from the implementer and the reader.
+- Decision: Compute external-input verdicts from individual request occurrences, retaining
+  each occurrence's decoder, request kind (`required`, `optional`, or `withDefault`),
+  and presence before schema merging. An explicit profile requirement yields
+  `InputRequired ProfileRequirement`. Otherwise, when a winning source default exists,
+  any rejecting necessary occurrence yields `InputRequired InvalidSourceDefault`; if
+  only conditional occurrences reject it, yield `InputConditional InvalidSourceDefault`;
+  if all accept it, yield `InputDefaulted CoveredBySource`. Without a source candidate,
+  any necessary `required` occurrence yields `InputRequired`, otherwise any conditional
+  `required` occurrence yields `InputConditional`; use reason `NoDefault` when the key
+  has no declaration defaults and `RequiredRequest` when it does. Only if no required
+  occurrence exists may declaration defaults yield `InputDefaulted
+  (CoveredByDeclaration dependencies)`; otherwise yield `InputOptional`.
+  Rationale: Schema requirement and presence are merged independently and cannot identify
+  whether the required occurrence is necessary. Invalid candidates fail only when their
+  rejecting request is selected. A default on another occurrence never satisfies a
+  required request. This conservative analysis preserves uncertainty without evaluating
+  selectors: `conditional` means input may be needed on a selected path, and
+  declaration coverage means a fallback is declared, not that its computation or case
+  selection is proven to succeed. Dependencies, case coverage, presence, and diagnostics
+  remain part of the contract and must accompany that verdict in documentation.
+  Date: 2026-10-21
+
+- Decision: Share cycle validation through `Settei.Internal.DefaultValidation`, which
+  imports the algebra and error types; keep `Settei.Internal.Config` independent of
+  `Settei.Error`. `ContractInputs` derives only `Generic`, while safe contract output
+  types may derive `Eq` and `Show`.
+  Rationale: The validator must not create a module cycle, and raw default sources
+  contain function hooks and secret values that cannot support the output types'
+  equality and display guarantees.
+  Date: 2026-10-21
+
+- Decision: All application entry points defer their environment reader until after
+  static diagnostics have been selected. Tests exercise the same wrapper as `main`
+  with a failing environment-reader action. The runnable deployment example uses real
+  defaults; defaults containing `error` remain isolated inspection fixtures.
+  Rationale: Passing an empty snapshot proves independence from values but does not
+  prove that process environment access was skipped. The example must also resolve
+  successfully for the documented check-mode workflow.
   Date: 2026-10-21
 
 - Decision: Kubernetes mounted-file bindings (`Settei.Kubernetes.FileBindings`) are out
@@ -265,9 +314,12 @@ docs/compatibility.md. The pieces this plan builds on:
   -> Schema -> Maybe Text` (source-free) and `resolutionDiagnostic` (post-resolution).
 - examples/settei-cli/src/Settei/Example/Cli.hs and
   examples/settei-service/src/Settei/Example/Service.hs are the reference applications.
-  Both dispatch `schemaDiagnostic` before loading anything, expose a pure
-  `run…WithSnapshot` entry point for tests, and use exit code 2 for usage, 3 for source
-  loading, and 4 for resolution failures. The CLI example already has a lowest-precedence
+  Their `run…WithSnapshot` entry points dispatch `schemaDiagnostic` before loading files,
+  but return `IO` and receive snapshots already read by
+  examples/settei-cli/app/Main.hs and examples/settei-service/app/Main.hs. Those entry
+  points currently call `getEnvironment` before dispatch and must also change. The
+  examples use exit code 2 for usage, 3 for source loading, and 4 for resolution failures.
+  The CLI example already has a lowest-precedence
   `builtInSource :: Source` of defaults, which is exactly a "default source" in this
   plan's sense. The service's `environmentBindings` include a Kubernetes-derived binding
   for `DATABASE_PASSWORD`.
@@ -293,6 +345,13 @@ A **deployment profile** is application-supplied data naming settings that must 
 supplied explicitly in some deployment context (for example production) even when a
 default exists. The **verdict** for a setting is the contract's answer to "must the
 deployment supply this value?".
+
+A **request occurrence** is one syntax node requesting a setting; several nodes may
+share one key but differ in decoder, request kind, and whether they are conditional.
+The contract keeps the existing merged schema fields for compatibility and computes
+external-input requirements separately from these occurrences. A `defaulted` verdict
+with declaration coverage reports fallback availability; it is not proof that a derived
+computation will succeed or that a case without a fallback covers the eventual input.
 
 ### The originating consumer
 
@@ -343,10 +402,14 @@ Scope: the pure library surface. At the end, a Haskell caller can build a
 JSON, with tests proving the join, the default vocabulary, the verdict rule, the
 no-evaluation guarantee, redaction, and determinism.
 
-Move the default-cycle check out of the resolver so both interpreters share it: relocate
-`validateDefaultCycles` and `defaultRule` from settei/src/Settei/Resolve.hs into
-settei/src/Settei/Internal/Config.hs and export them from that private module. The
-resolver's behavior and public surface do not change.
+Move `validateDefaultCycles` and `defaultRule` from settei/src/Settei/Resolve.hs into
+the new private module settei/src/Settei/Internal/DefaultValidation.hs. That module
+imports `Settei.Internal.Config` and `Settei.Error`; both `Settei.Resolve` and
+`Settei.Contract` import the helper module. Do not add an `Error` import to
+`Internal.Config`: `Error -> Default -> Internal.Config` is already an import path.
+Register `Settei.Internal.DefaultValidation` in both library and test-suite
+`other-modules` in settei/settei.cabal. Preserve the resolver's existing cycle errors,
+traversal order, early source avoidance, and public surface.
 
 Create settei/src/Settei/Contract.hs with the types and functions listed under
 Interfaces and Dependencies. The builder `deploymentContract :: ContractInputs -> Config a
@@ -366,14 +429,26 @@ Interfaces and Dependencies. The builder `deploymentContract :: ContractInputs -
    becomes `DerivedShape` with the possible keys of its dependency declaration; a case
    default becomes `CaseShape` with its dependency keys, the number of alternatives, and
    whether a fallback exists. Never apply a derived default's function and never render a
-   case alternative. Also collect, per key, every `Setting` that requests it (the
-   decoders are needed in the next pass).
+   case alternative. Also collect request occurrences in declaration traversal order,
+   grouped by key: each retains its existentially typed `Setting`, its request kind,
+   and occurrence presence. Start with `Necessary`; `MapConfig` and both sides of
+   `ApplyConfig` inherit their parent's presence. A `SelectConfig` selector inherits
+   its parent's presence and its branch is `Conditional`. A `DefaultConfig` target
+   inherits its parent's presence, while its dependency declaration is `Conditional`
+   because an explicit target candidate skips it. Once conditional, descendants remain
+   conditional. Never recover occurrence presence from the merged schema. Keep these
+   decoder-bearing records private and discard them before returning the contract.
 4. For every schema key, look it up in each default source in order. A `Left` structural
    error becomes a `DefaultStructuralConflict` diagnostic. Present candidates form the
    winner (last) and shadowed origins (highest losing precedence first, as the resolver
-   orders them). Decode the winner with every decoder collected for that key; the first
-   rejection makes the default `InvalidDefault expected`, otherwise `ValidDefault`. The
-   decoded value is discarded. The retained display value is `reportedValue
+   orders them). Decode the winner separately for each occurrence and retain only its
+   success or safe expected-description failure alongside occurrence presence. Evaluate
+   all these results, since a later necessary rejection must outrank an earlier
+   conditional rejection. The public aggregate is `InvalidDefault expected` using the
+   first rejection in traversal order, or `ValidDefault` if none rejects. `InvalidDefault`
+   means at least one possible request rejects it; it does not imply unconditional input
+   is needed. The verdict uses the occurrence results, not this aggregate. Discard decoded
+   values. The retained display value is `reportedValue
    effectiveSensitivity rawValue`, so secret defaults are redacted before storage.
 5. Enumerate `sourceLeaves` of each default source; every leaf not beneath a declared key
    becomes an `UndeclaredDefaultLeaf` diagnostic (the resolver's unknown-key rule).
@@ -422,6 +497,21 @@ profile-required settings match the precedence rule; and `Left (DefaultCycle …
 returned for a cyclic declaration without inspecting any source (pass `source` values
 whose `locationAt` hook is `error` and assert the export does not force it, mirroring the
 resolver's existing cycle law).
+
+Add focused verdict regressions with a runtime comparison where the declaration is
+safe to evaluate. An unconditional `optional x` plus a production-only `required x`
+must preserve schema `Required/Necessary` while reporting `InputConditional NoDefault`;
+resolution in development without `x` succeeds. An unconditional `withDefault x` plus
+that same conditional required request yields `InputConditional RequiredRequest`.
+A malformed source default for a solely conditional integer request yields
+`InputConditional InvalidSourceDefault`, and resolution with its branch unselected
+succeeds. If one necessary decoder accepts a candidate and another conditional decoder
+for the same key rejects it, the verdict is still conditional. Add the converse order
+case where a conditional rejection precedes a necessary rejection: the verdict is
+required. Finally, a necessary `required x` plus a separate `withDefault x` stays
+required and fails resolution without a source candidate. Assert the verdicts in both
+text and JSON, and keep declaration-default dependencies and incomplete case coverage
+visible rather than claiming those defaults have been evaluated.
 
 ### Milestone 2 — Adapter and CLI integration
 
@@ -481,6 +571,24 @@ secret, and bound to `DATABASE_PASSWORD` with the Secret object identity; `http.
 shows the `http-port-by-environment` case default with its dependency; a snapshot
 containing the secret sentinel does not change the output.
 
+In those same library modules, export
+`runCliWithEnvironment :: IO EnvSnapshot -> CliOptions -> IO CliRun` and
+`runServiceWithEnvironment :: IO EnvSnapshot -> ServiceOptions -> IO ServiceRun`.
+Each wrapper inspects the selected mode first. For either schema mode or either
+contract mode, call the existing snapshot runner with `envSnapshot []` without running
+the supplied action. For every other mode, execute the reader once and pass its result
+to the snapshot runner. Update examples/settei-cli/app/Main.hs and
+examples/settei-service/app/Main.hs to pass an unevaluated reader action to these
+wrappers; keep `getEnvironment` and conversion to `EnvSnapshot` inside that action.
+
+Test the wrappers used by the executables, not just the snapshot runners: an injected
+`ioError (userError "environment reader invoked")` action must remain uncalled for
+all four static modes, including with nonexistent configuration paths. A normal
+`CheckConfig` invocation using that reader must fail with the injected error, proving
+the test reaches the environment boundary. Keep the existing snapshot tests for
+sentinel independence and file-loading behavior. The ordinary CLI smoke commands
+exercise the updated `main` wiring.
+
 In examples/settei-conformance/test/Settei/Example/ConformanceTest.hs add a "Deployment
 contract" group that builds a contract through the public `Settei`, `Settei.Env`, and
 `Settei.Optparse` modules from standalone fixtures (no new package dependencies): a
@@ -517,10 +625,25 @@ The library declares, with these keys, bindings, and defaults:
 | `telemetry.serviceName` | public | `OTEL_SERVICE_NAME` | derived default from `runtime.environment` |
 | `email.credentials` | secret, conditional | `EMAIL_CREDENTIALS_JSON` | none; required only when the environment is production (`whenEq`) |
 
-Every setting except the conditional one is declared `required`, exactly as
-notification-hub does, so the schema alone overstates the external inputs. The built-in
-source is `source "built-in defaults" BuiltInSource …` and is the first element of the
-resolution source list. The production profile is `deploymentProfile "production"` with
+Declare the six source-backed settings and `database.url` with `required`.
+Declare `workers.concurrency`, `workers.visibilityTimeoutSeconds`, and
+`telemetry.serviceName` only with `withDefault`; these three therefore have schema
+requirement `Optional`. Declare `email.credentials` with `required` inside the
+production-only `whenEq` branch. The source-backed subset reproduces the consumer's
+required-with-built-ins pattern; the three declaration defaults additionally exercise
+the other default kinds without adding competing required requests for their keys.
+The built-in source is `source "built-in defaults" BuiltInSource …` and is the first
+element of the resolution source list. It omits the three `withDefault` keys as well as
+`database.url` and `email.credentials`.
+
+Use an environment enum accepting `development`, `test`, and `production`. The concurrency
+case default returns respectively 2, 4, and 16, with no fallback. The visibility timeout
+constant is 180. The service-name derivation returns `notification-hub-` followed by the
+environment's textual spelling. Both dependency declarations request the same
+`runtime.environment` setting. These are total implementations for the accepted enum;
+keep `error` thunks in standalone inspection tests, never in the runnable declaration.
+
+The production profile is `deploymentProfile "production"` with
 explicit requirements for `runtime.environment` ("state the deployment's environment
 explicitly"), `server.webhookSecret` ("the development webhook secret must never reach
 production"), and `workers.deliveryEndpoint` ("the loopback endpoint is a local
@@ -539,21 +662,36 @@ the worker check rejects `workers.visibilityTimeoutSeconds` below twice
 `workers.concurrency` and rejects the development webhook default in production. Both
 checks are pure functions over the typed configuration and are exported for tests.
 
+Export `runDeploymentWithEnvironment :: Role -> IO EnvSnapshot -> DeploymentOptions ->
+IO DeploymentRun` with the same static-mode dispatch as the wrappers in Milestone 3.
+Both new `app/server/Main.hs` and `app/worker/Main.hs` pass their environment reader as
+an action; neither calls it before the wrapper. Apply the failing-reader tests to both
+roles and all four static modes, and confirm `CheckConfig` invokes the reader.
+
 Tests must include: bindings validate at construction; the contract exports with an empty
 snapshot, `--config /definitely/missing.yaml`, and no database, with exit 0, and names
-every table row above with its verdict (`DATABASE_URL` required, `ENVIRONMENT` defaulted
-by source, the webhook secret defaulted but redacted and profile-required, the endpoint
-defaulted with a visible public value, `workers.concurrency` defaulted by a case rule
-depending on `runtime.environment`, `telemetry.serviceName` deferred, `email.credentials`
-conditional); the derived default's function and the case alternatives are `error`
-thunks and the export succeeds; a snapshot with a secret sentinel in `DATABASE_URL` and
-`WEBHOOK_SECRET` leaves no sentinel in contract text, JSON, or stderr; `--check-config`
+every table row above with its verdict (`DATABASE_URL` required; `ENVIRONMENT`,
+`WEBHOOK_SECRET`, and `DELIVERY_ENDPOINT` profile-required while retaining their source
+default metadata; the webhook default redacted and endpoint default visible;
+`workers.concurrency` defaulted by a case rule depending on `runtime.environment`;
+`telemetry.serviceName` defaulted by a deferred derivation; `email.credentials`
+conditional). A separate contract built without the profile reports the three
+profile-required settings as defaulted by source. The core inspection fixtures from
+Milestone 1 prove non-evaluation using `error` thunks; the runnable example exercises
+the real computations through successful resolution. A snapshot with a secret sentinel
+in `DATABASE_URL` and `WEBHOOK_SECRET` leaves no sentinel in contract text, JSON, or stderr; `--check-config`
 with only `ENVIRONMENT=production` set exits 4 listing `database.url` and
 `email.credentials` as missing; `--check-config` for the server with a 5-character
 `WEBHOOK_SECRET` exits 4 with the length message and no value; `--check-config` for the
 worker with `WORKER_VISIBILITY_TIMEOUT_SECONDS=1` exits 4 with the capacity message; and a
-complete production snapshot passes both checks with `configuration valid`. Record the
-real contract text transcript in Validation and Acceptance once it exists.
+complete production snapshot passes both checks with `configuration valid`. For targeted
+check failures start from a complete snapshot, then replace only the named value, so
+missing credentials cannot prevent the check from running. The complete snapshot (and
+packaged YAML fixture) supplies `runtime.environment = production`, a dummy
+`database.url`, `email.credentials` as JSON text (quoted in YAML), a non-development webhook secret of
+at least 16 characters, and an explicit non-loopback delivery endpoint. Other values
+use the real defaults. Record the real contract text transcript in Validation and
+Acceptance once it exists.
 
 Register the package: add `examples/settei-deployment` and a `package
 settei-example-deployment` stanza with `tests: True` to cabal.project; add a
@@ -576,7 +714,11 @@ and profile-required overrides; write the proposed inputs; run the server and wo
 check modes; show the expected failures for incomplete inputs and the passing run. It
 then states the limits (AC-7): the contract does not validate provider credentials,
 connectivity, Kubernetes resources, cross-setting invariants, or deployment wiring; those
-remain the application's check mode and the operator's job. It ends with the
+remain the application's check mode and the operator's job. Explain that schema
+requirement and presence are merged metadata, while the external-input verdict tracks
+individual requests; a conditional rejection is not an unconditional requirement.
+Also explain that declaration coverage reports an available fallback whose dependencies,
+case coverage, and computation still need runtime validation. It ends with the
 compatibility statement: `settei.schema` and `settei.resolution` are unchanged,
 `settei.contract` reuses their field names and origin encoding, and existing consumers of
 `--describe-config-json` keep working without changes. Register the guide: add a row to
@@ -600,7 +742,8 @@ Write docs/adr/0012-deployment-contract-export-semantics.md with the profile fro
 contract is a source-free, effect-free interpreter of the private algebra; default
 sources are explicit inputs; derived and case defaults are reported, never evaluated;
 source-default candidates are decoded for validity only; sensitivity merges most
-restrictively and conflicts are diagnostics; the verdict precedence; the separate
+restrictively and conflicts are diagnostics; occurrence-based verdict precedence,
+conditional decoder failures, and the limits of declaration-default coverage; the separate
 `settei.contract` document; and the rejected alternatives (extending `settei.schema`,
 inferring defaults from `BuiltInSource` kinds, evaluating constant-only derivations,
 failing the export on any inconsistency). Append a dated amendment to
@@ -647,8 +790,9 @@ nix develop -c cabal test all --test-show-details=direct
 Milestone 1:
 
 ```bash
-# edit settei/src/Settei/Internal/Config.hs, settei/src/Settei/Resolve.hs,
-# create settei/src/Settei/Contract.hs, edit settei/src/Settei/Render.hs,
+# create settei/src/Settei/Internal/DefaultValidation.hs,
+# edit settei/src/Settei/Resolve.hs, create settei/src/Settei/Contract.hs,
+# edit settei/src/Settei/Render.hs,
 # settei/src/Settei.hs, settei/settei.cabal, settei/test/Main.hs,
 # create settei/test/Settei/ContractTest.hs and the two golden files
 nix develop -c cabal build settei
@@ -679,6 +823,8 @@ nix develop -c cabal test settei-optparse-applicative-tests --test-show-details=
 Milestone 3:
 
 ```bash
+# update the library runners and app/Main.hs in both existing applications
+nix develop -c cabal build settei-example-cli settei-example-service
 nix develop -c cabal test settei-example-cli-tests --test-show-details=direct
 nix develop -c cabal test settei-example-service-tests --test-show-details=direct
 nix develop -c cabal test settei-example-conformance-tests --test-show-details=direct
@@ -774,19 +920,28 @@ Each acceptance criterion of IR-1 maps to observable checks:
   `redacted`; `derived` with dependency keys and no value; `case` with dependency keys,
   alternative count, and fallback flag; a source default with `valid`, origin, and
   shadowed origins; a source default with `invalid` and its expected description; and the
-  deployment example's test asserts that its all-`required` declaration reports only
+  deployment example's test asserts that its required source-backed settings and three
+  `withDefault` settings report only
   `database.url` (and, conditionally, `email.credentials`) as needing input, plus the
   three profile-required keys.
-- AC-3 (requirement distinctions). The core test checks the five verdict cases named in
-  the Decision Log; the deployment example's contract shows `server.webhookSecret` as
+- AC-3 (requirement distinctions). The core test checks the basic verdict cases and
+  every occurrence-level regression in Milestone 1: mixed optional/defaulted and
+  conditional required requests; conditional-only decoder rejection; and a necessary
+  rejection after a conditional rejection. Compare the safe fixtures against resolution
+  with the branch selected and unselected, retaining the original merged schema fields.
+  The deployment example's contract shows `server.webhookSecret` as
   `required` with reason `deployment-profile` although a default exists, and
   `email.credentials` as `conditional`.
 - AC-4 (no effects, no evaluation). Core: `error` thunks inside derived and case defaults
   are never forced; a cyclic declaration returns `Left` without forcing a source's
-  location hook. Applications: every example suite exports with nonexistent `--config`
-  and `--secrets-dir` paths, an empty snapshot, and no database; the deployment example
-  additionally proves `--check-config` with the same arguments fails (so the contract
-  path demonstrably did less work than resolution).
+  location hook. Applications: the CLI and service wrappers, and both deployment roles,
+  export both contract modes with a failing injected environment reader and nonexistent
+  `--config` paths (also `--secrets-dir` for the service). Both schema modes likewise
+  skip that reader. Check mode invokes it; separate snapshot tests prove check mode
+  fails on nonexistent paths that static modes ignore. Smoke commands run the actual
+  executables wired to those wrappers. Empty and sentinel-bearing snapshots leave
+  contract output unchanged. No database is needed, and poison default computations
+  remain confined to the standalone inspection fixtures.
 - AC-5 (secret safety). Sentinels injected into a secret constant default, a secret
   source default, a mixed-sensitivity key's public default, a binding value in the
   snapshot, and a diagnostic-bearing source are absent from `show`, text, JSON, stderr,
@@ -804,9 +959,11 @@ Required gates before the plan is complete: all commands in Milestone 6 pass; th
 `okf validate` commands pass; `cabal check` in examples/settei-deployment reports no
 errors; `git status --short` is empty after the final commit.
 
-Expected shape of the deployment example's text contract (to be replaced with the real
-transcript during Milestone 4; the vocabulary, order, and redaction are the requirement,
-the exact spacing is not):
+Expected setting excerpts from the deployment example's text contract (replace with the
+complete real transcript during Milestone 4; omitted settings and condition rows must
+still appear in the full output). Vocabulary, key order, and redaction are requirements;
+exact spacing is not. Conditions must match `renderSchemaText (describe deploymentConfig)`
+in full, including the conditional dependencies of declaration defaults.
 
 ```text
 database.poolSize [required, necessary, public] Database pool size
@@ -833,7 +990,6 @@ telemetry.serviceName [optional, necessary, public] OpenTelemetry service name
 workers.concurrency [optional, necessary, public] Concurrent delivery handlers
   input: defaulted (declaration rule worker-concurrency-by-environment, case on runtime.environment, 3 alternatives, no fallback)
   bound: environment variable WORKER_CONCURRENCY
-condition 1: runtime.environment -> email.credentials
 ```
 
 Proposed, not required: a settei-kubernetes converter from `FileBindings` to
@@ -844,8 +1000,8 @@ need a scope decision before they become acceptance.
 
 ## Idempotence and Recovery
 
-Every change in this plan is additive to the working tree: new modules, new tests, new
-golden files, new documentation records, and one new example package. Re-running any
+The work adds modules, tests, goldens, documentation, and one example package, and also
+refactors the shared validator, executable dispatch, and existing collateral. Re-running any
 build or test command is safe. `okf id next` only reports the next free handle, so it may
 be re-run freely; `okf log add` appends, so run it once per entry and remove a duplicated
 entry by hand if a command is repeated. `okf index --write` regenerates generated index
@@ -856,8 +1012,8 @@ code; fix the `flake.module.nix` entry by comparing it line by line with the ser
 a milestone must be abandoned midway, commit only green states; `git stash` holds partial
 work, and the previous milestone's commit is always a clean restart point.
 
-The IR status edit is the only non-additive change; if validation then fails, restore the
-previous frontmatter from git, fix the field the validator names (`completedAt` must be
+If validation fails after the IR status edit, restore that record's previous frontmatter
+from git, fix the field the validator names (`completedAt` must be
 RFC 3339 UTC when `status: completed`), and retry.
 
 
@@ -932,8 +1088,14 @@ data ContractDiagnostic
   | UndeclaredProfileKey !Key
 ```
 
-All of these types derive `Generic`, `Eq`, and `Show`; `Show` is safe because every
-retained value is a `ReportedValue`, a `DefaultValue`, a name, a key, or an origin. No
+`ContractInputs` derives only `Generic`: its `[Source]` contains raw potentially secret
+values and function hooks, and `Source` has neither `Eq` nor `Show`. Do not add either
+instance to `Source` to satisfy an input-container derivation. The remaining types listed
+above derive `Generic`, `Eq`, and `Show`; their output values are redacted before retention
+and their metadata follows the existing safe-metadata convention. Private occurrence
+records retain decoders only during construction and have no `Eq` or `Show` instance.
+Sentinel and determinism tests inspect the resulting `DeploymentContract` and its
+renderings, never `show` or equality of `ContractInputs`. No
 lens type appears in a public signature (the compatibility policy's audit rule). The
 record fields are deliberately named `inputs` rather than `bindings`: `Settei.Contract` is
 re-exported by `Settei`, every reference application imports `Settei` and `Settei.Env`
@@ -966,8 +1128,10 @@ object has `kind` = `conflicting-sensitivity`/`default-structural-conflict`/
 `undeclared-default-leaf`/`undeclared-binding-key`/`undeclared-profile-key` and the
 fields of its payload using the existing `errorJson` spellings for origins and keys.
 
-`Settei.Internal.Config` additions (private): `validateDefaultCycles :: Config a ->
-[ConfigError]` and `defaultRule :: Default a -> RuleName`, moved from `Settei.Resolve`.
+New private module `Settei.Internal.DefaultValidation`:
+`validateDefaultCycles :: Config a -> [ConfigError]` and
+`defaultRule :: Default a -> RuleName`, moved from `Settei.Resolve`. Both the resolver
+and contract builder import it; the algebra module does not import it or `Settei.Error`.
 
 `Settei.Env` addition:
 
@@ -991,7 +1155,8 @@ module `Settei.Example.Deployment` exporting `Role (..)`, `DeploymentOptions`,
 `DeploymentRun`, `deploymentConfig :: Config DeploymentConfig`, `builtInDefaultsSource ::
 Source`, `environmentBindings :: Bindings`, `productionProfile :: DeploymentProfile`,
 `deploymentContractInputs :: ContractInputs`, `deploymentParserInfo :: Role -> ParserInfo
-DeploymentOptions`, `runDeploymentWithSnapshot`, `checkServer`, `checkWorker`, the exit
+DeploymentOptions`, `runDeploymentWithSnapshot`, `runDeploymentWithEnvironment`,
+`checkServer`, `checkWorker`, the exit
 code constants, and the run accessors; executables `settei-example-deployment-server` and
 `settei-example-deployment-worker`; test suite `settei-example-deployment-tests`.
 
@@ -1003,3 +1168,10 @@ because the originating consumer does; it deliberately does not use `settei-form
 0.19 (`parserOptionGroup`, `flag'`) and `tasty` are registered in Mori
 (`mori registry show pcapriotti/optparse-applicative --full`, `mori registry show
 UnkindPartition/tasty --full`); consult them before guessing an API.
+
+Revision note (2026-10-21): addressed all five review findings by replacing merged-schema
+verdict inference with occurrence-aware analysis and regression cases, moving shared
+cycle validation to an acyclic internal module, correcting the example's declarations
+and executable defaults, testing static dispatch before environment access, and
+restricting `Eq`/`Show` to safe types. Updated the related interfaces, acceptance,
+documentation instructions, and transcript expectations together.
