@@ -3,7 +3,8 @@ type: Improvement Request
 title: Provide a reusable deployment preflight workflow using application check mode
 description: Validate proposed container inputs with the application's own configuration checks before first deployment, with explicit handling of secrets and unresolved values.
 requestId: IR-3
-status: proposed
+status: accepted
+targetPlan: docs/plans/28-provide-a-reusable-deployment-preflight-harness-around-application-check-mode.md
 origin: mori://tan/notification-hub
 generated:
   by: process:codex
