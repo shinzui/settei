@@ -13,7 +13,11 @@ main :: IO ()
 main = do
   options <- Options.execParser (deploymentParserInfo Server)
   result <-
-    runDeploymentWithEnvironment
+    runDeploymentWithStartup
+      ( do
+          enabled <- Environment.lookupEnv "SETTEI_DEPLOYMENT_TEST_FAIL_ON_STARTUP"
+          if enabled == Just "1" then ioError (userError "deployment startup action invoked") else pure ()
+      )
       Server
       ( do
           environment <- Environment.getEnvironment

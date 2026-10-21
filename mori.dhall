@@ -137,6 +137,7 @@ in  Schema.Project::{
         , dependencies =
           [ Schema.Dependency.ByName "settei"
           , Schema.Dependency.ByName "settei-env"
+          , Schema.Dependency.ByName "settei-preflight"
           , Schema.Dependency.ByName "settei-optparse-applicative"
           , Schema.Dependency.ByName "settei-yaml"
           ]

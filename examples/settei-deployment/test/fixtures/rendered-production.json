@@ -1,0 +1,266 @@
+{
+  "apiVersion": "v1",
+  "kind": "List",
+  "items": [
+    {
+      "apiVersion": "v1",
+      "kind": "ConfigMap",
+      "metadata": {
+        "name": "settei-example-deployment"
+      },
+      "data": {
+        "ENVIRONMENT": "production",
+        "DELIVERY_ENDPOINT": "http://delivery.production.internal:8080",
+        "application.yaml": "server:\n  host: 0.0.0.0\ndatabase:\n  poolSize: 20\n"
+      }
+    },
+    {
+      "apiVersion": "v1",
+      "kind": "Secret",
+      "metadata": {
+        "name": "settei-example-deployment-secrets"
+      },
+      "stringData": {
+        "DATABASE_URL": "MANIFEST-PLACEHOLDER-NEVER-READ-DATABASE_URL",
+        "WEBHOOK_SECRET": "MANIFEST-PLACEHOLDER-NEVER-READ-WEBHOOK_SECRET",
+        "EMAIL_CREDENTIALS_JSON": "MANIFEST-PLACEHOLDER-NEVER-READ-EMAIL_CREDENTIALS_JSON"
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "settei-example-deployment-server"
+      },
+      "spec": {
+        "template": {
+          "spec": {
+            "initContainers": [
+              {
+                "name": "check-config",
+                "image": "settei-example-deployment:server",
+                "args": [
+                  "--config",
+                  "/etc/settei/application.yaml",
+                  "--check-config"
+                ],
+                "env": [
+                  {
+                    "name": "ENVIRONMENT",
+                    "valueFrom": {
+                      "configMapKeyRef": {
+                        "name": "settei-example-deployment",
+                        "key": "ENVIRONMENT"
+                      }
+                    }
+                  },
+                  {
+                    "name": "DELIVERY_ENDPOINT",
+                    "valueFrom": {
+                      "configMapKeyRef": {
+                        "name": "settei-example-deployment",
+                        "key": "DELIVERY_ENDPOINT"
+                      }
+                    }
+                  },
+                  {
+                    "name": "DATABASE_URL",
+                    "valueFrom": {
+                      "secretKeyRef": {
+                        "name": "settei-example-deployment-secrets",
+                        "key": "DATABASE_URL"
+                      }
+                    }
+                  },
+                  {
+                    "name": "WEBHOOK_SECRET",
+                    "valueFrom": {
+                      "secretKeyRef": {
+                        "name": "settei-example-deployment-secrets",
+                        "key": "WEBHOOK_SECRET"
+                      }
+                    }
+                  },
+                  {
+                    "name": "EMAIL_CREDENTIALS_JSON",
+                    "valueFrom": {
+                      "secretKeyRef": {
+                        "name": "settei-example-deployment-secrets",
+                        "key": "EMAIL_CREDENTIALS_JSON"
+                      }
+                    }
+                  },
+                  {
+                    "name": "POD_NAMESPACE",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "fieldPath": "metadata.namespace"
+                      }
+                    }
+                  },
+                  {
+                    "name": "HTTP_HOST",
+                    "value": "0.0.0.0"
+                  }
+                ],
+                "volumeMounts": [
+                  {
+                    "name": "configuration",
+                    "mountPath": "/etc/settei"
+                  }
+                ]
+              }
+            ],
+            "containers": [
+              {
+                "name": "server",
+                "image": "settei-example-deployment:server"
+              }
+            ],
+            "volumes": [
+              {
+                "name": "configuration",
+                "configMap": {
+                  "name": "settei-example-deployment",
+                  "items": [
+                    {
+                      "key": "application.yaml",
+                      "path": "application.yaml"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "apiVersion": "apps/v1",
+      "kind": "Deployment",
+      "metadata": {
+        "name": "settei-example-deployment-worker"
+      },
+      "spec": {
+        "template": {
+          "spec": {
+            "initContainers": [
+              {
+                "name": "check-config",
+                "image": "settei-example-deployment:worker",
+                "args": [
+                  "--config",
+                  "/etc/settei/application.yaml",
+                  "--check-config"
+                ],
+                "env": [
+                  {
+                    "name": "ENVIRONMENT",
+                    "valueFrom": {
+                      "configMapKeyRef": {
+                        "name": "settei-example-deployment",
+                        "key": "ENVIRONMENT"
+                      }
+                    }
+                  },
+                  {
+                    "name": "DELIVERY_ENDPOINT",
+                    "valueFrom": {
+                      "configMapKeyRef": {
+                        "name": "settei-example-deployment",
+                        "key": "DELIVERY_ENDPOINT"
+                      }
+                    }
+                  },
+                  {
+                    "name": "DATABASE_URL",
+                    "valueFrom": {
+                      "secretKeyRef": {
+                        "name": "settei-example-deployment-secrets",
+                        "key": "DATABASE_URL"
+                      }
+                    }
+                  },
+                  {
+                    "name": "WEBHOOK_SECRET",
+                    "valueFrom": {
+                      "secretKeyRef": {
+                        "name": "settei-example-deployment-secrets",
+                        "key": "WEBHOOK_SECRET"
+                      }
+                    }
+                  },
+                  {
+                    "name": "EMAIL_CREDENTIALS_JSON",
+                    "valueFrom": {
+                      "secretKeyRef": {
+                        "name": "settei-example-deployment-secrets",
+                        "key": "EMAIL_CREDENTIALS_JSON"
+                      }
+                    }
+                  },
+                  {
+                    "name": "POD_NAMESPACE",
+                    "valueFrom": {
+                      "fieldRef": {
+                        "fieldPath": "metadata.namespace"
+                      }
+                    }
+                  },
+                  {
+                    "name": "HTTP_HOST",
+                    "value": "0.0.0.0"
+                  },
+                  {
+                    "name": "WORKER_CONCURRENCY",
+                    "value": "16"
+                  },
+                  {
+                    "name": "WORKER_VISIBILITY_TIMEOUT_SECONDS",
+                    "value": "180"
+                  }
+                ],
+                "volumeMounts": [
+                  {
+                    "name": "configuration",
+                    "mountPath": "/etc/settei"
+                  },
+                  {
+                    "name": "projected-example",
+                    "mountPath": "/var/run/example"
+                  }
+                ]
+              }
+            ],
+            "containers": [
+              {
+                "name": "worker",
+                "image": "settei-example-deployment:worker"
+              }
+            ],
+            "volumes": [
+              {
+                "name": "configuration",
+                "configMap": {
+                  "name": "settei-example-deployment",
+                  "items": [
+                    {
+                      "key": "application.yaml",
+                      "path": "application.yaml"
+                    }
+                  ]
+                }
+              },
+              {
+                "name": "projected-example",
+                "projected": {
+                  "sources": []
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

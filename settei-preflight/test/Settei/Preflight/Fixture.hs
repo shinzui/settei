@@ -9,7 +9,6 @@ import System.Directory (doesFileExist, getCurrentDirectory)
 import System.Environment (getArgs, getEnvironment, lookupEnv)
 import System.Exit (ExitCode (..), exitWith)
 import System.IO (hFlush, stderr, stdout)
-import System.Process (createProcess, proc)
 
 fixtureMain :: IO ()
 fixtureMain = do
@@ -22,10 +21,6 @@ fixtureMain = do
     Just "crash" -> die 1 "unexpected failure"
     Just "unicode" -> die 4 "runtime.environment: expected one of «dev»"
     Just "sleep" -> getCurrentDirectory >>= putStrLn >> hFlush stdout >> threadDelay 30000000
-    Just "retain-pipe" -> do
-      -- The parent exits while the short-lived descendant retains both pipe FDs.
-      (_, _, _, _) <- createProcess (proc "/bin/sleep" ["2"])
-      pure ()
     Just "chunks" -> do
       putStr "SECRET-"; hFlush stdout; threadDelay 20000; putStrLn "ACROSS-CHUNKS"
     Just "server-like" ->

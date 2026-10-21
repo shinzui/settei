@@ -11,6 +11,7 @@ module Settei.Example.Deployment
     deploymentContractInputs,
     deploymentParserInfo,
     runDeploymentWithSnapshot,
+    runDeploymentWithStartup,
     runDeploymentWithEnvironment,
     checkServer,
     checkWorker,
@@ -209,27 +210,33 @@ checkWorker config =
 
 -- | Static diagnostics precede every file read and resolution.
 runDeploymentWithSnapshot :: Role -> EnvSnapshot -> DeploymentOptions -> IO DeploymentRun
-runDeploymentWithSnapshot role snapshot parsed =
+runDeploymentWithSnapshot role snapshot = runDeploymentWithStartup (pure ()) role (pure snapshot)
+
+-- | Inject resource acquisition after every diagnostic path has declined.
+runDeploymentWithStartup :: IO () -> Role -> IO EnvSnapshot -> DeploymentOptions -> IO DeploymentRun
+runDeploymentWithStartup startup role readEnvironment parsed =
   case schemaDiagnostic mode (describe deploymentConfig) of
     Just output -> pure (success output "")
     Nothing -> case contractDiagnostic mode (deploymentContract deploymentContractInputs deploymentConfig) of
       Just (Left problems) -> pure (failure resolutionExitCode (renderErrorsText problems))
       Just (Right output) -> pure (success output "")
       Nothing -> do
+        snapshot <- readEnvironment
         loaded <- traverse (Yaml.readYamlSource (Yaml.yamlSourceOptions "configuration file")) (options ^. #configPaths)
-        pure $ case traverse (either (Left . Yaml.renderYamlErrorsText) Right) loaded of
-          Left problems -> failure sourceExitCode problems
-          Right files ->
-            let result =
-                  resolve
-                    defaultResolveOptions
-                    ([builtInDefaultsSource] <> files <> [environmentSource environmentBindings snapshot] <> cliSources "arguments" (options ^. #overrides))
-                    deploymentConfig
-             in case result ^. #answer of
-                  Left problems -> failure resolutionExitCode (renderErrorsText problems <> explanation result)
-                  Right config -> case (case role of Server -> checkServer; Worker -> checkWorker) config of
-                    [] -> success (maybe ("notification delivery " <> Text.pack (show role) <> " configuration ready\n") id (resolutionDiagnostic mode result)) (renderWarningsText (result ^. #warnings))
-                    problems -> failure resolutionExitCode (Text.unlines problems)
+        let checked = case traverse (either (Left . Yaml.renderYamlErrorsText) Right) loaded of
+              Left problems -> failure sourceExitCode problems
+              Right files ->
+                let result =
+                      resolve
+                        defaultResolveOptions
+                        ([builtInDefaultsSource] <> files <> [environmentSource environmentBindings snapshot] <> cliSources "arguments" (options ^. #overrides))
+                        deploymentConfig
+                 in case result ^. #answer of
+                      Left problems -> failure resolutionExitCode (renderErrorsText problems <> explanation result)
+                      Right config -> case (case role of Server -> checkServer; Worker -> checkWorker) config of
+                        [] -> success (maybe ("notification delivery " <> Text.pack (show role) <> " configuration ready\n") id (resolutionDiagnostic mode result)) (renderWarningsText (result ^. #warnings))
+                        problems -> failure resolutionExitCode (Text.unlines problems)
+        if deploymentExitCode checked == 0 && mode == NoDiagnostic then startup >> pure checked else pure checked
   where
     options = parsed ^. #options
     mode = options ^. #diagnosticMode
@@ -242,11 +249,4 @@ runDeploymentWithSnapshot role snapshot parsed =
 
 -- | The executable's environment reader is deferred until static dispatch finishes.
 runDeploymentWithEnvironment :: Role -> IO EnvSnapshot -> DeploymentOptions -> IO DeploymentRun
-runDeploymentWithEnvironment role readEnvironment parsed = case parsed ^. #options . #diagnosticMode of
-  DescribeConfigText -> staticRun
-  DescribeConfigJson -> staticRun
-  DeploymentContractText -> staticRun
-  DeploymentContractJson -> staticRun
-  _ -> readEnvironment >>= \snapshot -> runDeploymentWithSnapshot role snapshot parsed
-  where
-    staticRun = runDeploymentWithSnapshot role (envSnapshot []) parsed
+runDeploymentWithEnvironment = runDeploymentWithStartup (pure ())

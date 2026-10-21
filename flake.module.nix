@@ -128,6 +128,7 @@
             optparse-applicative = optparseApplicativePackage;
             settei = setteiPackage;
             settei-env = setteiEnvPackage;
+            settei-preflight = setteiPreflightPackage;
             settei-optparse-applicative = setteiOptparseApplicativePackage;
             settei-yaml = setteiYamlPackage;
           }

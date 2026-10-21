@@ -1,9 +1,9 @@
 module Settei.PreflightTest (tests) where
 
-import Control.Concurrent (threadDelay)
-import Control.Exception (bracket)
+import Control.Exception (bracket, finally)
 import Control.Monad (forM_)
 import Data.Generics.Labels ()
+import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.List.NonEmpty qualified as NE
 import Data.Text qualified as T
 import Data.Text.IO qualified as TIO
@@ -14,8 +14,11 @@ import Settei.Preflight.Internal
 import Settei.Prelude hiding (simple)
 import System.Directory qualified as D
 import System.Environment qualified as Env
+import System.Exit (ExitCode (..))
 import System.FilePath ((</>))
+import System.IO qualified as IO
 import System.IO.Temp (withSystemTempDirectory)
+import System.Process qualified as Process
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit
 
@@ -175,13 +178,26 @@ tests =
               ("cleanup", defaultRunOperations & #removeInputs .~ (\_ -> pure ()), \case NotRun (CleanupFailed _) -> True; _ -> False)
             ]
         ],
-      testCase "timeout includes pipe draining after immediate child exit" $ do
+      testCase "timeout includes draining after child exit and explicitly reaps pipe retainer" $ do
         exe <- Env.getExecutablePath
-        -- A bounded descendant closes naturally; wait beyond its life to reap it via
-        -- the fixture supervisor (see retain-pipe fixture), never leave it running.
-        r <- runPreflight (defaultPreflightOptions & #timeoutSeconds .~ 1) (RoleLabel "server") (CheckCommand exe []) (fixtureInputs "retain-pipe")
-        r ^. #outcome @?= NotRun (TimedOut 1)
-        threadDelay 1100000,
+        retained <- newIORef Nothing
+        checked <- newIORef Nothing
+        let create process = do
+              (reader, writer) <- Process.createPipe
+              (mi, _, me, ph) <- Process.createProcess_ "preflight-pipe-test" (process {Process.std_out = Process.UseHandle writer})
+              writeIORef checked (Just ph)
+              (_, _, _, retainer) <- Process.createProcess_ "preflight-pipe-retainer" ((Process.proc "/bin/sleep" ["30"]) {Process.std_in = Process.NoStream, Process.std_out = Process.UseHandle writer, Process.std_err = Process.NoStream})
+              writeIORef retained (Just retainer)
+              IO.hClose writer
+              pure (mi, Just reader, me, ph)
+            reap = readIORef retained >>= mapM_ (\ph -> Process.terminateProcess ph >> Process.waitForProcess ph >> pure ())
+        report <- runPreflightWith (defaultRunOperations & #createCheckProcess .~ create) (defaultPreflightOptions & #timeoutSeconds .~ 1) (RoleLabel "server") (CheckCommand exe []) (fixtureInputs "accept") `finally` reap
+        report ^. #outcome @?= NotRun (TimedOut 1)
+        child <- readIORef checked >>= maybe (fail "child not spawned") pure
+        Process.getProcessExitCode child >>= (@?= Just ExitSuccess)
+        retainer <- readIORef retained >>= maybe (fail "retainer not spawned") pure
+        status <- Process.getProcessExitCode retainer
+        assertBool "retainer was not reaped" (status /= Nothing),
       testGroup "validation" validationTests,
       testGroup
         "report goldens"

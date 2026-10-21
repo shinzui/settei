@@ -154,12 +154,12 @@ secretValues p =
 
 -- | Match original text once; never rescan inserted markers, even for overlapping secrets.
 redact :: [(Text, Text)] -> Text -> Text
-redact secrets = go
+redact secrets = T.concat . go
   where
-    go t | T.null t = ""
+    go t | T.null t = []
     go t = case find (\(s, _) -> s `T.isPrefixOf` t) secrets of
-      Just (s, m) -> m <> go (T.drop (T.length s) t)
-      Nothing -> T.take 1 t <> go (T.drop 1 t)
+      Just (s, m) -> m : go (T.drop (T.length s) t)
+      Nothing -> T.take 1 t : go (T.drop 1 t)
 
 mapRef :: (Text -> Text) -> InputRef -> InputRef
 mapRef f = \case EnvironmentInput n -> EnvironmentInput (EnvName (f (envText n))); FileInput n -> FileInput (FileName (f (fileText n))); ExtractionNote n -> ExtractionNote n
@@ -229,14 +229,15 @@ secretCommandProblems p exe args = concatMap check (entries p)
 
 -- | Private operations make failures deterministic to test without weakening the public API.
 data RunOperations = RunOperations
-  { materializeInputs :: FilePath -> ProposedInputs -> CheckCommand -> IO (),
-    captureOutput :: IO.Handle -> IO BS.ByteString,
-    removeInputs :: FilePath -> IO ()
+  { materializeInputs :: !(FilePath -> ProposedInputs -> CheckCommand -> IO ()),
+    captureOutput :: !(IO.Handle -> IO BS.ByteString),
+    removeInputs :: !(FilePath -> IO ()),
+    createCheckProcess :: !(P.CreateProcess -> IO (Maybe IO.Handle, Maybe IO.Handle, Maybe IO.Handle, P.ProcessHandle))
   }
   deriving stock (Generic)
 
 defaultRunOperations :: RunOperations
-defaultRunOperations = RunOperations materialize (\h -> BS.hGetSome h 32768) D.removePathForcibly
+defaultRunOperations = RunOperations materialize (\h -> BS.hGetSome h 32768) D.removePathForcibly P.createProcess
 
 materialize :: FilePath -> ProposedInputs -> CheckCommand -> IO ()
 materialize root p cmd = do
@@ -322,7 +323,7 @@ execute ops opts root exe args environmentValues = do
             Just ioe -> throwIO (ioe :: IOException)
             Nothing -> throwIO e
       process = (P.proc exe (fmap T.unpack args)) {P.cwd = Just root, P.env = Just environmentValues, P.std_in = P.CreatePipe, P.std_out = P.CreatePipe, P.std_err = P.CreatePipe}
-  result <- tryIO $ P.withCreateProcess process $ \mi mo me ph -> do
+  result <- tryIO $ bracket ((ops ^. #createCheckProcess) process) P.cleanupProcess $ \(mi, mo, me, ph) -> do
     modifyIORef' spawned (const True)
     case (mi, mo, me) of
       (Just hi, Just ho, Just he) -> do

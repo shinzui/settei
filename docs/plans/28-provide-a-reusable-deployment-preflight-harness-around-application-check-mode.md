@@ -135,7 +135,7 @@ pre-provisioning half of that pair.
       `settei-preflight` executable maps verdicts to exit codes 0/1/2/3/4; the suite
       passes with the document goldens, the inline-secret and unknown-key rejections, and
       the executable transcripts.
-- [ ] Milestone 3 — Reference workflow on the notification-hub-shaped example (AC-1,
+- [x] Milestone 3 — Reference workflow on the notification-hub-shaped example (AC-1,
       AC-2, AC-5 at the application boundary; requires plan 26 through Milestone 4):
       `examples/settei-deployment` gains the rendered-manifest fixture, the
       `Settei.Example.Deployment.Preflight` extractor, the
@@ -143,7 +143,7 @@ pre-provisioning half of that pair.
       worker precedence against in-process runs, extraction with deliberate mutations,
       visible unsupported inputs, and configuration-only execution;
       `nix develop -c cabal test settei-example-deployment-tests --test-show-details=direct`
-      passes.
+      passes. Verified 2026-10-21: all 47 deployment tests pass, including both roles' in-process equivalence, three-source precedence, startup failure controls, extraction mutations, namespace and collision handling, unsupported inputs, and executable sentinel scans. The shared preflight suite also passes all 86 tests with an explicitly reaped pipe retainer.
 - [ ] Milestone 4 — Documentation and collateral (AC-2 assumptions, AC-3 reporting
       contract, AC-5 separation from readiness evidence): guide DOC-12, capability
       CAP-15, ADR-13 plus an ADR-7 amendment, cookbook cross-link, README,
@@ -156,6 +156,13 @@ pre-provisioning half of that pair.
 
 
 ## Surprises & Discoveries
+
+- Test-lifetime refinement (2026-10-21): the pipe-drain regression uses a private
+  process-creation seam and a pipe retainer owned directly by the test, rather than
+  orphaning a grandchild that portable process APIs cannot wait for. It proves the
+  checked process has exited, times out while the pipe is retained, and explicitly
+  terminates and reaps the retainer. Production uses the same create/cleanup bracket
+  as `withCreateProcess`. No process-management API is added publicly.
 
 - Implementation evidence (2026-10-21): macOS CoreFoundation synthesizes
   `__CF_USER_TEXT_ENCODING` inside the GHC fixture even with an empty spawn
@@ -681,9 +688,8 @@ all returned invalid reports for sentinels too. Cover invalid options, file/pare
 collisions, relative executable resolution, absent files/directories, materialization
 and capture failures, and cleanup failure through private injectable IO operations;
 assert no success can survive those failures. A fixture that emits a secret across
-several flushed chunks proves cross-chunk redaction. A fixture descendant that retains
-stdout after its parent exits proves reader cancellation does not deadlock (the test
-must explicitly reap its descendant); `server-like` without
+several flushed chunks proves cross-chunk redaction. A controlled subprocess retaining stdout after the checked child exits proves reader
+cancellation does not deadlock (the test must explicitly terminate and reap the retainer); `server-like` without
 `--check-config` creates the marker and `server-like` with `--check-config` does not,
 proving the instrumentation and the configuration-only path; `unicode` with the default
 inherited allowlist renders the non-ASCII message intact in the report; rendering the
