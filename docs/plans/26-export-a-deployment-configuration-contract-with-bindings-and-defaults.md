@@ -101,7 +101,7 @@ demonstrates the feature (see docs/adr/0007-reference-applications-are-the-publi
       JSON; `nix develop -c cabal test settei-tests --test-show-details=direct` passes
       with the new `Settei.ContractTest` group and goldens, including the no-evaluation,
       sentinel-redaction, and determinism cases. Verified 2026-10-21: all 121 core tests pass; existing schema goldens remain unchanged.
-- [ ] Milestone 2 — Adapter and CLI integration (AC-1 bindings join, AC-4 source-free
+- [x] Milestone 2 — Adapter and CLI integration (AC-1 bindings join, AC-4 source-free
       modes): `Settei.Env.inputBindings` converts validated `Bindings` into contract
       bindings; `Settei.Optparse` adds the `--deployment-contract` and
       `--deployment-contract-json` modes and `contractDiagnostic`; the settei-env and

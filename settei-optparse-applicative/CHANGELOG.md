@@ -1,5 +1,9 @@
 # Changelog for settei-optparse-applicative
 
+## Unreleased
+
+- Add deployment contract diagnostic flags and `contractDiagnostic`. `DiagnosticMode` gains constructors: a major PVP API change for exhaustive matches.
+
 ## 0.2.0.0 — 2026-07-19
 
 - Breaking: replace `ExplainMode` and its parsers with `DiagnosticMode`, which also

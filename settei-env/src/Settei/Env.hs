@@ -18,6 +18,7 @@ module Settei.Env
     envSource,
     environmentSource,
     fromKubernetesObject,
+    inputBindings,
     mergeBindings,
     prefixedBindings,
     readEnvSource,
@@ -313,3 +314,14 @@ insertRawValue key value = go (NonEmpty.toList (keySegments key))
     -- fold runs, no path can descend through a previously written leaf. This branch is
     -- unreachable by construction and exists only to satisfy exhaustiveness honestly.
     go _ _ = error "validated environment keys cannot overlap"
+
+-- | Inspect validated bindings without reading any environment values.
+-- Adapter-owned variable identity wins over caller annotations, as in envSource.
+inputBindings :: Bindings -> [InputBinding]
+inputBindings = fmap convert . bindingsList
+  where
+    convert bindingValue =
+      let variable = renderEnvName (bindingName bindingValue)
+       in annotateInputBinding
+            (Map.singleton "environment.variable" variable <> bindingAnnotations bindingValue)
+            (inputBinding EnvironmentVariable variable (bindingKey bindingValue))

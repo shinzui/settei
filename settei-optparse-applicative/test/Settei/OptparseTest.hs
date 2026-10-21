@@ -16,7 +16,26 @@ tests :: TestTree
 tests =
   testGroup
     "Settei.Optparse"
-    [ testCase "final repeated --set wins with shadow trace" $ do
+    [ testCase "deployment contract modes parse and reject combinations" $ do
+        mapM_
+          ( \(flag, mode) -> do
+              parsed <- expectParse diagnosticModeOptions [flag]
+              parsed @?= mode
+              mapM_
+                (\other -> assertBool "combined diagnostics parsed" (Options.getParseResult (parse diagnosticModeOptions [flag, other]) == Nothing))
+                ["--check-config", "--describe-config", "--explain-config-json", if flag == "--deployment-contract" then "--deployment-contract-json" else "--deployment-contract"]
+          )
+          [("--deployment-contract", DeploymentContractText), ("--deployment-contract-json", DeploymentContractJson)],
+      testCase "contract diagnostic is lazy for unrelated modes and preserves failures" $ do
+        mapM_
+          (\mode -> contractDiagnostic mode (error "contract forced") @?= Nothing)
+          [NoDiagnostic, CheckConfig, DescribeConfigText, DescribeConfigJson, ExplainText, ExplainJson]
+        let contract = deploymentContract emptyContractInputs (required portSetting)
+            errors = DefaultCycle (DefaultCycleProblem (RuleName "loop" :| [])) :| []
+        contractDiagnostic DeploymentContractText contract @?= Just (renderContractText <$> contract)
+        contractDiagnostic DeploymentContractJson contract @?= Just ((<> "\n") . renderContractJson <$> contract)
+        contractDiagnostic DeploymentContractText (Left errors) @?= Just (Left errors),
+      testCase "final repeated --set wins with shadow trace" $ do
         overrides <- expectParse overrideOptions ["--set", "service.port=9000", "--set", "service.port=9001"]
         environment <- environmentPort 8000
         let result =

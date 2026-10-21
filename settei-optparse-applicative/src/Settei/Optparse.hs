@@ -10,6 +10,7 @@ module Settei.Optparse
     cliOverrideSpelling,
     cliOverrideValue,
     cliSources,
+    contractDiagnostic,
     configPathOptions,
     configPathOptionsWith,
     diagnosticModeOptions,
@@ -51,6 +52,8 @@ data DiagnosticMode
   | CheckConfig
   | DescribeConfigText
   | DescribeConfigJson
+  | DeploymentContractText
+  | DeploymentContractJson
   deriving stock (Generic, Eq, Ord, Show)
 
 -- | Reusable configuration and diagnostic command-line options.
@@ -143,6 +146,8 @@ diagnosticModeOptions =
     Applicative.<|> Options.flag' CheckConfig (Options.long "check-config" <> Options.help "Validate configuration and exit")
     Applicative.<|> Options.flag' DescribeConfigText (Options.long "describe-config" <> Options.help "Print the static configuration schema")
     Applicative.<|> Options.flag' DescribeConfigJson (Options.long "describe-config-json" <> Options.help "Print the static configuration schema as JSON")
+    Applicative.<|> Options.flag' DeploymentContractText (Options.long "deployment-contract" <> Options.help "Print the deployment configuration contract")
+    Applicative.<|> Options.flag' DeploymentContractJson (Options.long "deployment-contract-json" <> Options.help "Print the deployment configuration contract as JSON")
     Applicative.<|> pure NoDiagnostic
 
 -- | Render a diagnostic that must not load configuration sources.
@@ -224,3 +229,10 @@ rawValueAt key value =
     (\segment child -> RawObject (Map.singleton segment child))
     value
     (NonEmpty.toList (keySegments key))
+
+-- | Select a static contract renderer. Other modes never force the contract.
+contractDiagnostic :: DiagnosticMode -> Either (NonEmpty ConfigError) DeploymentContract -> Maybe (Either (NonEmpty ConfigError) Text)
+contractDiagnostic mode contract = case mode of
+  DeploymentContractText -> Just (renderContractText <$> contract)
+  DeploymentContractJson -> Just ((<> "\n") . renderContractJson <$> contract)
+  _ -> Nothing

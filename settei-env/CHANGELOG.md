@@ -1,5 +1,9 @@
 # Changelog for settei-env
 
+## Unreleased
+
+- Add `inputBindings` to export validated binding metadata without reading environment values.
+
 ## 0.2.0.0 — 2026-07-19
 
 - BREAKING: environment bindings are validated once at construction. `Bindings` is an

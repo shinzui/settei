@@ -15,7 +15,21 @@ tests :: TestTree
 tests =
   testGroup
     "Settei.Env"
-    [ errorRenderingTests,
+    [ testCase "contract bindings preserve order and trusted annotations without values" $ do
+        let reference = kubernetesRef SecretObject (Just "payments") "database" (Just "password")
+            first = annotateBinding (mempty & at "environment.variable" ?~ "spoofed") (binding (EnvName "MODE") runtimeEnvironment)
+            second = fromKubernetesObject reference (binding (EnvName "PASSWORD") databasePassword)
+        validated <- either (fail . show) pure (bindings [first, second])
+        let converted = inputBindings validated
+        fmap inputBindingName converted @?= ["MODE", "PASSWORD"]
+        fmap inputBindingKey converted @?= [runtimeEnvironment, databasePassword]
+        fmap inputBindingChannel converted @?= [EnvironmentVariable, EnvironmentVariable]
+        case converted of
+          [firstConverted, secondConverted] -> do
+            inputBindingAnnotations firstConverted ^. at "environment.variable" @?= Just "MODE"
+            inputBindingAnnotations secondConverted ^. at "kubernetes.object-name" @?= Just "database"
+          _ -> fail "expected two bindings",
+      errorRenderingTests,
       bindingMergingTests,
       testCase "explicit binding records variable origin" $ do
         input <- expectSource [binding (EnvName "HASKELL_ENV") runtimeEnvironment] [("HASKELL_ENV", "Production")]
