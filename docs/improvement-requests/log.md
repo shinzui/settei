@@ -1,6 +1,7 @@
 # Bundle Update Log
 
 ## 2026-10-21
+* **Update**: IR-3 completed: plan 28 acceptance passes with 497 workspace tests and both Aeson lines.
 * **Update**: IR-3 preflight implementation and documentation prepared; completion awaits final gates.
 * **Update**: IR-3 implementation started under plan 28.
 * **Update**: IR-1 completed by docs/plans/26-export-a-deployment-configuration-contract-with-bindings-and-defaults.md.

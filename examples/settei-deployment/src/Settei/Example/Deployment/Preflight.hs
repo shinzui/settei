@@ -166,10 +166,22 @@ extractPreflightRequest opts manifest = do
       Just previous | previous /= original -> err "secret-reference name sanitization collision"
       _ -> if validName generated then Right (Map.insert generated original seen) else err "secret prefix produces an invalid environment reference"
 
+unsupportedFields :: Text -> [Text] -> A.Value -> [Text]
+unsupportedFields location allowed value = case value of
+  A.Object o -> ["unsupported fields in " <> location | any ((`notElem` allowed) . K.toText) (KM.keys o)]
+  _ -> ["unsupported input object in " <> location]
+
+referenceNotes :: Text -> [Text] -> A.Value -> [Text]
+referenceNotes location allowed value =
+  unsupportedFields location allowed value <> case at "optional" value of
+    Nothing -> []
+    Just (A.Bool _) -> []
+    _ -> ["unsupported optional reference value"]
+
 extractEnvFrom :: ExtractionOptions -> [A.Value] -> Text -> A.Value -> Extract Piece
 extractEnvFrom opts resources namespace source = do
   prefix <- optionalString "prefix" "" source
-  case (at "configMapRef" source, at "secretRef" source) of
+  result <- case (at "configMapRef" source, at "secretRef" source) of
     (Just ref, Nothing) -> do
       name <- string "name" ref
       case lookupObject resources "ConfigMap" namespace name of
@@ -187,6 +199,11 @@ extractEnvFrom opts resources namespace source = do
           let pairs = [(R.RequestEntry (prefix <> key) form, reference) | key <- names, let (form, reference) = secretReference opts name key]
           pure (fmap fst pairs, concatMap (entryNotes . fst) pairs, fmap snd pairs)
     _ -> pure ([], ["unsupported envFrom source"], [])
+  let (es, ns, rs) = result
+      extra =
+        unsupportedFields "envFrom" ["prefix", "configMapRef", "secretRef"] source
+          <> concat [referenceNotes "envFrom reference" ["name", "optional"] ref | key <- ["configMapRef", "secretRef"], Just ref <- [at key source]]
+  pure (es, ns <> extra, rs)
 
 extractEnv :: ExtractionOptions -> [A.Value] -> Text -> A.Value -> Extract Piece
 extractEnv opts resources namespace value = do
@@ -220,7 +237,14 @@ extractEnv opts resources namespace value = do
     (Nothing, Nothing) -> pure ([R.RequestEntry name (R.InlineValue "")], [], [])
     _ -> err "env entry has conflicting value forms"
   let (es, ns, rs) = result
-  pure (es, ns <> concatMap entryNotes es, rs)
+  pure
+    ( es,
+      ns
+        <> concatMap entryNotes es
+        <> unsupportedFields "env entry" ["name", "value", "valueFrom"] value
+        <> concat [referenceNotes "env key reference" ["name", "key", "optional"] ref | Just source <- [at "valueFrom" value], key <- ["configMapKeyRef", "secretKeyRef"], Just ref <- [at key source]],
+      rs
+    )
   where
     unknown name = pure ([R.RequestEntry name (R.UnresolvedEntry "unsupported valueFrom")], ["unsupported env.valueFrom input"], [])
 

@@ -295,7 +295,8 @@ extractorTests =
           request <- requestFor Server id (mutation v)
           assertBool "unsupported input silently dropped" (any (fragment `T.isInfixOf`) (request ^. #notes))
       | (label, fragment, mutation) <-
-          [ ("unknown valueFrom", "valueFrom", container Server (setEnv "POD_NAMESPACE" (change ["valueFrom"] (const (obj [("resourceFieldRef", obj [])]))))),
+          [ ("extra envFrom field", "unsupported fields", container Server (change ["envFrom"] (const (A.toJSON [obj [("configMapRef", obj [("name", A.String "settei-example-deployment")]), ("futureInput", A.String "not interpreted")]])))),
+            ("unknown valueFrom", "valueFrom", container Server (setEnv "POD_NAMESPACE" (change ["valueFrom"] (const (obj [("resourceFieldRef", obj [])]))))),
             ("command override", "command", container Server (change ["command"] (const (A.toJSON (["/entrypoint"] :: [Text]))))),
             ("argument expansion", "expansion", container Server (change ["args"] (const (A.toJSON (["--check-config", "$(VAR)"] :: [Text]))))),
             ("env expansion", "expansion", container Server (change ["env"] (\es -> A.toJSON (values es <> [literal "EXPANDED" "$(VAR)"])))),
@@ -318,8 +319,8 @@ extractorTests =
     testCase "ambiguous Deployments and duplicate checked containers fail" $ do
       v <- manifest
       exe <- roleExecutable Server
-      let deployment = head [r | r <- values (field "items" v), field "name" (field "metadata" r) == A.String "settei-example-deployment-server"]
-          other = change ["metadata", "namespace"] (const (A.String "other")) deployment
+      deployment <- maybe (fail "fixture Deployment missing") pure (find (\r -> field "name" (field "metadata" r) == A.String "settei-example-deployment-server") (values (field "items" v)))
+      let other = change ["metadata", "namespace"] (const (A.String "other")) deployment
           ambiguous = change ["items"] (A.toJSON . (<> [other]) . values) v
           duplicated = resource "settei-example-deployment-server" (change ["spec", "template", "spec", "initContainers"] (\cs -> A.toJSON (values cs <> values cs))) v
       forM_ [ambiguous, duplicated] $ \bad -> assertBool "ambiguous selection accepted" (case extractPreflightRequest (extractionOptions "settei-example-deployment-server" (P.RoleLabel "server") exe) bad of Left _ -> True; _ -> False),

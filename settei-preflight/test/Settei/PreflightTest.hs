@@ -1,7 +1,9 @@
 module Settei.PreflightTest (tests) where
 
+import Control.Concurrent (forkFinally, killThread, newEmptyMVar, putMVar, readMVar, tryPutMVar)
 import Control.Exception (bracket, finally)
 import Control.Monad (forM_)
+import Data.ByteString qualified as BS
 import Data.Generics.Labels ()
 import Data.IORef (newIORef, readIORef, writeIORef)
 import Data.List.NonEmpty qualified as NE
@@ -19,6 +21,7 @@ import System.FilePath ((</>))
 import System.IO qualified as IO
 import System.IO.Temp (withSystemTempDirectory)
 import System.Process qualified as Process
+import System.Timeout (timeout)
 import Test.Tasty (TestTree, testGroup)
 import Test.Tasty.HUnit
 
@@ -198,6 +201,42 @@ tests =
         retainer <- readIORef retained >>= maybe (fail "retainer not spawned") pure
         status <- Process.getProcessExitCode retainer
         assertBool "retainer was not reaped" (status /= Nothing),
+      testCase "asynchronous cancellation joins readers and removes private files" $ do
+        exe <- Env.getExecutablePath
+        rootReady <- newEmptyMVar
+        reading <- newEmptyMVar
+        done <- newEmptyMVar
+        let operations =
+              defaultRunOperations
+                & #materializeInputs
+                .~ (\root p cmd -> materialize root p cmd >> putMVar rootReady root)
+                & #captureOutput
+                .~ (\h -> do chunk <- BS.hGetSome h 32768; if BS.null chunk then pure () else tryPutMVar reading () >> pure (); pure chunk)
+        tid <- forkFinally (runPreflightWith operations defaultPreflightOptions (RoleLabel "server") (CheckCommand exe []) (fixtureInputs "sleep")) (putMVar done)
+        root <- readMVar rootReady
+        readMVar reading
+        killThread tid
+        completed <- timeout 5000000 (readMVar done)
+        assertBool "cancellation deadlocked" (case completed of Just (Left _) -> True; _ -> False)
+        D.doesPathExist root >>= (@?= False),
+      testCase "all retained metadata and omission reasons are redacted" $ do
+        exe <- Env.getExecutablePath
+        let secret = "META_SENTINEL"
+            inputs =
+              fixtureInputs "echo"
+                & #environment
+                %~ (<> [(EnvName "X_META_SENTINEL", SuppliedValue Secret secret), (EnvName "UNRESOLVED", UnresolvedValue ("missing " <> secret)), (EnvName "SYNTHETIC", SyntheticValue Public "dummy" ("fake " <> secret))])
+                & #files
+                .~ [ProposedFile (FileName "files/META_SENTINEL") (UnavailableSecret ("file " <> secret))]
+                & #notes
+                .~ ["unsupported " <> secret]
+        report <- runPreflight defaultPreflightOptions (RoleLabel ("role " <> secret)) (CheckCommand exe []) inputs
+        report ^. #verdict @?= Inconclusive
+        noLeak secret report,
+      testCase "problem renderers escape invalid control characters on one line" $ do
+        let problem = InvalidEnvironmentName (EnvName "BAD\nNAME\r\t\0")
+        renderPreflightProblemText problem @?= "invalid-environment-name: BAD\\nNAME\\r\\t\\0"
+        length (T.lines (renderPreflightProblemsText (problem :| []))) @?= 1,
       testGroup "validation" validationTests,
       testGroup
         "report goldens"

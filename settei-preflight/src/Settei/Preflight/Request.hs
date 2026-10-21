@@ -211,7 +211,7 @@ renderPreflightRequestJson r =
             UnavailableSecretEntry t -> [("unavailableSecret", json t)]
         )
 
-data RequestEnvironment = RequestEnvironment {lookupVariable :: EnvName -> IO (Maybe Text), readSecretFile :: FilePath -> IO (Either Text Text)} deriving stock (Generic)
+data RequestEnvironment = RequestEnvironment {lookupVariable :: !(EnvName -> IO (Maybe Text)), readSecretFile :: !(FilePath -> IO (Either Text Text))} deriving stock (Generic)
 
 data ResolvedRequest = ResolvedRequest {role :: !RoleLabel, command :: !CheckCommand, inputs :: !ProposedInputs, options :: !PreflightOptions} deriving stock (Generic, Eq)
 

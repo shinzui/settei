@@ -404,7 +404,11 @@ problemFields = \case
     named k n = (k, Just n, Nothing, Nothing); bare k = (k, Nothing, Nothing, Nothing)
 
 renderPreflightProblemText :: PreflightProblem -> Text
-renderPreflightProblemText p = let (k, n, a, r) = problemFields p in k <> maybe "" (": " <>) n <> maybe "" (\i -> " (argument " <> tshow i <> ")") a <> maybe "" (" conflicts with " <>) r
+renderPreflightProblemText p = let (k, n, a, r) = problemFields p in k <> maybe "" ((": " <>) . oneLine) n <> maybe "" (\i -> " (argument " <> tshow i <> ")") a <> maybe "" ((" conflicts with " <>) . oneLine) r
+
+-- Preserve the one-problem-per-line contract even for invalid names.
+oneLine :: Text -> Text
+oneLine = T.concatMap (\case '\n' -> "\\n"; '\r' -> "\\r"; '\t' -> "\\t"; '\0' -> "\\0"; c -> T.singleton c)
 
 renderPreflightProblemsText :: NonEmpty PreflightProblem -> Text
 renderPreflightProblemsText = T.unlines . fmap renderPreflightProblemText . NE.toList

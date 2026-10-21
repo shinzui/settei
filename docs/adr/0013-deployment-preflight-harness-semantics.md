@@ -2,7 +2,7 @@
 type: Architecture Decision Record
 title: Run deployment preflight through application-owned check commands
 description: Define controlled preflight execution, strict secret references, honest coverage verdicts, cleanup, and tooling document compatibility.
-timestamp: 2026-10-21T15:13:00Z
+timestamp: 2026-10-21T15:28:52Z
 docId: ADR-13
 status: Accepted
 date: 2026-10-21
@@ -45,7 +45,9 @@ use references to harness environment or files; inline values are public and inl
 synthetic credentials must be fake. Unknown keys, conflicting forms, and unsafe options
 fail with fixed messages and schema paths. Neither parser exceptions nor secret-file
 read errors retain upstream diagnostic text. Raw request, input, and captured-output
-types have no Show. Metadata must contain no unclassified credentials.
+types have no Show. Opaque reports expose named read accessors so adopting code
+can inspect sanitized results without importing a lens module. Metadata must contain
+no unclassified credentials.
 
 The child's environment starts empty and includes present proposed entries plus an
 explicit inherited allowlist. Defaults are PATH and three locale names; a supplied

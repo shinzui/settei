@@ -149,10 +149,10 @@ pre-provisioning half of that pair.
       CAP-15, ADR-13 plus an ADR-7 amendment, cookbook cross-link, README,
       compatibility, security, and changelog; IR-3 remains `in-progress` until final gates; every OKF
       bundle passes its repository-required profile validation. Verified 2026-10-21: ADR-13, DOC-12, and CAP-15 allocated by OKF; 13 ADRs, 12 guides, 15 capabilities, and 4 improvement requests validate with profile/log enforcement. IR-3 remains in-progress pending final gates.
-- [ ] Milestone 5 — Full validation and closure: `cabal build all`, `cabal test all`,
+- [x] Milestone 5 — Full validation and closure: `cabal build all`, `cabal test all`,
       `treefmt`, `cabal check` for the new package, and `nix flake check` pass; evidence
       recorded here; IR-3 completed and revalidated; Outcomes & Retrospective written;
-      ADR distillation done.
+      ADR distillation done. Verified 2026-10-21: all 497 workspace tests across 14 suites pass (89 preflight, 48 deployment); the isolated Aeson 2.3.2.0 run passes all 89 preflight tests with unchanged goldens. Full build, configured formatting, Cabal package check, current-system flake check, Mori inventory, four OKF validators, executable transcripts, and a lens-free public consumer pass. IR-3 is completed; ADR-13 and the ADR-7 amendment retain the durable decisions.
 
 
 ## Surprises & Discoveries
@@ -301,7 +301,7 @@ pre-provisioning half of that pair.
   echo secrets to prove it.
   Date: 2026-10-21
 
-- Decision: Execution uses `process` (`withCreateProcess` with three `CreatePipe`
+- Decision: Execution uses `process` (the create/cleanup bracket underlying `withCreateProcess`, with three `CreatePipe`
   handles in binary mode, output decoded leniently as UTF-8) under
   `System.Timeout.timeout`; scoped reader threads are cancelled and joined before
   `cleanupProcess` closes handles. A timeout requests termination and reports `not-run`
@@ -380,10 +380,39 @@ pre-provisioning half of that pair.
   Date: 2026-10-21
 
 
+- Decision: Opaque report and summary types provide named read accessors, including
+  `preflightVerdict`, `preflightExecution`, and `commandExecutable`, while their
+  constructors and record selectors remain private.
+  Rationale: Duplicate record labels stay consistent with family conventions without
+  requiring adopting code to depend on lenses. A separately compiled consumer verifies
+  this public boundary; signatures carry no lens types.
+  Date: 2026-10-21
+
+
 ## Outcomes & Retrospective
 
 
-(To be filled during and after implementation.)
+Completed 2026-10-21. The new publishable `settei-preflight` package provides a
+reusable Haskell runner, strict JSON requests, and a gate executable. The deployment
+example extracts a normalized manifest List and proves precedence, role-specific checks,
+coverage honesty, safe secret channels, and configuration-only execution in real server
+and worker processes. DOC-12, CAP-15, ADR-13, and the ADR-7 amendment document the contract;
+IR-3 AC-1 through AC-5 are verified and the request is completed.
+
+All implementation milestones and required gates pass. The final workspace has 497 tests
+in 14 suites; preflight's 89 tests also pass independently on Aeson 2.3.2.0, matching the
+workspace's Aeson 2.2.5.1 goldens. A separately compiled public consumer uses named
+accessors without lens imports and reports `(Pass,Accepted,"/usr/bin/true",Just (Just 0))`.
+The Purpose workflow reproduces exit 4 for missing email credentials and exit 1 for an
+accepted synthetic namespace.
+
+The main lessons are that process readers must finish or be cancelled and joined before
+handle cleanup, temporary deletion must be verified rather than assumed, and redaction
+must cover metadata and errors as well as complete output streams. The private raw-capture
+type has no Show. A controlled retained-pipe test explicitly reaps its retainer; macOS's
+runtime-added environment variable is distinguished from the exact native spawn contract.
+These durable constraints are distilled in ADR-13. No cluster, provider, database, live
+readiness check, consumer repository edit, or package publication is part of this work.
 
 
 ## Context and Orientation
@@ -1292,6 +1321,89 @@ builder in `mori://tan/tan-app-infrastructure`. Each needs a scope decision befo
 becoming acceptance.
 
 
+### Implementation acceptance evidence (2026-10-21)
+
+
+The final candidate passes `nix develop -c cabal build all` and
+`nix develop -c cabal test all --test-show-details=direct`: 497 tests across 14 suites,
+including 89 preflight tests and 48 deployment tests. The private cancellation and
+retained-pipe regressions join readers, verify directory removal, and explicitly reap
+the retainer. The report-metadata scan and single-line problem-renderer tests pass.
+Extra fields in otherwise supported env/envFrom inputs remain coverage limitations.
+
+The ordinary solver selects Aeson 2.2.5.1. The independent project under Concrete Steps
+selects 2.3.2.0 and passes all 89 preflight tests, including the same three byte-identical
+request/report JSON goldens and two text goldens. No other adapter bound changes. `cabal check` in the new
+package reports `No errors or warnings could be found in the package.`
+`nix fmt -- --fail-on-change --no-cache` passes using the configured wrapper (as
+established by plan 26); the unconfigured dev-shell `treefmt` command is not the
+repository's formatter entry point. `nix flake check` passes on aarch64-darwin,
+including the treefmt derivation and evaluation of both new/updated package outputs;
+package outputs are evaluated rather than built by that command. Other systems are
+not execution-validated here. `mori show --full` exposes the new package and the
+example's dependency.
+
+Strict profile/log validation passes for 13 ADRs, 12 guides, 15 capabilities, and
+4 improvement requests, with IR-3 completed. ADR distillation reviewed the Decision Log,
+Surprises & Discoveries, and Outcomes: ADR-13 and the ADR-7 amendment cover every durable
+constraint. The named-accessor public consumer compiles without lens imports and runs
+successfully. Commit hooks validate documentation and formatting.
+
+Re-running the Purpose commands with the built executables and the documented fake
+secret references produced the following reports. With email credentials absent:
+
+```text
+preflight server: fail (configuration rejected, exit 4)
+coverage: partial
+  EMAIL_CREDENTIALS_JSON: secret unavailable (harness environment variable SETTEI_PREFLIGHT_SECRET_SETTEI_EXAMPLE_DEPLOYMENT_SECRETS_EMAIL_CREDENTIALS_JSON is not set)
+  POD_NAMESPACE: synthetic stand-in (downward API fieldPath metadata.namespace)
+inputs:
+  DATABASE_URL: supplied secret
+  DELIVERY_ENDPOINT: supplied public
+  EMAIL_CREDENTIALS_JSON: unavailable secret (omitted)
+  ENVIRONMENT: supplied public
+  HTTP_HOST: supplied public
+  POD_NAMESPACE: synthetic public
+  WEBHOOK_SECRET: supplied secret
+  file etc/settei/application.yaml: supplied public
+inherited: PATH (present), LANG (present), LC_ALL (present), LC_CTYPE (present)
+command: /Users/shinzui/Keikaku/bokuno/settei/dist-newstyle/build/aarch64-osx/ghc-9.12.4/settei-example-deployment-0.2.0.0/x/settei-example-deployment-server/build/settei-example-deployment-server/settei-example-deployment-server --config {file:etc/settei/application.yaml} --check-config
+stdout:
+  (empty)
+stderr:
+  email.credentials: required value is missing
+exit 4
+```
+
+With all three secret references provisioned and the namespace still synthetic:
+
+```text
+preflight server: inconclusive (accepted with partial coverage; not a deployment validation)
+coverage: partial
+  POD_NAMESPACE: synthetic stand-in (downward API fieldPath metadata.namespace)
+inputs:
+  DATABASE_URL: supplied secret
+  DELIVERY_ENDPOINT: supplied public
+  EMAIL_CREDENTIALS_JSON: supplied secret
+  ENVIRONMENT: supplied public
+  HTTP_HOST: supplied public
+  POD_NAMESPACE: synthetic public
+  WEBHOOK_SECRET: supplied secret
+  file etc/settei/application.yaml: supplied public
+inherited: PATH (present), LANG (present), LC_ALL (present), LC_CTYPE (present)
+command: /Users/shinzui/Keikaku/bokuno/settei/dist-newstyle/build/aarch64-osx/ghc-9.12.4/settei-example-deployment-0.2.0.0/x/settei-example-deployment-server/build/settei-example-deployment-server/settei-example-deployment-server --config {file:etc/settei/application.yaml} --check-config
+stdout:
+  configuration valid
+stderr:
+  (empty)
+exit 1
+```
+
+The request artifact contains none of the provisioned credential values. Both role
+startup-boundary controls, file/environment/CLI precedence comparisons with in-process
+runs, and the application/source failure mutations pass in the deployment suite.
+
+
 ## Idempotence and Recovery
 
 
@@ -1402,7 +1514,13 @@ renderPreflightReportJson :: PreflightReport -> Text       -- settei.preflight, 
 `ProposedValue`, `ProposedFile`, `ProposedInputs`, `ArgumentPart`, `Argument`,
 `CheckCommand`, `PreflightRequest`, `RequestEntry`, `EntryForm`, and `ResolvedRequest`
 derive `Generic` and `Eq` only, never `Show`. Report constructors are private and public
-accessors expose only sanitized fields. Sanitize problems returned by `validatePreflight`
+accessors expose only sanitized fields. Read them without lenses through
+`preflightRole`, `preflightCommand`, `preflightInputs`, `preflightInherited`,
+`preflightNotes`, `preflightOutcome`, `preflightCoverage`, `preflightVerdict`, and
+`preflightExecution`; child summaries use `commandExecutable`, `commandArguments`,
+`inputReference`, `inputClassification`, `inputPassed`, `limitationInput`,
+`limitationKind`, `limitationReason`, `executionExitCode`, `executionTimedOut`,
+`executionStandardOutput`, and `executionStandardError`. Sanitize problems returned by `validatePreflight`
 as well as those embedded in reports; original raw names are never retained on errors.
 No record field is named `bindings`, because the reference applications import
 `Settei.Env` unqualified and `Settei.Env.bindings` would become ambiguous;
@@ -1524,6 +1642,6 @@ the current application/adapter sources, relevant ADRs, process cleanup source, 
 published dependency releases. Repaired incomplete-extraction verdicts, secret-bearing
 failure paths, reader and temporary-file cleanup, option/path validation, Kubernetes
 extraction precedence and collisions, role startup instrumentation, JSON compatibility,
-and milestone/build ordering. Milestones remain unimplemented; this update records plan
-readiness, not runtime acceptance. Existing ADRs retain their accepted behavior; the
-new harness decisions are to be recorded by Milestone 4 when implemented.
+and milestone/build ordering. At that pre-implementation revision, milestones remained unimplemented; the update
+recorded plan readiness rather than runtime acceptance. Existing ADRs retained their accepted behavior; Milestone 4 subsequently recorded
+the new harness decisions in ADR-13 and the ADR-7 amendment.
