@@ -119,7 +119,7 @@ shell variables such as `PATH` are never part of the checked collection.
       security and compatibility documents, the changelog, and the example README are
       updated; IR-2 is moved to `completed`; all four OKF bundle validation commands
       pass (13 ADRs, 12 guides, 15 capabilities, 4 requests; completed 2026-10-21).
-- [ ] Milestone 4 — Full validation and closure: `cabal build all`, `cabal test all`,
+- [x] Milestone 4 — Full validation and closure: `cabal build all`, `cabal test all`,
       `treefmt`, and `nix flake check` pass; evidence is recorded here; Outcomes &
       Retrospective is written; the ADR distillation pass is done.
 
@@ -134,6 +134,11 @@ baseline consequently contained 21 tests rather than the original 20.
 The bare `nix develop -c treefmt` command fails because treefmt-nix generates its
 configuration rather than checking in a treefmt.toml. Use the configured flake wrapper
 `nix fmt -- --fail-on-change --no-cache`; ordinary `nix fmt` formats successfully.
+
+The required capabilities validator (profile and log enforcement without `--strict`)
+passes. An extra `--strict` probe reports missing recommended `reviews` metadata on all
+15 existing capability records. This unrelated corpus-wide metadata work is outside
+IR-2; the plan retains its prescribed validation command.
 
 
 ## Decision Log
@@ -246,7 +251,27 @@ configuration rather than checking in a treefmt.toml. Use the configured flake w
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+Completed 2026-10-21. All five acceptance criteria are met: callers can validate an
+explicit deployment-name list with external-consumer allowances, opt into strict snapshot
+translation, and render deterministic value-free text or JSON failures. The reference CLI
+rejects unsupported and duplicate names before file loading, while omitted bindings still
+resolve through built-in defaults and existing permissive behavior stays intact. IR-2 is
+completed; no required work remains. No dependency bounds, package versions, or third-party
+pins changed; the changelog records an additive minor change for the next shared release.
+
+All 529 tests in 14 suites pass, including 42 environment tests and 24 CLI tests. The
+full build, configured formatting check, flake check on aarch64-darwin, and all four
+required OKF commands pass. The four public executable examples reproduce their expected
+output and exit codes. The existing preflight, contract, Kubernetes, and cross-format
+suites remain green.
+
+The ADR distillation pass reviewed the Decision Log and discoveries. ADR-10 now owns
+explicit scope, validated allowances, runtime errors, strict-source delegation, absence
+and duplicate-collapse semantics, and the rejected alternatives. ADR-9 owns safe text
+display, the first adapter JSON consumer, its versioned format, and private encoder
+ownership. No additional ADR is needed. The main integration lesson is that name checks
+belong after source-free discovery and before runtime file loading; they complement,
+rather than change, core requiredness and resolution.
 
 
 ## Context and Orientation
@@ -778,6 +803,36 @@ Each acceptance criterion of IR-2 maps to observable checks:
   snapshot. The companion resolution assertions prove timeout `30` and `TextOutput`
   come from `CLI built-in defaults` with `BuiltInSource` provenance, which is the
   executable form of "absence is not an error".
+
+Verified implementation evidence (2026-10-21): `nix develop -c cabal build all`
+exited 0. `nix develop -c cabal test all --test-show-details=direct` exited 0 with
+529 tests across 14 suites (environment 42, CLI 24, core 122, KDL 34, YAML 45,
+Dhall 26, Dhall prototype 7, formats 15, Kubernetes 32, optparse 11, service 20,
+conformance 14, deployment 48, preflight 89). The configured formatter command
+`nix fmt -- --fail-on-change --no-cache` exited 0 with 102 files processed and zero
+changes. `nix flake check` exited 0, including `checks.aarch64-darwin.treefmt`;
+Nix omitted incompatible systems as usual. Required OKF validation passed for
+13 ADRs, 12 guides, 15 capabilities, and 4 improvement requests.
+
+The executable runs from Concrete Steps produced these outputs in order, omitting
+Cabal/Nix build and trust-setting messages. Each displayed exit status is the actual
+process status:
+
+```text
+# ENVIRONMENT=production; --check-config
+configuration valid
+exit 0
+# ENVIRONMENT=production; --supplied-env ENVIRONMENT --check-config
+supplied environment variable ENVIRONMENT: no binding or allowance accepts it
+exit 3
+# HASKELL_ENV=production; --supplied-env HASKELL_ENV --supplied-env HTTPS_PROXY --check-config
+configuration valid
+exit 0
+# ENVIRONMENT=production; --supplied-env ENVIRONMENT --explain-config-json
+supplied environment variable ENVIRONMENT: no binding or allowance accepts it
+{"schemaVersion":1,"type":"settei.supplied-names","errors":[{"kind":"unsupported-supplied-name","name":"ENVIRONMENT"}]}
+exit 3
+```
 
 Required gates before the plan is complete: all Milestone 4 commands pass; the four
 `okf validate` commands pass; `git status --short` is empty after the final commit; the
