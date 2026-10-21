@@ -5,7 +5,7 @@ import Data.Bifunctor (first)
 import Data.Map.Strict qualified as Map
 import Data.Set qualified as Set
 import Data.Text qualified as Text
-import Settei
+import Settei hiding (RequiredRequest)
 import Settei.Internal.Config (Request (..), runConfig)
 import Settei.Prelude
 import Settei.Prototype.Free (freeNecessaryKeys, freePossibleKeys)

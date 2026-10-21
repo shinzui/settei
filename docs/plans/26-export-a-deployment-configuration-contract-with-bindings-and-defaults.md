@@ -22,6 +22,11 @@ provenance:
       at: 2026-10-21T12:47:20Z
       mode: "update"
       note: "Address all five review findings: occurrence-aware verdicts, acyclic shared validation, consistent runnable defaults, tested environment-reader dispatch, and safe deriving requirements; align acceptance and documentation."
+    - model: "gpt-6.1-sol"
+      harness: "codex-cli"
+      at: 2026-10-21T14:15:50Z
+      mode: "implement"
+      note: "Implement deployment contract API, adapters, reference applications, documentation, and acceptance gates."
 ---
 
 # Export a deployment configuration contract with bindings and defaults
@@ -89,18 +94,18 @@ demonstrates the feature (see docs/adr/0007-reference-applications-are-the-publi
 
 ## Progress
 
-- [ ] Milestone 1 — Core contract API and renderers (AC-1, AC-2, AC-3, AC-4, AC-5 at the
+- [x] Milestone 1 — Core contract API and renderers (AC-1, AC-2, AC-3, AC-4, AC-5 at the
       library boundary): `Settei.Contract` builds a `DeploymentContract` from a
       declaration, input bindings, explicit default sources, and an optional deployment
       profile; `Settei.Render` renders it as text and as versioned `settei.contract`
       JSON; `nix develop -c cabal test settei-tests --test-show-details=direct` passes
       with the new `Settei.ContractTest` group and goldens, including the no-evaluation,
-      sentinel-redaction, and determinism cases.
+      sentinel-redaction, and determinism cases. Verified 2026-10-21: all 121 core tests pass; existing schema goldens remain unchanged.
 - [ ] Milestone 2 — Adapter and CLI integration (AC-1 bindings join, AC-4 source-free
       modes): `Settei.Env.inputBindings` converts validated `Bindings` into contract
       bindings; `Settei.Optparse` adds the `--deployment-contract` and
       `--deployment-contract-json` modes and `contractDiagnostic`; the settei-env and
-      settei-optparse-applicative suites pass with the new cases.
+      settei-optparse-applicative suites pass with the new cases. Verified 2026-10-21: 21 environment and 11 optparse tests pass, including metadata precedence and lazy diagnostics.
 - [ ] Milestone 3 — Existing reference applications and conformance (AC-4, AC-5 at the
       application boundary): the reference CLI and Kubernetes-shaped service answer the
       new modes before opening any file or reading any environment value; the conformance

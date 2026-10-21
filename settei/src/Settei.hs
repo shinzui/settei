@@ -1,6 +1,7 @@
 -- | Typed, inspectable configuration declarations.
 module Settei
   ( module Settei.Config,
+    module Settei.Contract,
     module Settei.Default,
     module Settei.Error,
     module Settei.Key,
@@ -17,6 +18,7 @@ module Settei
 where
 
 import Settei.Config
+import Settei.Contract
 import Settei.Default
 import Settei.Error
 import Settei.Key

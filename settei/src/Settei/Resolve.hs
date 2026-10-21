@@ -26,6 +26,7 @@ import Settei.Internal.Config
     describeConfig,
     renderRuleName,
   )
+import Settei.Internal.DefaultValidation (defaultRule, validateDefaultCycles)
 import Settei.Internal.Schema (Schema, mergeSensitivity)
 import Settei.Key (Key, keySegments)
 import Settei.Origin (Origin (..), SourceKind (DerivedSource))
@@ -213,39 +214,6 @@ unique = foldl appendIfNew []
     appendIfNew values value
       | value `elem` values = values
       | otherwise = values <> [value]
-
-validateDefaultCycles :: Config a -> [ConfigError]
-validateDefaultCycles = go []
-  where
-    go :: [RuleName] -> Config b -> [ConfigError]
-    go active = \case
-      PureConfig _ -> []
-      MapConfig _ config -> go active config
-      ApplyConfig function inputConfig -> go active function <> go active inputConfig
-      RequestConfig _ -> []
-      DefaultConfig _ defaultSpec -> validateDefault active defaultSpec
-      SelectConfig selector branch -> go active selector <> go active branch
-
-    validateDefault :: [RuleName] -> Default b -> [ConfigError]
-    validateDefault active defaultSpec =
-      let rule = defaultRule defaultSpec
-       in if rule `elem` active
-            then [DefaultCycle (DefaultCycleProblem {rules = cycleRules rule active})]
-            else case defaultSpec of
-              ConstantDefault _ _ _ -> []
-              DerivedDefault _ _ dependency _ -> go (active <> [rule]) dependency
-              CaseDefault _ _ dependency _ _ -> go (active <> [rule]) dependency
-
-    cycleRules rule active =
-      case NonEmpty.nonEmpty (dropWhile (/= rule) active <> [rule]) of
-        Just rules -> rules
-        Nothing -> rule :| []
-
-defaultRule :: Default a -> RuleName
-defaultRule = \case
-  ConstantDefault rule _ _ -> rule
-  DerivedDefault rule _ _ _ -> rule
-  CaseDefault rule _ _ _ _ -> rule
 
 data Evaluation a = Evaluation
   { answer :: !(Either [ConfigError] a),

@@ -4,7 +4,9 @@
 -- Module: Settei.Render
 -- Description: Deterministic text and versioned JSON presentation.
 module Settei.Render
-  ( renderErrorsJson,
+  ( renderContractText,
+    renderContractJson,
+    renderErrorsJson,
     renderErrorsText,
     renderResolutionJson,
     renderResolutionText,
@@ -24,6 +26,7 @@ import Data.Maybe (fromMaybe)
 import Data.Set qualified as Set
 import Data.Text qualified as Text
 import Numeric (showHex)
+import Settei.Contract
 import Settei.Default (renderRuleName)
 import Settei.Error
 import Settei.Key (Key, renderKey)
@@ -471,3 +474,166 @@ paddedHex :: Int -> Text
 paddedHex value =
   let rendered = Text.pack (showHex value "")
    in Text.replicate (4 - Text.length rendered) "0" <> rendered
+
+-- | Render deployment inputs, defaults, and deferred dependency information.
+renderContractText :: DeploymentContract -> Text
+renderContractText contract =
+  Text.unlines
+    ( concatMap settingLines (contractSettings contract)
+        <> concatMap renderConditionText (zip [1 :: Int ..] (contractConditions contract))
+        <> fmap (("diagnostic: " <>) . contractDiagnosticText) (contractDiagnostics contract)
+    )
+  where
+    settingLines entry =
+      [ renderKey (entry ^. #key)
+          <> " ["
+          <> requirementText (entry ^. #requirement)
+          <> ", "
+          <> presenceText (entry ^. #presence)
+          <> ", "
+          <> sensitivityText (entry ^. #sensitivity)
+          <> "] "
+          <> entry ^. #description,
+        "  input: " <> inputText entry
+      ]
+        <> fmap (\value -> "  default: declaration rule " <> renderRuleName (value ^. #rule) <> ", " <> shapeText (value ^. #shape)) (entry ^. #declaredDefaults)
+        <> maybe
+          []
+          ( \value ->
+              [ "  default: "
+                  <> renderReportedValue (value ^. #value)
+                  <> " from "
+                  <> originDescription (value ^. #origin)
+                  <> case value ^. #validity of ValidDefault -> ""; InvalidDefault expected -> " (invalid; expected " <> expected <> ")"
+              ]
+                <> fmap (\origin -> "  shadowed: " <> originDescription origin) (value ^. #shadowed)
+          )
+          (entry ^. #sourceDefault)
+        <> fmap (\binding -> "  bound: " <> channelText (inputBindingChannel binding) <> " " <> inputBindingName binding <> bindingAnnotationsText binding) (entry ^. #inputs)
+    bindingAnnotationsText binding
+      | Map.null (inputBindingAnnotations binding) = ""
+      | otherwise = " [" <> Text.intercalate ", " [key <> "=" <> value | (key, value) <- Map.toAscList (inputBindingAnnotations binding)] <> "]"
+    channelText EnvironmentVariable = "environment variable"
+    channelText (CustomInput detail) = detail
+    inputText entry = case entry ^. #externalInput of
+      InputRequired reason -> "required (" <> reasonText entry reason <> ")"
+      InputConditional reason -> "conditional (" <> reasonText entry reason <> ")"
+      InputDefaulted CoveredBySource -> "defaulted (built-in source)"
+      InputDefaulted (CoveredByDeclaration dependencies) -> "defaulted (declaration fallback; dependencies: " <> commaKeys dependencies <> "; value not computed)"
+      InputOptional -> "optional"
+    reasonText entry = \case
+      NoDefault -> "no default"
+      InvalidSourceDefault -> "invalid source default"
+      RequiredRequest -> "required request despite declaration default"
+      ProfileRequirement -> "deployment profile " <> fromMaybe "" (contractProfile contract) <> ": " <> fromMaybe "" (entry ^. #deploymentRequirement)
+    shapeText = \case
+      ConstantShape (VisibleDefault value) -> "constant " <> value
+      ConstantShape RedactedDefault -> "constant <redacted>"
+      ConstantShape UnrenderableDefault -> "constant <unrenderable>"
+      DerivedShape dependencies -> "derived from " <> commaKeys dependencies <> "; value not computed"
+      CaseShape dependencies count fallback -> "case on " <> commaKeys dependencies <> ", " <> jsonInt count <> " alternatives, " <> (if fallback then "fallback" else "no fallback") <> "; value not computed"
+
+contractDiagnosticText :: ContractDiagnostic -> Text
+contractDiagnosticText = \case
+  ConflictingSensitivity key -> renderKey key <> ": declared with both public and secret sensitivity; treated as secret"
+  DefaultStructuralConflict problem -> renderErrorText (StructuralConflict problem)
+  UndeclaredDefaultLeaf problem -> renderErrorText (UnknownKeyError problem)
+  UndeclaredBindingKey binding -> inputBindingName binding <> ": binding targets undeclared key " <> renderKey (inputBindingKey binding)
+  UndeclaredProfileKey key -> renderKey key <> ": deployment profile targets undeclared key"
+
+-- | Version 1 deployment contract. Existing schema and resolution encodings are unchanged.
+renderContractJson :: DeploymentContract -> Text
+renderContractJson contract =
+  versionedJson
+    "settei.contract"
+    [ ("profile", maybe "null" jsonString (contractProfile contract)),
+      ("settings", jsonArray (fmap contractSettingJson (contractSettings contract))),
+      ("conditions", jsonArray (fmap conditionJson (contractConditions contract))),
+      ("diagnostics", jsonArray (fmap contractDiagnosticJson (contractDiagnostics contract)))
+    ]
+
+contractSettingJson :: ContractSetting -> Text
+contractSettingJson entry =
+  jsonObject
+    [ ("key", jsonString (renderKey (entry ^. #key))),
+      ("description", jsonString (entry ^. #description)),
+      ("sensitivity", jsonString (sensitivityText (entry ^. #sensitivity))),
+      ("requirement", jsonString (requirementText (entry ^. #requirement))),
+      ("presence", jsonString (presenceText (entry ^. #presence))),
+      ("bindings", jsonArray (fmap inputBindingJson (entry ^. #inputs))),
+      ("declaredDefaults", jsonArray (fmap declaredDefaultJson (entry ^. #declaredDefaults))),
+      ("sourceDefault", maybe "null" sourceDefaultJson (entry ^. #sourceDefault)),
+      ("deploymentRequirement", maybe "null" jsonString (entry ^. #deploymentRequirement)),
+      ("externalInput", externalInputJson (entry ^. #externalInput))
+    ]
+
+inputBindingJson :: InputBinding -> Text
+inputBindingJson binding =
+  jsonObject
+    [ ("channel", jsonString (case inputBindingChannel binding of EnvironmentVariable -> "environment"; CustomInput _ -> "custom")),
+      ("channelDetail", case inputBindingChannel binding of EnvironmentVariable -> "null"; CustomInput detail -> jsonString detail),
+      ("name", jsonString (inputBindingName binding)),
+      ("annotations", jsonTextMap (inputBindingAnnotations binding))
+    ]
+
+declaredDefaultJson :: DeclaredDefault -> Text
+declaredDefaultJson entry =
+  let (kind, value, availability, dependencies, alternatives, fallback) = case entry ^. #shape of
+        ConstantShape value' ->
+          let (rendered, available) = case value' of
+                VisibleDefault textValue -> (jsonString textValue, "visible")
+                RedactedDefault -> ("null", "redacted")
+                UnrenderableDefault -> ("null", "unrenderable")
+           in ("constant", rendered, jsonString available, [], "null", "null")
+        DerivedShape keys -> ("derived", "null", "null", keys, "null", "null")
+        CaseShape keys count hasFallback -> ("case", "null", "null", keys, jsonInt count, if hasFallback then "true" else "false")
+   in jsonObject
+        [ ("rule", jsonString (renderRuleName (entry ^. #rule))),
+          ("explanation", jsonString (entry ^. #explanation)),
+          ("kind", jsonString kind),
+          ("value", value),
+          ("valueAvailability", availability),
+          ("dependencies", jsonKeyArray dependencies),
+          ("alternatives", alternatives),
+          ("fallback", fallback)
+        ]
+
+sourceDefaultJson :: SourceDefault -> Text
+sourceDefaultJson value =
+  jsonObject
+    [ ("origin", originJson (value ^. #origin)),
+      ("shadowed", jsonArray (fmap originJson (value ^. #shadowed))),
+      ("value", jsonString (renderReportedValue (value ^. #value))),
+      ("validity", jsonString (case value ^. #validity of ValidDefault -> "valid"; InvalidDefault _ -> "invalid")),
+      ("expected", case value ^. #validity of ValidDefault -> "null"; InvalidDefault expected -> jsonString expected)
+    ]
+
+externalInputJson :: ExternalInput -> Text
+externalInputJson input =
+  let (verdict, reason, coverage, dependencies) = case input of
+        InputRequired why -> ("required", Just why, Nothing, [])
+        InputConditional why -> ("conditional", Just why, Nothing, [])
+        InputDefaulted CoveredBySource -> ("defaulted", Nothing, Just "source", [])
+        InputDefaulted (CoveredByDeclaration keys) -> ("defaulted", Nothing, Just "declaration", keys)
+        InputOptional -> ("optional", Nothing, Nothing, [])
+      reasonTag = \case NoDefault -> "no-default"; InvalidSourceDefault -> "invalid-source-default"; RequiredRequest -> "required-request"; ProfileRequirement -> "deployment-profile"
+   in jsonObject
+        [ ("verdict", jsonString verdict),
+          ("reason", maybe "null" (jsonString . reasonTag) reason),
+          ("coverage", maybe "null" jsonString coverage),
+          ("dependencies", jsonKeyArray dependencies)
+        ]
+
+contractDiagnosticJson :: ContractDiagnostic -> Text
+contractDiagnosticJson diagnostic = jsonObject $ case diagnostic of
+  ConflictingSensitivity key -> [("kind", jsonString "conflicting-sensitivity"), ("key", jsonString (renderKey key))]
+  DefaultStructuralConflict problem ->
+    [ ("kind", jsonString "default-structural-conflict"),
+      ("key", jsonString (renderKey (problem ^. #key))),
+      ("blockedAt", jsonString (renderKey (problem ^. #blockedAt))),
+      ("shape", jsonString (rawShapeText (problem ^. #shape))),
+      ("origin", originJson (problem ^. #origin))
+    ]
+  UndeclaredDefaultLeaf problem -> [("kind", jsonString "undeclared-default-leaf"), ("key", jsonString (renderKey (problem ^. #key))), ("origin", originJson (problem ^. #origin))]
+  UndeclaredBindingKey binding -> [("kind", jsonString "undeclared-binding-key"), ("key", jsonString (renderKey (inputBindingKey binding))), ("binding", inputBindingJson binding)]
+  UndeclaredProfileKey key -> [("kind", jsonString "undeclared-profile-key"), ("key", jsonString (renderKey key))]
