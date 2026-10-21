@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Add supplied-name validation against bindings and external-consumer allowances,
+  opt-in checked snapshot source builders, and safe text and versioned JSON diagnostics
+  (additive minor PVP change).
 - Add `inputBindings` to export validated binding metadata without reading environment values.
 
 ## 0.2.0.0 — 2026-07-19

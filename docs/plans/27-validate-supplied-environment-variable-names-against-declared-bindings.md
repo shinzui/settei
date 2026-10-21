@@ -21,6 +21,11 @@ provenance:
       at: 2026-10-21T13:19:51Z
       mode: "update"
       note: "Address all three review findings: define safe text-name escaping, prove absent bindings use built-in defaults, and require JSON consistently in ADR instructions."
+    - model: "gpt-6.1-sol"
+      harness: "codex-cli"
+      at: 2026-10-21T16:01:50Z
+      mode: "implement"
+      note: "Implement supplied-name validation, reference CLI integration, documentation, and acceptance gates."
   reviews:
     - model: "gpt-6-astra"
       harness: "codex-cli"
@@ -94,12 +99,12 @@ shell variables such as `PATH` are never part of the checked collection.
 
 ## Progress
 
-- [ ] Milestone 1 — Library helper in `settei-env` (AC-1, AC-2, AC-3, AC-4 at the
+- [x] Milestone 1 — Library helper in `settei-env` (AC-1, AC-2, AC-3, AC-4 at the
       library boundary): `Settei.Env` exports `Allowance`, `AcceptedNames`,
       `SuppliedNameError`, `checkSuppliedNames`, `checkedEnvSource`,
       `checkedEnvironmentSource`, `snapshotNames`, the two text renderers, and
       `renderSuppliedNameErrorsJson`;
-      `nix develop -c cabal test settei-env-tests --test-show-details=direct` passes
+      Completed 2026-10-21: `nix develop -c cabal test settei-env-tests --test-show-details=direct` passes (42 tests)
       with the new "supplied name validation" group, including the notification-hub-shaped
       `ENVIRONMENT`/`HASKELL_ENV` fixture and the sentinel scan.
 - [ ] Milestone 2 — Reference CLI application integration (AC-2, AC-3, AC-4 at the
@@ -120,7 +125,10 @@ shell variables such as `PATH` are never part of the checked collection.
 
 ## Surprises & Discoveries
 
-(None yet.)
+Plan 26 and the deployment preflight work had landed before implementation. The
+existing `inputBindings`, contract dispatch, and source-free environment-reader wrapper
+are preserved; supplied-name validation follows the contract dispatch. The adapter
+baseline consequently contained 21 tests rather than the original 20.
 
 
 ## Decision Log

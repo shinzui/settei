@@ -1,12 +1,22 @@
 -- |
 -- Module: Settei.Env
--- Description: Explicit, pure environment-variable sources for Settei.
+-- Description: Explicit, pure environment sources and supplied-name validation.
 module Settei.Env
-  ( Bindings,
+  ( AcceptedNames,
+    Allowance,
+    Bindings,
     EnvName (..),
     EnvSnapshot (..),
     EnvBinding,
     EnvError (..),
+    NameAcceptance (..),
+    SuppliedNameError (..),
+    acceptedBindings,
+    acceptedNames,
+    acceptedNamesList,
+    allowance,
+    allowanceConsumer,
+    allowanceName,
     annotateBinding,
     binding,
     bindingAnnotations,
@@ -14,6 +24,9 @@ module Settei.Env
     bindingName,
     bindings,
     bindingsList,
+    checkSuppliedNames,
+    checkedEnvSource,
+    checkedEnvironmentSource,
     envSnapshot,
     envSource,
     environmentSource,
@@ -25,14 +38,20 @@ module Settei.Env
     readEnvironmentSource,
     renderEnvErrorText,
     renderEnvErrorsText,
+    renderSuppliedNameErrorText,
+    renderSuppliedNameErrorsJson,
+    renderSuppliedNameErrorsText,
+    snapshotNames,
   )
 where
 
-import Data.Char (isAsciiLower, isAsciiUpper, isDigit)
+import Data.Char (isAsciiLower, isAsciiUpper, isDigit, ord)
 import Data.Generics.Labels ()
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
+import Data.Set qualified as Set
 import Data.Text qualified as Text
+import Numeric (showHex)
 import Settei
 import Settei.Prelude
 import System.Environment qualified as Environment
@@ -71,6 +90,146 @@ data EnvError
 -- invalid list is a fail-fast programming-error report, not a runtime branch.
 newtype Bindings = Bindings [EnvBinding]
   deriving stock (Eq)
+
+-- | One variable consumed outside Settei, with a trusted consumer label.
+-- Validated together with bindings by 'acceptedNames'.
+data Allowance = Allowance !Text !EnvName
+  deriving stock (Eq)
+
+-- | Declare a consumer label and its variable name; no value is retained.
+allowance :: Text -> EnvName -> Allowance
+allowance = Allowance
+
+-- | Inspect the trusted external-consumer label.
+allowanceConsumer :: Allowance -> Text
+allowanceConsumer (Allowance consumer _) = consumer
+
+-- | Inspect the variable consumed outside Settei.
+allowanceName :: Allowance -> EnvName
+allowanceName (Allowance _ name) = name
+
+-- | How a declared name is accepted.
+data NameAcceptance = BoundTo !Key | ConsumedBy !Text
+  deriving stock (Generic, Eq, Show)
+
+-- | Bindings and external-consumer allowances validated together.
+-- The private constructor and absence of Generic preserve the invariant.
+data AcceptedNames = AcceptedNames !Bindings ![Allowance]
+  deriving stock (Eq)
+
+-- | Validate static allowances, rejecting invalid or repeated names (including
+-- names already bound). Invalid names precede ascending duplicate-name errors.
+acceptedNames :: Bindings -> [Allowance] -> Either (NonEmpty EnvError) AcceptedNames
+acceptedNames validated allowances =
+  case NonEmpty.nonEmpty errors of
+    Just problems -> Left problems
+    Nothing -> Right (AcceptedNames validated allowances)
+  where
+    names = fmap allowanceName allowances
+    errors =
+      [InvalidEnvironmentName name | name <- names, not (validEnvName name)]
+        <> fmap DuplicateEnvironmentName (duplicates (fmap bindingName (bindingsList validated) <> names))
+
+-- | Recover the original validated bindings for ordinary source translation.
+acceptedBindings :: AcceptedNames -> Bindings
+acceptedBindings (AcceptedNames validated _) = validated
+
+-- | Bound names in binding order followed by allowances in declaration order.
+acceptedNamesList :: AcceptedNames -> [(EnvName, NameAcceptance)]
+acceptedNamesList (AcceptedNames validated allowances) =
+  [(bindingName value, BoundTo (bindingKey value)) | value <- bindingsList validated]
+    <> [(allowanceName value, ConsumedBy (allowanceConsumer value)) | value <- allowances]
+
+-- | Runtime supplied-name failures retain original names only, never values.
+data SuppliedNameError
+  = UnsupportedSuppliedName !EnvName
+  | DuplicateSuppliedName !EnvName
+  deriving stock (Generic, Eq, Show)
+
+-- | Check exactly the supplied collection. Absence is never an error.
+-- Unsupported names are reported at their first occurrence; duplicates once at
+-- their second occurrence. Diagnostic order follows encounter order.
+checkSuppliedNames :: AcceptedNames -> [EnvName] -> Either (NonEmpty SuppliedNameError) ()
+checkSuppliedNames accepted supplied =
+  case NonEmpty.nonEmpty (go Set.empty Set.empty supplied) of
+    Just problems -> Left problems
+    Nothing -> Right ()
+  where
+    allowed = Set.fromList (fmap fst (acceptedNamesList accepted))
+    go _ _ [] = []
+    go seen reportedDuplicates (name : rest)
+      | Set.member name reportedDuplicates = go seen reportedDuplicates rest
+      | Set.member name seen = DuplicateSuppliedName name : go seen (Set.insert name reportedDuplicates) rest
+      | otherwise =
+          [UnsupportedSuppliedName name | Set.notMember name allowed]
+            <> go (Set.insert name seen) reportedDuplicates rest
+
+-- | Render a single safe physical line. Portable names are verbatim; other names
+-- are quoted and escaped without changing the retained name or comparison.
+renderSuppliedNameErrorText :: SuppliedNameError -> Text
+renderSuppliedNameErrorText = \case
+  UnsupportedSuppliedName name ->
+    "supplied environment variable " <> displaySuppliedName name <> ": no binding or allowance accepts it"
+  DuplicateSuppliedName name ->
+    "supplied environment variable " <> displaySuppliedName name <> ": supplied more than once"
+
+-- | One sentence and terminating newline per problem.
+renderSuppliedNameErrorsText :: NonEmpty SuppliedNameError -> Text
+renderSuppliedNameErrorsText = Text.unlines . fmap renderSuppliedNameErrorText . NonEmpty.toList
+
+-- | One compact @settei.supplied-names@ schema-version-1 document, without a
+-- trailing newline. JSON encodes the original names, independently of text display.
+renderSuppliedNameErrorsJson :: NonEmpty SuppliedNameError -> Text
+renderSuppliedNameErrorsJson errors =
+  jsonObject
+    [ ("schemaVersion", "1"),
+      ("type", jsonString "settei.supplied-names"),
+      ("errors", jsonArray (fmap renderError (NonEmpty.toList errors)))
+    ]
+  where
+    renderError problem =
+      let (kind, name) = case problem of
+            UnsupportedSuppliedName value -> ("unsupported-supplied-name", value)
+            DuplicateSuppliedName value -> ("duplicate-supplied-name", value)
+       in jsonObject [("kind", jsonString kind), ("name", jsonString (renderEnvName name))]
+
+displaySuppliedName :: EnvName -> Text
+displaySuppliedName name
+  | validEnvName name = renderEnvName name
+  | otherwise = "\"" <> Text.concatMap escapeDisplayChar (renderEnvName name) <> "\""
+  where
+    escapeDisplayChar character
+      | (character >= '\x7f' && character <= '\x9f') || character == '\x2028' || character == '\x2029' =
+          "\\u" <> paddedHex (ord character)
+      | otherwise = escapeJsonChar character
+
+jsonObject :: [(Text, Text)] -> Text
+jsonObject fields =
+  "{" <> Text.intercalate "," [jsonString key <> ":" <> value | (key, value) <- fields] <> "}"
+
+jsonArray :: [Text] -> Text
+jsonArray values = "[" <> Text.intercalate "," values <> "]"
+
+jsonString :: Text -> Text
+jsonString value = "\"" <> Text.concatMap escapeJsonChar value <> "\""
+
+escapeJsonChar :: Char -> Text
+escapeJsonChar = \case
+  '"' -> "\\\""
+  '\\' -> "\\\\"
+  '\b' -> "\\b"
+  '\f' -> "\\f"
+  '\n' -> "\\n"
+  '\r' -> "\\r"
+  '\t' -> "\\t"
+  character
+    | ord character < 0x20 -> "\\u" <> paddedHex (ord character)
+    | otherwise -> Text.singleton character
+
+paddedHex :: Int -> Text
+paddedHex value =
+  let rendered = Text.pack (showHex value "")
+   in Text.replicate (4 - Text.length rendered) "0" <> rendered
 
 -- | Construct one explicit binding with no caller annotations.
 binding :: EnvName -> Key -> EnvBinding
@@ -148,6 +307,22 @@ envSnapshot :: [(Text, Text)] -> EnvSnapshot
 envSnapshot values =
   EnvSnapshot
     (Map.fromList [(EnvName name, value) | (name, value) <- values])
+
+-- | Snapshot keys in ascending order. A map has already collapsed duplicate
+-- entries; check ordered deployment entries as a list before making a snapshot.
+snapshotNames :: EnvSnapshot -> [EnvName]
+snapshotNames (EnvSnapshot snapshot) = Map.keys snapshot
+
+-- | Opt in to checking every name in an injected snapshot, then translate using
+-- the ordinary source builder. This never reads the process environment itself.
+checkedEnvSource :: Text -> AcceptedNames -> EnvSnapshot -> Either (NonEmpty SuppliedNameError) Source
+checkedEnvSource label accepted snapshot = do
+  checkSuppliedNames accepted (snapshotNames snapshot)
+  pure (envSource label (acceptedBindings accepted) snapshot)
+
+-- | 'checkedEnvSource' with the conventional @"environment"@ label.
+checkedEnvironmentSource :: AcceptedNames -> EnvSnapshot -> Either (NonEmpty SuppliedNameError) Source
+checkedEnvironmentSource = checkedEnvSource "environment"
 
 -- | Translate explicitly bound variables from one snapshot into a Settei source.
 --

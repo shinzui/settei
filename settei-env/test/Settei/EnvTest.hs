@@ -4,6 +4,7 @@ import Data.Either (isLeft, isRight)
 import Data.Generics.Labels ()
 import Data.List qualified as List
 import Data.List.NonEmpty qualified as NonEmpty
+import Data.Map.Strict qualified as Map
 import Data.Text qualified as Text
 import Settei
 import Settei.Env
@@ -31,6 +32,7 @@ tests =
           _ -> fail "expected two bindings",
       errorRenderingTests,
       bindingMergingTests,
+      suppliedNameTests,
       testCase "explicit binding records variable origin" $ do
         input <- expectSource [binding (EnvName "HASKELL_ENV") runtimeEnvironment] [("HASKELL_ENV", "Production")]
         case lookupSource runtimeEnvironment input of
@@ -116,6 +118,145 @@ tests =
         let output = renderResolutionText (result ^. #report)
         assertBool "ConfigMap metadata was omitted" ("service-network" `Text.isInfixOf` output)
         assertBool "public value was omitted" ("api.internal" `Text.isInfixOf` output)
+    ]
+
+suppliedNameTests :: TestTree
+suppliedNameTests =
+  testGroup
+    "supplied name validation"
+    [ testCase "accepts bound and allowed names and preserves declarations" $ do
+        validated <-
+          expectBindings
+            [ binding (EnvName "ENVIRONMENT") runtimeEnvironment,
+              binding (EnvName "DATABASE_URL") databasePassword,
+              binding (EnvName "PORT") optionalValue
+            ]
+        let external = allowance "opentelemetry-sdk" (EnvName "OTEL_EXPORTER_OTLP_ENDPOINT")
+        accepted <- either (fail . show) pure (acceptedNames validated [external])
+        assertBool "bindings changed" (acceptedBindings accepted == validated)
+        allowanceConsumer external @?= "opentelemetry-sdk"
+        allowanceName external @?= EnvName "OTEL_EXPORTER_OTLP_ENDPOINT"
+        acceptedNamesList accepted
+          @?= [ (EnvName "ENVIRONMENT", BoundTo runtimeEnvironment),
+                (EnvName "DATABASE_URL", BoundTo databasePassword),
+                (EnvName "PORT", BoundTo optionalValue),
+                (EnvName "OTEL_EXPORTER_OTLP_ENDPOINT", ConsumedBy "opentelemetry-sdk")
+              ]
+        checkSuppliedNames accepted (fmap EnvName ["ENVIRONMENT", "DATABASE_URL", "OTEL_EXPORTER_OTLP_ENDPOINT"]) @?= Right (),
+      testCase "reports every unsupported name in supplied order deterministically" $ do
+        accepted <- expectAccepted [binding (EnvName "ENVIRONMENT") runtimeEnvironment, binding (EnvName "DATABASE_URL") databasePassword] []
+        let supplied = fmap EnvName ["HASKELL_ENV", "DATABASE_URL", "DB_URL"]
+            result = checkSuppliedNames accepted supplied
+        result @?= Left (UnsupportedSuppliedName (EnvName "HASKELL_ENV") :| [UnsupportedSuppliedName (EnvName "DB_URL")])
+        checkSuppliedNames accepted supplied @?= result,
+      testCase "empty collection accepts absent bindings" $ do
+        accepted <- expectAccepted [binding (EnvName "ENVIRONMENT") runtimeEnvironment] []
+        checkSuppliedNames accepted [] @?= Right (),
+      testCase "reports duplicates once at their second encounter" $ do
+        accepted <- expectAccepted [binding (EnvName "PORT") optionalValue] []
+        checkSuppliedNames accepted (fmap EnvName ["PORT", "PORT", "PORT", "HOST", "HOST", "HOST"])
+          @?= Left (DuplicateSuppliedName (EnvName "PORT") :| [UnsupportedSuppliedName (EnvName "HOST"), DuplicateSuppliedName (EnvName "HOST")]),
+      testCase "allowance scope excludes unrelated inherited variables" $ do
+        accepted <-
+          expectAccepted
+            [binding (EnvName "ENVIRONMENT") runtimeEnvironment]
+            [allowance "opentelemetry-sdk" (EnvName "OTEL_EXPORTER_OTLP_ENDPOINT")]
+        let snapshot = envSnapshot [("PATH", "bin"), ("HOME", "home"), ("KUBERNETES_SERVICE_HOST", "host"), ("ENVIRONMENT", "production")]
+        checkSuppliedNames accepted (fmap EnvName ["ENVIRONMENT", "OTEL_EXPORTER_OTLP_ENDPOINT", "HASKELL_ENV"])
+          @?= Left (UnsupportedSuppliedName (EnvName "HASKELL_ENV") :| [])
+        snapshotNames snapshot @?= fmap EnvName ["ENVIRONMENT", "HOME", "KUBERNETES_SERVICE_HOST", "PATH"]
+        assertBool "snapshot-wide check should be an explicit stricter choice" (isLeft (checkedEnvironmentSource accepted snapshot)),
+      testCase "snapshot names are sorted and duplicates are already collapsed" $
+        snapshotNames (envSnapshot [("Z", "first"), ("A", "a"), ("Z", "last")]) @?= fmap EnvName ["A", "Z"],
+      testCase "validates allowance names and collisions together" $ do
+        validated <- expectBindings [binding (EnvName "PORT") optionalValue]
+        let declarations = fmap (allowance "external" . EnvName) ["1BAD", "PORT", "Z", "Z", "A", "A", "1BAD"]
+        case acceptedNames validated declarations of
+          Left errors ->
+            NonEmpty.toList errors
+              @?= [ InvalidEnvironmentName (EnvName "1BAD"),
+                    InvalidEnvironmentName (EnvName "1BAD"),
+                    DuplicateEnvironmentName (EnvName "1BAD"),
+                    DuplicateEnvironmentName (EnvName "A"),
+                    DuplicateEnvironmentName (EnvName "PORT"),
+                    DuplicateEnvironmentName (EnvName "Z")
+                  ]
+          Right _ -> fail "invalid allowances accepted",
+      testCase "strict path rejects HASKELL_ENV when ENVIRONMENT is bound" $ do
+        accepted <- expectAccepted [binding (EnvName "ENVIRONMENT") runtimeEnvironment] []
+        let declaration = required (publicSetting runtimeEnvironment "Runtime environment" (enumDecoder [("development", False), ("production", True)]))
+            builtIn = source "built-in defaults" BuiltInSource (RawObject (Map.singleton "runtime" (RawObject (Map.singleton "environment" (RawText "development")))))
+            typo = envSnapshot [("HASKELL_ENV", "production")]
+            corrected = envSnapshot [("ENVIRONMENT", "production")]
+            permissive = environmentSource (acceptedBindings accepted) corrected
+        expectResolution (resolve defaultResolveOptions [builtIn, environmentSource (acceptedBindings accepted) typo] declaration) >>= (@?= False)
+        case checkedEnvironmentSource accepted typo of
+          Left errors -> errors @?= UnsupportedSuppliedName (EnvName "HASKELL_ENV") :| []
+          Right _ -> fail "typo hidden by default"
+        strictSource <- either (fail . show) pure (checkedEnvironmentSource accepted corrected)
+        expectResolution (resolve defaultResolveOptions [builtIn, strictSource] declaration) >>= (@?= True)
+        case (lookupSource runtimeEnvironment strictSource, lookupSource runtimeEnvironment permissive) of
+          (Right (Just actual), Right (Just expected)) -> do
+            candidateOrigin actual @?= candidateOrigin expected
+            candidateOrigin actual ^. #annotations . at "environment.variable" @?= Just "ENVIRONMENT"
+          _ -> fail "expected strict and permissive candidates"
+        labeled <- either (fail . show) pure (checkedEnvSource "deployment" accepted corrected)
+        case lookupSource runtimeEnvironment labeled of
+          Right (Just found) -> candidateOrigin found ^. #name @?= "deployment"
+          _ -> fail "expected custom source label",
+      testCase "sentinels never reach supplied-name diagnostics" $ do
+        accepted <- expectAccepted [binding (EnvName "ENVIRONMENT") runtimeEnvironment] []
+        let unknownSentinel = "unknown-value-sentinel"
+        case checkedEnvironmentSource accepted (envSnapshot [("ENVIRONMENT", secretSentinel), ("HASKELL_ENV", unknownSentinel)]) of
+          Left errors -> do
+            let outputs = [Text.pack (show errors), renderSuppliedNameErrorsText errors, renderSuppliedNameErrorsJson errors]
+            sequence_ [assertBool "value leaked" (not (sentinel `Text.isInfixOf` output)) | output <- outputs, sentinel <- [secretSentinel, unknownSentinel]]
+          Right _ -> fail "expected strict failure",
+      testCase "successful strict source still redacts secrets" $ do
+        accepted <- expectAccepted [binding (EnvName "DATABASE_PASSWORD") databasePassword] []
+        input <- either (fail . show) pure (checkedEnvironmentSource accepted (envSnapshot [("DATABASE_PASSWORD", secretSentinel)]))
+        let result = resolve defaultResolveOptions [input] (required passwordSetting)
+        _ <- expectResolution result
+        assertBool "secret leaked from strict source" (not (secretSentinel `Text.isInfixOf` renderResolutionText (result ^. #report))),
+      suppliedNameRenderingTests
+    ]
+
+expectAccepted :: [EnvBinding] -> [Allowance] -> IO AcceptedNames
+expectAccepted values allowances = do
+  validated <- expectBindings values
+  either (fail . show) pure (acceptedNames validated allowances)
+
+suppliedNameRenderingTests :: TestTree
+suppliedNameRenderingTests =
+  testGroup
+    "rendering"
+    [ testCase "portable text and exact versioned JSON are stable" $ do
+        let errors = UnsupportedSuppliedName (EnvName "HASKELL_ENV") :| [DuplicateSuppliedName (EnvName "PORT")]
+            expected = "{\"schemaVersion\":1,\"type\":\"settei.supplied-names\",\"errors\":[{\"kind\":\"unsupported-supplied-name\",\"name\":\"HASKELL_ENV\"},{\"kind\":\"duplicate-supplied-name\",\"name\":\"PORT\"}]}"
+        renderSuppliedNameErrorsText errors @?= "supplied environment variable HASKELL_ENV: no binding or allowance accepts it\nsupplied environment variable PORT: supplied more than once\n"
+        renderSuppliedNameErrorsJson errors @?= expected
+        renderSuppliedNameErrorsJson errors @?= renderSuppliedNameErrorsJson errors,
+      testCase "hostile names retain spelling but escape text and JSON independently" $ do
+        accepted <- expectAccepted [] []
+        let name = EnvName "BAD\"\\\n\SOHNAME"
+            problem = UnsupportedSuppliedName name
+            duplicate = DuplicateSuppliedName name
+        checkSuppliedNames accepted [name] @?= Left (problem :| [])
+        renderSuppliedNameErrorText problem @?= "supplied environment variable \"BAD\\\"\\\\\\n\\u0001NAME\": no binding or allowance accepts it"
+        renderSuppliedNameErrorText duplicate @?= "supplied environment variable \"BAD\\\"\\\\\\n\\u0001NAME\": supplied more than once"
+        renderSuppliedNameErrorsText (problem :| [duplicate]) @?= Text.unlines [renderSuppliedNameErrorText problem, renderSuppliedNameErrorText duplicate]
+        renderSuppliedNameErrorsJson (problem :| []) @?= "{\"schemaVersion\":1,\"type\":\"settei.supplied-names\",\"errors\":[{\"kind\":\"unsupported-supplied-name\",\"name\":\"BAD\\\"\\\\\\n\\u0001NAME\"}]}",
+      testGroup
+        "nonportable display names"
+        [ testCase (show original) $ do
+            let errors = UnsupportedSuppliedName (EnvName original) :| [DuplicateSuppliedName (EnvName original)]
+                sentences = ["supplied environment variable " <> escaped <> ": " <> suffix | suffix <- ["no binding or allowance accepts it", "supplied more than once"]]
+            fmap renderSuppliedNameErrorText (NonEmpty.toList errors) @?= sentences
+            renderSuppliedNameErrorsText errors @?= Text.unlines sentences
+            length (Text.lines (renderSuppliedNameErrorsText errors)) @?= 2
+        | (original, escaped) <-
+            [("", "\"\""), ("with space", "\"with space\""), ("\r", "\"\\r\""), ("\t", "\"\\t\""), ("\ESC", "\"\\u001b\""), ("\DEL", "\"\\u007f\""), ("\x85", "\"\\u0085\""), ("\x2028", "\"\\u2028\""), ("\x2029", "\"\\u2029\"")]
+        ]
     ]
 
 bindingMergingTests :: TestTree
