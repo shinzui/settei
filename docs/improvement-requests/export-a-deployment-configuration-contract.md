@@ -3,7 +3,8 @@ type: Improvement Request
 title: Export a deployment configuration contract with bindings and defaults
 description: Combine configuration declarations, environment bindings, default sources, and deployment requirements into a safe contract for authoring a service's first deployment.
 requestId: IR-1
-status: proposed
+status: accepted
+targetPlan: docs/plans/26-export-a-deployment-configuration-contract-with-bindings-and-defaults.md
 origin: mori://tan/notification-hub
 generated:
   by: process:codex

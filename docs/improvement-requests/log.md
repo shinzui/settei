@@ -1,6 +1,7 @@
 # Bundle Update Log
 
 ## 2026-10-21
+* **Update**: IR-1 accepted; targetPlan set to docs/plans/26-export-a-deployment-configuration-contract-with-bindings-and-defaults.md (planned and reviewed, not yet implemented).
 * **Update**: IR-2 accepted after validation against settei-env and the notification-hub bindings; targetPlan set to docs/plans/27-validate-supplied-environment-variable-names-against-declared-bindings.md.
 * **Add**: IR-2 requests validation of explicitly supplied application environment
 names against declared bindings, with scoped allowances and value-free diagnostics.
