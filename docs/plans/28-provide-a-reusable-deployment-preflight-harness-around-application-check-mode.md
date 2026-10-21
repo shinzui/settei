@@ -10,9 +10,22 @@ provenance:
     model: "claude-fable-5-1"
     harness: "claude-code"
     at: 2026-10-21T13:30:07Z
+  revisions:
+    - model: "gpt-6-astra"
+      harness: "codex-cli"
+      at: 2026-10-21T13:50:52Z
+      mode: "update"
+      note: "Validate and repair coverage, secret-safe errors, process cleanup, extraction semantics, acceptance instrumentation, and milestone dependencies."
+  reviews:
+    - model: "gpt-6-astra"
+      harness: "codex-cli"
+      at: 2026-10-21T14:03:32Z
+      verdict: "approved"
+      note: "Approved after update against IR-3, repository and dependency sources; repaired coverage, redaction, cleanup, extraction and acceptance gaps. Milestone 3 remains dependent on plan 26 Milestone 4."
 ---
 
 # Provide a reusable deployment preflight harness around application check mode
+
 
 This ExecPlan is a living document. The sections Progress, Surprises & Discoveries,
 Decision Log, and Outcomes & Retrospective must be kept up to date as work proceeds.
@@ -25,6 +38,7 @@ milestone below names the criteria it discharges.
 
 
 ## Purpose / Big Picture
+
 
 Settei is a Haskell configuration library. An application declares its settings once,
 resolves them from ordered sources (files, environment variables, command-line flags),
@@ -55,11 +69,15 @@ temporary directory, builds the child's environment from nothing but the propose
 plus an explicit inherited allowlist, runs the application's own check command with a
 timeout, redacts every secret it was given from the captured output, removes the
 temporary directory, and reports one of three verdicts: `pass` (the application accepted
-fully known inputs), `inconclusive` (the application accepted inputs that included
-stand-ins or omissions, so this is not a deployment validation), or `fail` (the
+fully known inputs with no extraction limitations), `inconclusive` (the application
+accepted inputs with stand-ins, omissions, or extraction limitations, so this is not a
+deployment validation), or `fail` (the
 application rejected the inputs, or the harness could not run the check). Only `pass`
 passes a gate. Secrets reach the application only through environment variables or files,
-never through command arguments, the request document, the report, or logs.
+never intentionally through command arguments, the request document, the report, or logs.
+This guarantee covers correctly classified, nonempty secret values and their exact
+appearances in captured output; it cannot recognize an unmarked credential or a value
+transformed by the application.
 
 The reference workflow runs against the notification-hub-shaped example application
 added by docs/plans/26-export-a-deployment-configuration-contract-with-bindings-and-defaults.md
@@ -71,7 +89,7 @@ the repository root, once this plan and plan 26 are implemented:
 
 ```bash
 nix develop -c cabal build settei-example-deployment settei-preflight
-nix develop -c cabal run settei-example-deployment-preflight -- \
+nix develop -c cabal run -v0 settei-example-deployment-preflight -- \
   --manifest examples/settei-deployment/test/fixtures/rendered-production.json \
   --deployment settei-example-deployment-server --role server \
   --executable "$(nix develop -c cabal list-bin settei-example-deployment-server)" \
@@ -79,12 +97,12 @@ nix develop -c cabal run settei-example-deployment-preflight -- \
   > /tmp/server-request.json
 SETTEI_PREFLIGHT_SECRET_SETTEI_EXAMPLE_DEPLOYMENT_SECRETS_DATABASE_URL='postgres://preflight.invalid/notification' \
 SETTEI_PREFLIGHT_SECRET_SETTEI_EXAMPLE_DEPLOYMENT_SECRETS_WEBHOOK_SECRET='preflight-stand-in-webhook-secret' \
-  nix develop -c cabal run settei-preflight -- --request /tmp/server-request.json; echo "exit $?"
+  nix develop -c cabal run -v0 settei-preflight -- --request /tmp/server-request.json; echo "exit $?"
 ```
 
-The first command prints a request whose secrets are references to harness environment
-variables, not values. The second prints a text report that names every input and its
-classification, shows the application's redacted output, and ends with the verdict. With
+The extraction command prints a request whose secrets are references to harness environment
+variables, not values. The harness command prints a text report that names every input and its
+classification, shows the application's redacted output, and starts with the verdict. With
 `EMAIL_CREDENTIALS_JSON` left unprovisioned the application rejects the configuration
 (`email.credentials: required value is missing`) and the exit code is `4`; with every
 secret provisioned and `POD_NAMESPACE` still synthetic, the application accepts the inputs
@@ -96,6 +114,7 @@ pre-provisioning half of that pair.
 
 
 ## Progress
+
 
 - [ ] Milestone 1 — Harness library (AC-1, AC-3, AC-4, AC-5 at the library boundary):
       the new `settei-preflight` package with `Settei.Preflight` builds, validates,
@@ -123,24 +142,28 @@ pre-provisioning half of that pair.
 - [ ] Milestone 4 — Documentation and collateral (AC-2 assumptions, AC-3 reporting
       contract, AC-5 separation from readiness evidence): guide DOC-12, capability
       CAP-15, ADR-13 plus an ADR-7 amendment, cookbook cross-link, README,
-      compatibility, security, changelog, and IR-3 moved to `completed`; every OKF
-      bundle validates strictly.
+      compatibility, security, and changelog; IR-3 remains `in-progress` until final gates; every OKF
+      bundle passes its repository-required profile validation.
 - [ ] Milestone 5 — Full validation and closure: `cabal build all`, `cabal test all`,
       `treefmt`, `cabal check` for the new package, and `nix flake check` pass; evidence
-      recorded here; Outcomes & Retrospective written; ADR distillation done.
+      recorded here; IR-3 completed and revalidated; Outcomes & Retrospective written;
+      ADR distillation done.
 
 
 ## Surprises & Discoveries
+
 
 - Planning evidence (2026-10-21): the solver plan in dist-newstyle/cache/plan.json
   already contains `process-1.6.26.1`, `temporary-1.3`, `directory-1.3.10.1`,
   `filepath-1.5.5.0`, `aeson-2.2.5.1`, and `bytestring-0.12.2.0`, so no new dependency
   enters the workspace closure. In the registered `process` source
-  (`mori registry show haskell/process --full`), `withCreateProcess` is
+  (`mori://haskell/process/repos/process`, project-relative `System/Process.hs`;
+  artifact-level URI pending), `withCreateProcess` is
   `bracket (createProcess c) cleanupProcess …` and `cleanupProcess` sends `SIGTERM`,
-  closes the pipe handles, and waits asynchronously; an asynchronous `timeout`
-  exception therefore terminates the child and releases its handles without extra
-  code, but a child that ignores `SIGTERM` is not force-killed. The executable lookup
+  closes the pipe handles, and waits asynchronously. Its source explicitly requires
+  reader threads to be stopped before cleanup: otherwise their handle locks can make
+  `hClose` deadlock. A timeout alone is insufficient. A child that ignores `SIGTERM`
+  is not force-killed. The executable lookup
   follows `execvp(3)`: a name without a slash is searched on the *harness* process's
   `PATH`, not the child's, which is why the harness resolves names with
   `findExecutable` itself and reports the resolved path.
@@ -151,8 +174,26 @@ pre-provisioning half of that pair.
   inherits `LANG`, `LC_ALL`, and `LC_CTYPE` by default and reads the child's output as
   bytes decoded leniently as UTF-8.
 
+- Validation evidence (2026-10-21): IR-3 AC-3 also covers inputs the extractor cannot
+  enumerate. Notes alone did not affect the original verdict, allowing incomplete
+  extraction to pass. Notes now represent coverage limitations. IR-3 AC-5 requires
+  instrumentation in both deployment roles; a separate generic fixture is insufficient.
+- Validation evidence (2026-10-21): `temporary-1.3` suppresses deletion errors in
+  `withTempDirectory`. Explicitly remove and verify the private directory before
+  returning success, retaining the bracket as fallback cleanup.
+- Release audit (2026-10-21): live Hackage preferred-version endpoints report process
+  1.6.30.0, aeson 2.3.2.0, temporary 1.3, directory 1.3.11.0, filepath 1.5.5.0,
+  bytestring 0.12.2.0, and optparse-applicative 0.19.0.0. Upstream tags confirm the
+  process, aeson, and temporary releases. The workspace solver versions above are not
+  release ceilings. Aeson's 2.3.2.0 changelog preserves the object/parser/encoding APIs
+  needed here; the new package allows 2.2.5.1 through 2.3.x and validates both lines.
+  Release evidence: [Hackage process](https://hackage.haskell.org/package/process/preferred.json),
+  [Hackage aeson](https://hackage.haskell.org/package/aeson/preferred.json), and
+  [Aeson 2.3.2.0 changelog](https://github.com/haskell/aeson/blob/v2.3.2.0/changelog.md).
+
 
 ## Decision Log
+
 
 - Decision: The harness is a new publishable package `settei-preflight` rooted at
   `settei-preflight/`, with public modules `Settei.Preflight` and
@@ -176,8 +217,11 @@ pre-provisioning half of that pair.
   an inline value marked secret is a parse error. Unknown keys, missing keys, and entries
   with zero or several value forms are parse errors, never silently dropped.
   Rationale: AC-4 forbids secret values in generated public artifacts; the request file
-  is such an artifact, so the format must make embedding a secret impossible rather than
-  discouraged. `aeson` is already in the workspace closure through `settei-dhall`;
+  is such an artifact, so real secrets use reference-only entry forms. A parser cannot
+  recognize a credential mislabeled as public: callers must classify inputs correctly
+  and keep metadata free of credentials. Inline synthetic secrets are explicitly fake
+  stand-ins, remain partial coverage, and are redacted from execution output. `aeson` is
+  already in the workspace closure through `settei-dhall`;
   docs/adr/0003-resolution-provenance-and-default-semantics.md rejects Aeson only for
   the core's own documents and explicitly allows parser libraries at input boundaries.
   Hand-writing a third private JSON encoder for a package that must parse JSON anyway
@@ -190,8 +234,9 @@ pre-provisioning half of that pair.
   `UnavailableSecret reason`. Supplied and synthetic values are passed to the
   application; unresolved and unavailable inputs are omitted from the run and listed as
   limitations. The verdict is `pass` only when the application accepted and every input
-  was supplied; `inconclusive` when it accepted but at least one input was synthetic,
-  unresolved, or unavailable; and `fail` whenever it rejected or the harness could not
+  was supplied and extraction has no notes; `inconclusive` when it accepted but at least
+  one input was synthetic, unresolved, or unavailable, or an extraction note remains;
+  and `fail` whenever it rejected or the harness could not
   run it, regardless of coverage. Only `pass` passes a gate; the text and JSON reports
   say so in words.
   Rationale: AC-3 requires that incomplete checking is never reported as full validation
@@ -208,20 +253,27 @@ pre-provisioning half of that pair.
   in particular not `GHCRTS` or `HOME`, reaches the child unless named. The child's
   working directory is the materialized input directory.
   Rationale: IR-3 asks that ambient shell settings never fill missing application
-  inputs and that any inherited environment be documented. Locale variables cannot fill
-  a Settei binding but are needed for non-ASCII diagnostics (see Surprises &
-  Discoveries); `PATH` is harmless to the application and useful if it spawns helpers.
+  inputs and that any inherited environment be documented. Locale variables support
+  non-ASCII diagnostics (see Surprises & Discoveries), and `PATH` supports helpers.
+  Applications may bind any of these names, so callers must use `inherit: []` or remove
+  relevant names when they are configuration inputs; no inherited name is universally
+  harmless. Inherited values are execution context, not evidence of proposed inputs.
   Date: 2026-10-21
 
 - Decision: Secret safety is layered. `ProposedValue` and `ProposedInputs` have no
-  `Show` instance. A literal argument that contains the value of any supplied or
+  `Show` instance. A fully assembled argument that contains the value of any supplied or
   synthetic secret makes the request invalid (`secret-in-argument`, naming the input,
   never the value). Files are written beneath a directory created by `mkdtemp`
   semantics (`temporary`'s `withSystemTempDirectory`, mode `0700`) and removed when
-  the run ends, including on exceptions. Every secret value the harness was given is
+  the run ends, including on exceptions; failed removal is reported as `CleanupFailed`.
+  Every secret value the harness was given is
   replaced in the captured stdout and stderr by `[redacted:NAME]` before the output is
-  retained, longest values first. Reports and request documents carry names,
-  classifications, reasons, and redacted output only.
+  retained in a report, longest values first. Sanitize command summaries, metadata, and
+  structured problems too, including the invalid-request path. Request documents carry
+  public values and fake stand-ins, plus references for real secrets. Raw input/request
+  types have no `Show` instance. Exact-value redaction cannot detect transformed, encoded,
+  or partial secrets; applications must retain their own safe diagnostics. The harness
+  and its temporary directory are not a sandbox.
   Rationale: AC-4 names command arguments, public artifacts, logs, and failure
   summaries as places a secret must never appear. The harness cannot stop an application
   from printing a value it was given, so redaction of captured output is the only way
@@ -231,9 +283,11 @@ pre-provisioning half of that pair.
 
 - Decision: Execution uses `process` (`withCreateProcess` with three `CreatePipe`
   handles in binary mode, output decoded leniently as UTF-8) under
-  `System.Timeout.timeout`; a timeout terminates the child through the library's
-  `cleanupProcess` and reports `not-run` with reason `timed-out`, retaining whatever
-  output was captured. A bare executable name is resolved with `findExecutable` in the
+  `System.Timeout.timeout`; scoped reader threads are cancelled and joined before
+  `cleanupProcess` closes handles. A timeout requests termination and reports `not-run`
+  with reason `timed-out`, retaining bytes already captured. It does not prove that a
+  child ignoring `SIGTERM`, or its descendants, stopped. A bare executable name is
+  resolved with `findExecutable` in the
   harness process before spawning; a missing executable or a spawn failure is reported
   as `not-run` with its own reason. Exit codes are classified by a configurable mapping
   whose default is the family convention: `0` accepted, `2` usage, `3` source loading
@@ -249,7 +303,8 @@ pre-provisioning half of that pair.
   prints the report as text or JSON (`--json`), and exits `0` for `pass`, `1` for
   `inconclusive`, `2` for a usage error, `3` when the harness could not run the check
   (unreadable or invalid document, invalid request, executable not found, spawn failure,
-  timeout), and `4` when the application rejected the inputs.
+  materialization or capture failure, cleanup failure, timeout), and `4` when the
+  application rejected the inputs.
   Rationale: Tooling needs a gate decision from the exit code alone, and operators need
   to tell "my request is wrong" from "the application said no". The split mirrors the
   family's input-versus-outcome discipline (`3` versus `4`).
@@ -307,12 +362,15 @@ pre-provisioning half of that pair.
 
 ## Outcomes & Retrospective
 
+
 (To be filled during and after implementation.)
 
 
 ## Context and Orientation
 
+
 ### Validation of the request
+
 
 IR-3 was checked against the working tree and the registered consumer before this plan
 was written. The check paths it relies on exist. In `mori://tan/notification-hub`, the
@@ -321,7 +379,8 @@ server's `NotificationHub.Server.Config.resolveServerOptions` dispatches the sou
 `readEnvironmentSource`, resolves with command-line overrides, validates event-webhook
 public keys with `runtimeSendGridEventKeys`, and only then answers `--check-config`
 through `resolutionDiagnostic`; the database, migrations, and listener are opened by
-`server/app/Main.hs` only in the `ConfigStart` branch, which check mode never returns.
+`mori://tan/notification-hub/packages/notification-hub-server` (project-relative
+`server/app/Main.hs`; artifact-level URI pending) only in the `ConfigStart` branch, which check mode never returns.
 The workers' `NotificationHub.Workers.Config.resolveWorkerOptions` follows the same
 order with `validateWorkerCapacity` (lease bounds, paced bounds, replica, job pool, and
 email-account rules) before the diagnostic. Both use exit `3` for file loading failures
@@ -336,6 +395,7 @@ secret-reference, generated-value, and mounted-file input kinds IR-3 lists. Noth
 this plan modifies either consumer repository.
 
 ### What exists today in this repository
+
 
 - settei-optparse-applicative/src/Settei/Optparse.hs defines `DiagnosticMode` and the
   `--check-config`, `--describe-config*`, and `--explain-config*` flags, plus
@@ -394,6 +454,7 @@ this plan modifies either consumer repository.
 
 ### Terms used in this plan
 
+
 A **check command** is the application executable plus the arguments that put it in
 check mode, for example `--config PATH --check-config`. A **proposed input** is one
 environment variable or one file the deployment intends to give the container. A
@@ -401,8 +462,9 @@ environment variable or one file the deployment intends to give the container. A
 a stand-in of the right shape used only to exercise a decoder; an **unresolved** value is
 one that does not exist yet (a Pulumi output, a downward-API field); an **unavailable
 secret** is secret material the caller could not obtain. **Coverage** is complete when
-every proposed input was supplied and partial otherwise; each non-supplied input is a
-**limitation**. The **outcome** is what happened to the application process: accepted,
+every proposed input was supplied and no extraction notes remain, and partial otherwise; each non-supplied input is a
+**limitation**, as is each extraction note (identified by its zero-based note index).
+The **outcome** is what happened to the application process: accepted,
 rejected (by exit-code category), or not run (by harness reason). The **verdict** combines
 outcome and coverage into `pass`, `inconclusive`, or `fail`. A **role** is the label of
 the process being checked, such as `server` or `worker`; it names the report. The
@@ -410,32 +472,35 @@ the process being checked, such as `server` or `worker`; it names the report. Th
 environment into the child's. **Materializing** means writing proposed files beneath a
 fresh private temporary directory and rewriting file references in arguments to those
 paths. A **rendered manifest list** is a JSON document of Kubernetes `kind: List` whose
-items are the Deployment, ConfigMap, and Secret objects a tool such as `kubectl
-kustomize -o json` or the Pulumi Kubernetes provider would produce.
+items are Deployment, ConfigMap, and Secret objects normalized from rendered tooling
+output. Kustomize normally emits YAML, and Pulumi does not automatically export this
+aggregate shape; callers must collect and convert their output into this documented JSON
+`List` before using the example extractor.
 
 ### Relevant architecture decisions
 
-- docs/adr/0007-reference-applications-are-the-public-api-conformance-boundary.md:
+
+- [docs/adr/0007-reference-applications-are-the-public-api-conformance-boundary.md](../adr/0007-reference-applications-are-the-public-api-conformance-boundary.md):
   reference applications prove public capabilities; `--check-config` resolves normally,
   prints `configuration valid`, and keeps the usage (2), source (3), and resolution (4)
   exit-code discipline; no example contacts a cluster. The harness's default exit-code
   mapping is this convention, and Milestone 3 exercises the harness through the
   deployment example, which requires an amendment to this ADR.
-- docs/adr/0003-resolution-provenance-and-default-semantics.md: the core emits
+- [docs/adr/0003-resolution-provenance-and-default-semantics.md](../adr/0003-resolution-provenance-and-default-semantics.md): the core emits
   deterministic versioned JSON without Aeson, and adapters may use parser libraries at
   input boundaries. The harness's two documents are tooling documents outside the core;
   ADR-13 records that boundary and the determinism rule they still follow.
-- docs/adr/0009-adapter-error-rendering-contract.md: one operator-readable line per
+- [docs/adr/0009-adapter-error-rendering-contract.md](../adr/0009-adapter-error-rendering-contract.md): one operator-readable line per
   problem, plural renderers are the singular mapped over `NonEmpty` and joined with
   `Text.unlines`, renderers concatenate only retained fields. The harness's problem and
-  report text renderers follow that shape; plan 27 amends this ADR to admit adapter JSON
-  for tooling consumers, which this plan cites rather than repeats.
-- docs/adr/0010-validate-environment-bindings-at-construction.md: the variable-name
+  problem text renderers follow that shape. ADR-13 explicitly covers the separate
+  harness report documents; this plan does not depend on plan 27 amending ADR-9.
+- [docs/adr/0010-validate-environment-bindings-at-construction.md](../adr/0010-validate-environment-bindings-at-construction.md): the variable-name
   validity rule the harness mirrors for proposed and inherited names.
-- docs/adr/0011-kubernetes-mounted-directory-input-semantics.md: the process boundary
+- [docs/adr/0011-kubernetes-mounted-directory-input-semantics.md](../adr/0011-kubernetes-mounted-directory-input-semantics.md): the process boundary
   (mounted files and environment variables, never cluster access) that the reference
   extractor preserves by reading only a rendered manifest document.
-- docs/adr/0001-haskell-project-conventions.md: package layout as a top-level sibling,
+- [docs/adr/0001-haskell-project-conventions.md](../adr/0001-haskell-project-conventions.md): package layout as a top-level sibling,
   the shared `common common` stanza, strict record fields, explicit deriving strategies,
   and optparse-applicative 0.19 option groups for command-line components.
 
@@ -448,7 +513,9 @@ handles; plan 26 allocates those three, so this plan expects `DOC-12`, `CAP-15`,
 
 ## Plan of Work
 
+
 ### Milestone 1 — Harness library
+
 
 Scope: the `settei-preflight` package with its library module, registered in the
 workspace, with a test suite that proves every guarantee against a fixture application.
@@ -458,60 +525,86 @@ demonstrates isolation, redaction, cleanup, classification, and every failure pa
 Create settei-preflight/ with LICENSE (copy settei-env/LICENSE), README.md,
 CHANGELOG.md (`## Unreleased` describing the new package), settei-preflight.cabal
 (version `0.2.0.0`, `tested-with: GHC ==9.12.4`, the family's `common common` stanza,
-`extra-source-files` for `test/golden/*.json` and `test/golden/*.txt`), the library
+`data-files` for `test/golden/*.json` and `test/golden/*.txt` (load via
+`Paths_settei_preflight.getDataFileName`)), the library
 module settei-preflight/src/Settei/Preflight.hs, and the test suite
 settei-preflight/test/Main.hs with settei-preflight/test/Settei/PreflightTest.hs and
 settei-preflight/test/Settei/Preflight/Fixture.hs. Library dependencies: `base`,
-`bytestring`, `containers`, `directory`, `filepath`, `generic-lens`, `process`,
+`aeson >=2.2.5.1 && <2.4`, `bytestring`, `containers`, `directory`, `filepath`, `generic-lens`, `process`,
 `settei ==0.2.0.0`, `settei-env ==0.2.0.0`, `temporary`, and `text`. The executable and
-`aeson` arrive in Milestone 2. Register the package: add `settei-preflight` to the
+request parser arrive in Milestone 2; Aeson is needed now for report JSON. Register the
+package: add `settei-preflight` to the
 `packages:` list and a `package settei-preflight` stanza with `tests: True` in
 cabal.project; add `setteiPreflightPackage` in flake.module.nix as a `callCabal2nix`
 call passing `settei = setteiPackage; settei-env = setteiEnvPackage;` (wrap it in
-`dontCheck` only once Milestone 2 adds the optparse-applicative dependency, with the same
-comment the siblings carry) and a `packages.settei-preflight` output; add a
+`dontCheck` only once Milestone 2 adds the optparse-applicative dependency, also passing
+`optparse-applicative = optparseApplicativePackage;` as the siblings do) and a
+`packages.settei-preflight` output; add a
 `Schema.Package` entry to mori.dhall (type Library, dependencies `settei` and
 `settei-env`).
 
 Implement the types and functions listed under Interfaces and Dependencies. The runner
 `runPreflight` proceeds in these steps, each of which is a separately testable function:
 
-1. Validate the request purely with `validatePreflight`. Problems are collected in
-   encounter order: an invalid or duplicated proposed variable name; a proposed value
-   containing a NUL character; a file name that is empty, absolute, contains a `..`
-   segment or a NUL, or duplicates another after normalization with `splitDirectories`;
-   a file part naming no declared file, or a directory part that is not a parent, at any
-   depth, of at least one declared file (both `unknown-file-reference`); a literal
-   argument part whose text contains the value of a supplied or synthetic secret
-   (`secret-in-argument`, carrying the argument index and the input name only); an
-   inherited name that is invalid or that duplicates a proposed name; and an empty role
-   label. Any problem yields a report with outcome `NotRun (RequestInvalid problems)`,
-   coverage computed as usual, and no execution record.
-2. Partition the inputs: supplied and synthetic values are present; unresolved and
-   unavailable inputs are absent and become limitations. A synthetic value is present
-   and also a limitation. Build the input summaries (channel, name, classification,
-   whether passed).
-3. Resolve the executable: a path containing a directory separator must exist as a
-   file; a bare name is looked up with `findExecutable` in the harness process. Failure
-   yields `NotRun (ExecutableNotFound path)`.
-4. Materialize under `withSystemTempDirectory "settei-preflight"`: create each present
-   file at `root </> name` (creating parents), render each argument by replacing file
-   and directory parts with absolute materialized paths, and construct the child
-   environment as the inherited names found in the harness environment followed by the
-   present proposed entries. Record which inherited names were absent.
-5. Execute with `withCreateProcess` (`proc executable arguments` with `cwd = Just
-   root`, `env = Just childEnvironment`, `std_in = CreatePipe` closed immediately,
-   `std_out = CreatePipe`, `std_err = CreatePipe`), reading both output handles in
-   binary mode on separate threads, under `timeout (seconds * 1_000_000)`. A spawn
-   `IOException` yields `NotRun (SpawnFailed category)` where the category is a fixed
-   description such as `permission denied` or `other`, never the exception text. A
-   timeout yields `NotRun (TimedOut seconds)` with an execution record whose exit code
-   is `Nothing` and whose output is whatever was captured.
-6. Redact: replace every occurrence of every supplied or synthetic secret value (longest
-   first, skipping empty values) in the decoded stdout and stderr with
-   `[redacted:NAME]`, where `NAME` is the variable name or `file NAME` for a file.
-7. Classify the exit code with the mapping, compute coverage and verdict, and return
-   the report.
+1. Validate purely with `validatePreflight options role command inputs`, using the same
+   rules from the library and the JSON entry point. Collect problems in encounter order.
+   Environment names follow `Settei.Env`'s rule; reject duplicate proposed or inherited
+   names, proposed/inherited overlap, and NUL in environment values. File names use `/`
+   separators: reject absolute, empty, NUL-containing, backslash-containing, empty-segment,
+   `.`-segment, or `..`-segment paths, duplicates, and file/parent collisions (`a` and
+   `a/b`). Reject unknown file/directory references, an empty role, empty/NUL-containing
+   executable, and NUL-containing arguments. Require a positive timeout no greater than
+   `maxBound :: Int` divided by 1,000,000; exit codes are 0..255 and all mapping entries
+   are disjoint (including the accepted code). Build the secret set even for invalid
+   requests. Concatenate literal runs before checking arguments so two adjacent parts
+   cannot split a secret to evade validation. Recheck the fully materialized executable
+   and arguments immediately before spawn; neither may contain a known nonempty secret.
+   Return `NotRun (RequestInvalid problems)` without an execution record on failure,
+   sanitizing every retained field before constructing the report. No rejected argument
+   text is retained in a problem.
+2. Partition supplied/synthetic versus omitted inputs and compute coverage. Each note
+   adds `Limitation (ExtractionNote index) ExtractionIncomplete note`; no note is merely
+   advisory in version 1. Sort input summaries by channel (environment first), then name;
+   limitations follow that order with indexed notes last. `passed` means actually
+   supplied to a successfully spawned child, so it is false for every input on pre-spawn
+   failure, even when that input was available.
+3. Resolve the executable before changing the child directory. Convert explicit relative
+   paths and `findExecutable` results to absolute paths in the harness working directory.
+   A missing file yields `ExecutableNotFound`; lack of executable permission is a spawn
+   failure. Never invoke a shell.
+4. Materialize under `withSystemTempDirectory "settei-preflight"`: write UTF-8 bytes
+   without trimming at `root </> name` and create parents. A reference to an omitted file
+   still renders to its absent path; a declared directory reference is created even if
+   every child file is omitted. Build the environment from the allowlist and present
+   proposed entries only. Catch creation/write failures as `MaterializationFailed` with
+   a fixed safe category, not exception text, and perform cleanup on this path too.
+5. Run `withCreateProcess` with `cwd = Just root`, explicit `env`, closed piped stdin,
+   and binary stdout/stderr pipes. Nest scoped reader lifetimes inside the process
+   bracket: each reader appends strict byte chunks to its own buffer and reports either
+   completion or failure. On timeout or any exception, cancel and join both readers
+   before the outer process cleanup closes their handles; never leave a reader blocked
+   holding a handle lock. The timeout covers waiting for the child and draining both
+   pipes, including when a descendant retains a pipe after the immediate child exits.
+   Preserve completed chunks, decode leniently as UTF-8, then redact. Spawn errors use
+   `SpawnFailed`, read errors use `CaptureFailed`, and timeout uses `TimedOut seconds`
+   with exit code `Nothing`; catch `IOException`, not asynchronous cancellation.
+6. Redact exact known nonempty secrets from all report text, not just child output:
+   command summaries, roles, names, notes, reasons, and problem fields are included on
+   success and every failure path. Use a single pass over original text, choosing the
+   longest match with stable input-order ties; never rescan inserted markers. If an
+   input name contains a secret, use a numeric input identifier in its marker. Scan after
+   joining output chunks so a secret split across reads is still removed. Raw buffers
+   stay private; no raw-bearing intermediate object derives `Show`.
+7. Explicitly remove the temporary directory and verify its absence before returning.
+   A cleanup failure yields `CleanupFailed` (exit 3, never `pass`) while preserving a
+   sanitized execution record if one exists; the temporary-library bracket remains a
+   fallback. Classify the child exit code, coverage, and verdict only after cleanup.
+   The harness guarantees its own cleanup attempt and reports failure; it cannot promise
+   termination or absence of later effects from arbitrary code ignoring `SIGTERM`.
+
+Exercise one representative process roundtrip immediately: an echoed environment value,
+a materialized file, concurrent stdout/stderr, and a timeout with cleanup. Finish the
+matrix only after this path proves the process and file lifetimes compose.
 
 `renderPreflightReportText` prints, in this order: a first line `preflight ROLE:
 VERDICT (OUTCOME DETAIL)`, for example `preflight server: fail (configuration rejected,
@@ -538,7 +631,7 @@ stderr and exits 3; `usage` prints a usage line to stderr and exits 2; `crash` p
 `unexpected failure\n` to stderr and exits 1; `echo` prints every environment variable as
 `NAME=VALUE` lines to stdout in ascending name order, every argument on its own line to
 stderr, then the content of every argument that names an existing file, and exits 0;
-`sleep` sleeps 30 seconds and exits 0; `server-like` writes the file named by
+`sleep` prints and flushes its working directory, sleeps 30 seconds, and exits 0; `server-like` writes the file named by
 `FIXTURE_STARTUP_MARKER` and prints `ready\n` unless `--check-config` is among its
 arguments, in which case it prints `configuration valid\n` without touching the marker,
 exiting 0 either way; `unicode` prints `runtime.environment: expected one of «dev»\n` to
@@ -553,15 +646,14 @@ valid\n`; `reject` yields rejected with category configuration-rejected and verd
 `crash` yields category unknown-exit-code with the code; a nonexistent executable path
 and a bare name not on `PATH` yield `ExecutableNotFound`; `sleep` with a one-second
 timeout yields `TimedOut 1` and the test confirms the temporary directory no longer exists
-afterwards (capture its path through the `echo` behaviour in a separate run, or by
-listing the system temporary directory for `settei-preflight` entries before and after);
+afterwards using the path emitted by that same timed-out invocation;
 `echo` with inherited `[]` shows exactly the proposed variables and nothing from the
 test process (assert `PATH`, `HOME`, and a variable the test sets with `setEnv` are
 absent), and with inherited `[PATH, MISSING_NAME]` shows `PATH` and reports
 `MISSING_NAME` absent; `echo` with a supplied secret sentinel in a variable and in a
 file shows `[redacted:DATABASE_URL]` and `[redacted:file secrets/token]` in the report's
 stdout and the sentinel nowhere in the text report, the JSON report, or `show` of the
-outcome and coverage; `echo` with a two-part argument `yaml:{file:application.yaml}` and
+whole report; `echo` with a two-part argument `yaml:{file:application.yaml}` and
 a directory argument shows the materialized absolute paths in the fixture's stderr and
 the file content in its stdout, while the report's command line shows `{file:…}`; one
 `SyntheticValue Secret` stand-in with `accept` yields verdict `inconclusive` with one
@@ -570,25 +662,41 @@ the file content in its stdout, while the report's command line shows `{file:…
 both limitations and both inputs marked omitted, and with `reject` yield `fail` while
 still listing both limitations; every validation problem kind from step 1 yields
 `RequestInvalid` with the expected problem and no execution, including
-`secret-in-argument` for a literal part equal to a secret value; `server-like` without
+`secret-in-argument` for a literal part equal to a secret value, two adjacent
+literal parts concatenating to that value, and a secret-bearing executable path; scan
+all returned invalid reports for sentinels too. Cover invalid options, file/parent
+collisions, relative executable resolution, absent files/directories, materialization
+and capture failures, and cleanup failure through private injectable IO operations;
+assert no success can survive those failures. A fixture that emits a secret across
+several flushed chunks proves cross-chunk redaction. A fixture descendant that retains
+stdout after its parent exits proves reader cancellation does not deadlock (the test
+must explicitly reap its descendant); `server-like` without
 `--check-config` creates the marker and `server-like` with `--check-config` does not,
 proving the instrumentation and the configuration-only path; `unicode` with the default
 inherited allowlist renders the non-ASCII message intact in the report; rendering the
 same report twice yields byte-identical text and JSON; and goldens
-settei-preflight/test/golden/report-fail.txt, report-fail.json,
-report-inconclusive.txt, and report-inconclusive.json pin the vocabulary (write the
+settei-preflight/test/golden/report-fail.txt,
+settei-preflight/test/golden/report-fail.json,
+settei-preflight/test/golden/report-inconclusive.txt, and
+settei-preflight/test/golden/report-inconclusive.json pin the vocabulary (write the
 goldens by hand from the documented format first, then correct them to real output only
 after reviewing the diff for leaks).
 
 ### Milestone 2 — Request document and executable
 
+
 Scope: the interface deployment tooling uses. At the end, a JSON request on disk can be
 turned into a report by one command whose exit code is a gate decision.
 
 Add settei-preflight/src/Settei/Preflight/Request.hs with the types and functions under
-Interfaces and Dependencies, adding `aeson >=2.2 && <2.3` to the library. Parsing uses
+Interfaces and Dependencies, using the Aeson dependency already introduced for Milestone 1
+report rendering. Parsing uses
 `withObject` and an explicit allowed-key check at every object so unknown keys fail with
-a path such as `environment[2]: unknown key "vlaue"`. The forms of an environment or file
+a path such as `environment[2]: unknown key` (never echo the arbitrary key or
+value). Syntax failures use a fixed message and position when available, not Aeson's
+raw diagnostic, which can contain input text. Schema failures retain only known schema
+paths, array indices, and fixed messages; malformed documents containing sentinels must
+not leak via errors or stderr. The forms of an environment or file
 entry are: `value` (supplied, public; `sensitivity` is not allowed with `value`),
 `secretFromEnvironment`, `secretFromFile`, `synthetic` with required `reason` and
 optional `sensitivity` (`public` by default, `secret` allowed), `unresolved` (a reason),
@@ -604,8 +712,13 @@ can round-trip.
 harness process and read a secret file) and turns each `secretFromEnvironment` into
 `SuppliedValue Secret value` or `UnavailableSecret "harness environment variable NAME is
 not set"`, and each `secretFromFile` into `SuppliedValue Secret content` (read as bytes,
-decoded as UTF-8, never trimmed) or `UnavailableSecret "secret file PATH could not be
-read"`. `processRequestEnvironment` uses `lookupEnv` and `ByteString.readFile`.
+decoded strictly as UTF-8, never trimmed; invalid UTF-8 is unavailable) or
+`UnavailableSecret "secret file PATH could not be read"`. `processRequestEnvironment`
+uses `lookupEnv` and `ByteString.readFile`, catching only
+synchronous IO/decoding failures and discarding upstream exception text. Secret-file
+paths are relative to the harness working directory. Validate reference variable names
+with the same name rule. `ResolvedRequest` carries notes only in `inputs.notes` so the
+runner cannot accidentally lose or double-count extraction limitations.
 
 Create settei-preflight/app/Main.hs for the executable `settei-preflight` using
 optparse-applicative 0.19 with two option groups, "Preflight" (`--request PATH`,
@@ -618,14 +731,15 @@ wrap the Nix derivation in `dontCheck` with the siblings' comment.
 
 Tests (same suite; add `build-tool-depends: settei-preflight:settei-preflight` to the
 test-suite stanza so the executable is on `PATH`): parse the golden
-settei-preflight/test/golden/request.json covering every entry form, both argument
-shapes, `inherit`, `timeoutSeconds`, `exitCodes`, and `notes`, and assert the resolved
+settei-preflight/test/golden/request.json covering every entry form, all argument
+forms, `inherit`, `timeoutSeconds`, `exitCodes`, and `notes`, and assert the resolved
 `ProposedInputs` classify as expected with an injected `RequestEnvironment` whose
 variable lookup returns a sentinel for one reference and `Nothing` for another and whose
 file reader succeeds for one path and fails for another; reject an inline
 `{"value": …, "sensitivity": "secret"}` entry, an entry with two forms, an entry with no
 form, an unknown top-level key, an unknown entry key, a wrong `type`, a wrong
-`schemaVersion`, and a non-positive timeout, each with a message naming the path; prove
+`schemaVersion`, and invalid timeout/exit-code mappings, each with a safe message naming
+the path; prove
 `renderPreflightRequestJson` round-trips and is byte-identical across two calls; and run
 the executable with `readProcessWithExitCode` against request files that point at the
 fixture application (write them into a temporary directory with the test executable's
@@ -635,19 +749,25 @@ executable does not exist, and a `sleep` request with `timeoutSeconds: 1`; `--js
 output begins `{"schemaVersion":1,"type":"settei.preflight"`; and a secret reference
 resolved from the test process environment (set with `setEnv` before spawning the
 executable, which inherits the test's environment) is redacted in both text and JSON
-output while the request file on disk never contained it.
+output while the request file on disk never contained it. Include malformed JSON with a
+sentinel near its syntax error, unknown keys containing a sentinel, secret-in-argument
+failures, and all retained report fields in these scans; parser errors must never be
+printed verbatim.
 
 Update settei-preflight/CHANGELOG.md and README.md to describe the document and the
 executable.
 
 ### Milestone 3 — Reference workflow on the notification-hub-shaped example
 
+
 Scope: prove the harness at the conformance boundary with real server and worker
 processes, and provide the deployment-shaped extraction example. Prerequisite: plan 26
 implemented through Milestone 4, so that `examples/settei-deployment` exists with the
 two executables and `runDeploymentWithSnapshot`. Verify with `ls
-examples/settei-deployment/app/server/Main.hs` before starting; if absent, implement plan
-26 first.
+examples/settei-deployment/app/server/Main.hs` before starting, then confirm the
+runner/parser signatures and plan 26 Milestone 4 acceptance evidence. File existence
+alone is not acceptance. If absent, record the prerequisite blocker; implementing plan
+26 is separate work unless the user has also authorized it.
 
 Add to examples/settei-deployment/settei-example-deployment.cabal: library dependencies
 `aeson`, `settei-preflight ==0.2.0.0`, `filepath`, and `containers`; a new library module
@@ -655,7 +775,9 @@ Add to examples/settei-deployment/settei-example-deployment.cabal: library depen
 (app/preflight/Main.hs); test dependencies `settei-preflight`, `aeson`, `directory`,
 `process`, and `temporary`; and `build-tool-depends:
 settei-example-deployment:settei-example-deployment-server,
-settei-example-deployment:settei-example-deployment-worker` on the test suite. Add the
+settei-example-deployment:settei-example-deployment-worker,
+settei-example-deployment:settei-example-deployment-preflight,
+settei-preflight:settei-preflight` on the test suite. Add the
 fixture examples/settei-deployment/test/fixtures/rendered-production.json to
 `data-files`. Update flake.module.nix's `setteiExampleDeploymentPackage` call with
 `settei-preflight = setteiPreflightPackage;` and mori.dhall's package entry with the
@@ -703,12 +825,49 @@ would become a directory part. Everything else, specifically `resourceFieldRef`,
 volumes that are mounted, an env entry whose `valueFrom` has an unknown key, and an
 argument containing an absolute path that matches no mount, becomes a note; an env entry
 with an unknown `valueFrom` is additionally emitted as `unresolved` so its name stays
-visible. Notes are copied into the request's `notes`, so the report shows them. The
+visible. Notes are copied into the request's `notes`; each becomes an
+`ExtractionIncomplete` limitation and prevents `pass`. Never print raw manifest values
+in notes or extraction errors. The
 executable `settei-example-deployment-preflight` parses `--manifest PATH`,
 `--deployment NAME`, `--container NAME`, `--role LABEL`, `--executable PATH`,
 `--secret-prefix TEXT`, repeated `--synthetic NAME=VALUE`, and repeated
 `--synthetic-secret NAME=VALUE`, prints the request JSON to stdout and the notes to
 stderr, and exits 2 on usage errors or 3 on extraction errors.
+
+Resolve effective Kubernetes inputs before producing the request. Select exactly one
+Deployment by name (reject ambiguous matches across namespaces) and exactly one named
+container across `initContainers` and `containers`; resolve referenced objects in that
+Deployment's namespace, treating missing namespaces as `default`. Expand `envFrom` in
+manifest order, applying `prefix`, with later sources winning, then apply explicit `env`
+entries in order with later duplicates winning. Emit one entry per effective name.
+Unsupported variable-name spellings get a coverage note rather than disappearing.
+Reject duplicate same-kind/name/namespace resource objects. Detect collisions in the
+sanitized secret-reference names (for example `foo-bar` and `foo_bar`) and fail extraction
+instead of aliasing two credentials. Never read or decode Secret values, only the union
+of `data` and `stringData` keys when enumeration is needed.
+
+For mounted ConfigMaps/Secrets, support explicit `items` and the default all-keys case
+when the object is present; unknown keys become notes. Resolve item `path` and mount path
+into canonical relative file names and reject collisions/traversal before serialization.
+Treat `subPath`, `subPathExpr`, `binaryData`, optional-volume semantics not represented by
+the fixture, and nonempty container `command` overrides as unsupported with notes rather
+than inventing their runtime semantics. Rewriting paths matches full path boundaries and
+prefers the longest matching mount, never replacing `/etc/config` inside `/etc/config2`.
+Unexpanded `$(VAR)` occurrences in env/args also produce notes. Only `args` are interpreted
+as arguments to the explicitly supplied host executable; image entrypoint equivalence
+is a caller obligation and container `command` is never silently discarded.
+
+Apply `--synthetic NAME=VALUE` only to unresolved public entries and
+`--synthetic-secret NAME=VALUE` only to secret references or unavailable secrets, after
+environment precedence has been resolved. Reject unknown names, conflicting substitutions,
+or attempts to substitute a secret through the public option. Substitutions become
+`SyntheticEntry` with a fixed reason, so a credential-shaped fake cannot be reported as
+supplied secret. The option accepts fake material only; real secrets use references.
+File substitutions are outside this example interface and remain visible limitations.
+
+Before the full mutation matrix, run one extracted server request through the actual
+executable and compare it with the in-process result. This catches extraction/parser
+mismatches before expanding the worker and unsupported-input cases.
 
 Tests in examples/settei-deployment/test/Settei/Example/DeploymentTest.hs (new
 `testGroup "preflight"`), locating the executables with `findExecutable`:
@@ -718,7 +877,8 @@ Tests in examples/settei-deployment/test/Settei/Example/DeploymentTest.hs (new
   complete snapshot, with the secrets as `SuppliedValue Secret`), and run the server
   with `--config {file} --set server.port=9200 --explain-config-json`; assert exit 0 and
   that the stdout names `server.port` with value `9200` from a command-line origin and
-  retains shadowed environment and file origins. Run the same inputs with
+  retains shadowed environment and file origins; repeat the precedence assertion for
+  the worker using the same shared setting. Run the same inputs with
   `--check-config` through the harness and in-process through
   `runDeploymentWithSnapshot Server` with an equivalent snapshot and options and assert
   equal exit codes and equal stderr. Then propose `WORKER_VISIBILITY_TIMEOUT_SECONDS=1`
@@ -733,7 +893,13 @@ Tests in examples/settei-deployment/test/Settei/Example/DeploymentTest.hs (new
   `EMAIL_CREDENTIALS_JSON` unset: the server report is `fail` listing the unavailable
   secret as a limitation and `email.credentials: required value is missing` in stderr.
   Supplying all three with `POD_NAMESPACE` synthetic yields `inconclusive` for both
-  roles with exactly one limitation. Then mutate the parsed manifest before extraction
+  roles: the server has one `POD_NAMESPACE` limitation; the worker has that limitation
+  plus its unsupported projected volume. Add a case with all enumerated inputs supplied
+  and only the projected-volume note: the worker must remain `inconclusive`, never `pass`.
+  Also exercise a synthetic secret substitution explicitly, envFrom precedence/prefixes,
+  same-named resources in different namespaces, all-key mounts, overlapping mount paths,
+  optional references, unsupported command/expansion/subPath forms, and secret-reference
+  sanitization collisions. Then mutate the parsed manifest before extraction
   and assert each yields `fail` with the expected stderr: ConfigMap `ENVIRONMENT: prod`
   (decoder rejection, exit 4); `application.yaml` content `server: [` (source failure,
   exit 3); the server's `DATABASE_URL` entry pointing at a nonexistent Secret key, so
@@ -746,8 +912,18 @@ Tests in examples/settei-deployment/test/Settei/Example/DeploymentTest.hs (new
 - Configuration-only execution (AC-5): with `DATABASE_URL` set to
   `postgres://preflight.invalid:5432/notification` and no network or database available,
   both roles accept; the captured stdout is exactly `configuration valid\n`, never the
-  startup summary; and the harness's own fixture marker test from Milestone 1 is cited
-  as the instrumentation evidence that check mode exits before a startup path.
+  startup summary. Instrument the actual deployment runner's startup branch: export an
+  example-only `runDeploymentWithStartup :: IO () -> Role -> IO EnvSnapshot ->
+  DeploymentOptions -> IO DeploymentRun`; call the action only after all diagnostics
+  decline and before the startup summary. `runDeploymentWithSnapshot` delegates with a
+  no-op action and `pure snapshot`; `runDeploymentWithEnvironment` delegates with a
+  no-op startup action while preserving its lazy environment-reader dispatch. Both
+  executable entry points supply an action that fails with a fixed
+  message when `SETTEI_DEPLOYMENT_TEST_FAIL_ON_STARTUP=1`. Harness tests explicitly pass
+  this variable and prove both roles' check mode accepts without triggering it, while
+  both non-check invocations fail at the action. In-process tests supply a throwing action
+  and cover success and configuration rejection. This instruments the reference roles
+  themselves as required by IR-3 AC-5; the generic marker test remains supporting evidence.
 - Sentinels (AC-4): with secret sentinels in `DATABASE_URL`, `WEBHOOK_SECRET`, and
   `EMAIL_CREDENTIALS_JSON`, no sentinel appears in the request JSON, the text report,
   the JSON report, or the executable's stdout and stderr when run through
@@ -758,7 +934,8 @@ fixture, the extractor's handled and unhandled inputs, and the two commands.
 
 ### Milestone 4 — Documentation and collateral
 
-Scope: make the workflow discoverable, bounded, and recorded, and close the request.
+
+Scope: make the workflow discoverable, bounded, and recorded for final acceptance.
 
 Write docs/guides/deployment-preflight.md ("Preflight-checking proposed deployment
 inputs", `docId: DOC-12` after re-running `okf id next`, `type: Guide`, tags `[settei,
@@ -819,26 +996,29 @@ sentence), docs/compatibility.md (public modules: `Settei.Preflight` and
 `Settei.Preflight.Request`; library rows for `process`, `temporary`, and the preflight
 use of `aeson`; an input-contracts row for the request document), docs/security.md (a
 "Preflight harness" section: secrets only by reference in documents, only through
-environment or `0700` temporary files toward the child, redaction of captured output,
+environment or files beneath a `0700` temporary directory toward the child, redaction of captured output,
 reports are operational metadata that reveal names and topology, and the harness cannot
 vouch for an arbitrary executable), and settei-preflight/CHANGELOG.md. Finally edit
 docs/improvement-requests/provide-a-reusable-deployment-preflight-workflow.md. The record
 already carries `status: accepted` and `targetPlan` naming this plan (set when the plan
 was created); the first implementation session moves it to `status: in-progress`, and
-this milestone sets `status: completed`, adds `completedAt` (RFC 3339 UTC) and a
+Milestone 5, after all gates pass, sets `status: completed`, adds `completedAt` (RFC 3339 UTC) and a
 `resolution` line naming this plan and the test evidence, following the field names in
-docs/improvement-requests/profile.dhall (okf-profiles v0.22.0). Run the strict
+docs/improvement-requests/profile.dhall (`mori://shinzui/okf-profiles`, v0.22.0). Run the strict
 validation after each lifecycle edit and append a log entry.
 
 ### Milestone 5 — Full validation and closure
 
+
 Run the complete gates listed in Validation and Acceptance, record the test totals and
-the Purpose transcript in this plan, write Outcomes & Retrospective, and confirm ADR-13
+the Purpose transcript in this plan, complete and revalidate IR-3, write Outcomes &
+Retrospective, and confirm ADR-13
 and the ADR-7 amendment capture everything durable from the Decision Log and Surprises &
 Discoveries.
 
 
 ## Concrete Steps
+
 
 All commands run from the repository root /Users/shinzui/Keikaku/bokuno/settei unless
 stated otherwise. `nix develop -c` supplies GHC 9.12.4, Cabal 3.16, fourmolu, treefmt,
@@ -883,11 +1063,11 @@ Milestone 2:
 ```bash
 mkdir -p settei-preflight/app
 # create src/Settei/Preflight/Request.hs, app/Main.hs, test/golden/request.json;
-# edit settei-preflight.cabal (aeson, executable, build-tool-depends), flake.module.nix (dontCheck)
+# edit settei-preflight.cabal (executable, build-tool-depends), flake.module.nix (pinned optparse, dontCheck)
 nix develop -c cabal build settei-preflight
 nix develop -c cabal test settei-preflight-tests --test-show-details=direct
 printf '%s\n' '{"schemaVersion":1,"type":"settei.preflight-request","role":"smoke","command":{"executable":"/definitely/missing","arguments":[]},"environment":[]}' > /tmp/smoke-request.json
-nix develop -c cabal run settei-preflight -- --request /tmp/smoke-request.json; echo "exit $?"
+nix develop -c cabal run -v0 settei-preflight -- --request /tmp/smoke-request.json; echo "exit $?"
 ```
 
 Expected output of the smoke run:
@@ -917,14 +1097,14 @@ mkdir -p examples/settei-deployment/app/preflight
 # flake.module.nix, mori.dhall
 nix develop -c cabal build settei-example-deployment
 nix develop -c cabal test settei-example-deployment-tests --test-show-details=direct
-nix develop -c cabal run settei-example-deployment-preflight -- \
+nix develop -c cabal run -v0 settei-example-deployment-preflight -- \
   --manifest examples/settei-deployment/test/fixtures/rendered-production.json \
   --deployment settei-example-deployment-server --role server \
   --executable "$(nix develop -c cabal list-bin settei-example-deployment-server)" \
   --synthetic POD_NAMESPACE=production > /tmp/server-request.json
 SETTEI_PREFLIGHT_SECRET_SETTEI_EXAMPLE_DEPLOYMENT_SECRETS_DATABASE_URL='postgres://preflight.invalid/notification' \
 SETTEI_PREFLIGHT_SECRET_SETTEI_EXAMPLE_DEPLOYMENT_SECRETS_WEBHOOK_SECRET='preflight-stand-in-webhook-secret' \
-  nix develop -c cabal run settei-preflight -- --request /tmp/server-request.json; echo "exit $?"
+  nix develop -c cabal run -v0 settei-preflight -- --request /tmp/server-request.json; echo "exit $?"
 grep -c preflight-stand-in-webhook-secret /tmp/server-request.json   # expect 0
 ```
 
@@ -947,7 +1127,7 @@ okf index docs/improvement-requests --write --okf-version 0.2
 okf log add docs/guides --kind Add -m "DOC-12 preflight-checks proposed deployment inputs with application check mode; DOC-8 links the pre-provisioning half of the rollout gate."
 okf log add docs/capabilities --kind Add -m "CAP-15 deployment preflight harness."
 okf log add docs/adr --kind Add -m "ADR-13 fixes deployment preflight harness semantics; ADR-7 amended for the preflight reference workflow."
-okf log add docs/improvement-requests --kind Update -m "IR-3 completed by docs/plans/28-provide-a-reusable-deployment-preflight-harness-around-application-check-mode.md."
+okf log add docs/improvement-requests --kind Update -m "IR-3 preflight documentation prepared; completion awaits final validation."
 okf validate docs/adr --strict --profile docs/adr/profile.dhall --profile-enforce --log-enforce
 okf validate docs/guides --strict --profile mori/user-documentation-profile.dhall --profile-enforce --log-enforce
 okf validate docs/capabilities --profile docs/capabilities/profile.dhall --profile-enforce --log-enforce
@@ -965,8 +1145,32 @@ nix develop -c cabal test all --test-show-details=direct
 (cd settei-preflight && nix develop -c cabal check)
 nix develop -c treefmt --fail-on-change --no-cache
 nix flake check
-mori registry show shinzui/settei --full | grep settei-preflight
+mori show --full | rg settei-preflight   # inspect current manifest, not a stale registry snapshot
 ```
+
+Validate the new package independently against current Aeson without changing unrelated
+adapters' existing bounds. This separate project excludes the Dhall adapter; the ordinary
+workspace suite above exercises the 2.2.5.1 line. From the repository root:
+
+```bash
+cat > /tmp/settei-preflight-aeson23.project <<'CABAL'
+packages:
+  /Users/shinzui/Keikaku/bokuno/settei/settei
+  /Users/shinzui/Keikaku/bokuno/settei/settei-env
+  /Users/shinzui/Keikaku/bokuno/settei/settei-preflight
+constraints: aeson ==2.3.2.0
+package settei-preflight
+  tests: True
+CABAL
+nix develop -c cabal test --project-file=/tmp/settei-preflight-aeson23.project \
+  --builddir=dist-newstyle/preflight-aeson23 settei-preflight-tests --test-show-details=direct
+```
+
+Expected: all preflight tests pass, including byte-identical JSON goldens, with Aeson
+2.3.2.0 in the separate solver plan. Record both selected Aeson versions as evidence.
+After every gate succeeds, complete IR-3, append its completion log entry, and rerun its
+strict profile validation before the final commit.
+
 
 Commits: one per milestone at minimum, each with the trailers
 
@@ -980,13 +1184,14 @@ check mode on proposed deployment inputs`. Record a provenance revision entry th
 time this plan is edited in an implementation session:
 
 ```bash
-bun .claude/skills/exec-plan/record-provenance.ts revision \
+bun agents/skills/exec-plan/record-provenance.ts revision \
   --plan docs/plans/28-provide-a-reusable-deployment-preflight-harness-around-application-check-mode.md \
   --model <your-model-id> --harness <harness> --mode implement --note "<one line>"
 ```
 
 
 ## Validation and Acceptance
+
 
 Each acceptance criterion of IR-3 maps to observable checks:
 
@@ -1005,26 +1210,29 @@ Each acceptance criterion of IR-3 maps to observable checks:
   both roles and the mutation tests fail for a changed ConfigMap value, a malformed file
   input, a broken secret mapping, and a worker-specific value. The handled input kinds
   and the notes mechanism are asserted in tests and stated in the extractor's Haddock,
-  the example README, and the guide. The harness contains no decoder, default, or
-  invariant; every rejection in the tests is produced by the application process.
+  the example README, and the guide. The harness contains no application decoder,
+  default, or invariant. Application rejections come from the child; malformed requests
+  and extraction failures are separate harness errors.
 - AC-3 (honest coverage). Fixture tests cover a supplied public value, a supplied
   secret, a synthetic secret stand-in, an unresolved value, and an unavailable secret,
   asserting the classification of each input, the limitation list, the `omitted`
   marking, and the verdicts `pass`, `inconclusive`, and `fail`. The deployment example
   reproduces the five classifications from an extracted request. The text and JSON
   reports state in words that `inconclusive` is not a deployment validation, and the
-  executable's exit code is `0` only for `pass`.
+  executable's exit code is `0` only for `pass`. An unsupported-input note by itself
+  makes coverage partial and acceptance inconclusive.
 - AC-4 (secret channels and attributable errors). Sentinels injected through variables
   and files never appear in request documents, reports, `show` output, or the
   executable's stdout and stderr, even when the fixture application echoes them; a
-  literal argument containing a secret invalidates the request before anything runs; the
+  fully assembled argument or executable containing a secret invalidates the request before anything runs; the
   executable-not-found, source-loading (exit 3), configuration-rejected (exit 4), crash,
   and timeout paths each produce the documented outcome; the temporary directory is
   gone after a timeout; and every report carries the role label.
 - AC-5 (configuration-only checks separated from readiness). The `server-like` fixture
   proves that check mode never reaches the startup marker while a non-check run does.
-  Both deployment roles accept with an unreachable database URL and no network, and
-  their stdout is exactly `configuration valid`. The guide separates these results from
+  Both deployment roles accept with an unreachable database URL and the startup-failure
+  action enabled, and their stdout is exactly `configuration valid`. Non-check controls
+  trigger the action in both roles. The guide separates these results from
   connectivity, credentials, image identity, and readiness, and names the init-container
   gate and live probes as the later checks.
 
@@ -1067,9 +1275,11 @@ becoming acceptance.
 
 ## Idempotence and Recovery
 
-Every build and test command is safe to repeat. The harness itself is idempotent by
-construction: each run uses a fresh temporary directory removed by `bracket`, and
-re-running a request changes nothing outside that directory. `okf id next` only reports
+
+Every build and test command is safe to repeat. Each harness run uses a fresh private
+temporary directory with explicit cleanup and bracket fallback. Repeating the documented
+check-mode fixtures is safe; arbitrary caller-selected executables can change state
+outside the directory, and the harness makes no general idempotence guarantee. `okf id next` only reports
 the next free handle; `okf log add` appends, so run each once and remove a duplicated
 entry by hand if repeated; `okf index --write` is deterministic. If a golden test fails
 after an intentional renderer change, inspect the diff for secret leaks before updating
@@ -1078,7 +1288,8 @@ the one-second timeout in that test is the first thing to check. If the Nix deri
 for the new package fails to evaluate, the Cabal build and tests remain authoritative;
 fix the flake.module.nix entry by comparing it line by line with `setteiEnvPackage` and
 the `dontCheck` siblings. If Milestone 3 begins before plan 26 Milestone 4 has landed,
-stop and implement that first; Milestones 1 and 2 can be committed independently. If the
+record the prerequisite blocker unless plan 26 implementation is also authorized;
+Milestones 1 and 2 can be committed independently. If the
 strict validation of docs/improvement-requests fails after a lifecycle edit, restore the
 record's frontmatter from git, fix the field the validator names, and retry. If a
 milestone must be abandoned midway, commit only green states; the previous milestone's
@@ -1086,6 +1297,7 @@ commit is always a clean restart point.
 
 
 ## Interfaces and Dependencies
+
 
 New public module `Settei.Preflight` in the `settei-preflight` package:
 
@@ -1126,19 +1338,23 @@ data PreflightProblem
   = InvalidEnvironmentName !EnvName | DuplicateEnvironmentName !EnvName
   | InvalidEnvironmentValue !EnvName
   | InvalidFileName !FileName | DuplicateFileName !FileName
+  | FilePathConflict !FileName !FileName
   | UnknownFileReference !Int !FileName                -- argument index, name
   | SecretInArgument !Int !InputRef                    -- argument index, which secret
   | InvalidInheritedName !EnvName | InheritedNameProposed !EnvName
+  | DuplicateInheritedName !EnvName
+  | InvalidExecutable | InvalidArgument !Int | SecretInExecutable !InputRef
+  | InvalidTimeout | InvalidExitCodeMapping
   | EmptyRoleLabel
-data InputRef = EnvironmentInput !EnvName | FileInput !FileName
-validatePreflight :: RoleLabel -> CheckCommand -> ProposedInputs -> Either (NonEmpty PreflightProblem) ()
+data InputRef = EnvironmentInput !EnvName | FileInput !FileName | ExtractionNote !Int
+validatePreflight :: PreflightOptions -> RoleLabel -> CheckCommand -> ProposedInputs -> Either (NonEmpty PreflightProblem) ()
 renderPreflightProblemText :: PreflightProblem -> Text
 renderPreflightProblemsText :: NonEmpty PreflightProblem -> Text
 
 -- Running
 runPreflight :: PreflightOptions -> RoleLabel -> CheckCommand -> ProposedInputs -> IO PreflightReport
 
--- Report (all types derive Generic, Eq, Show; they never hold a value)
+-- Report (Generic, Eq, Show over sanitized fields; constructors stay private)
 data PreflightReport = PreflightReport
   { role :: !RoleLabel, command :: !CommandSummary, inputs :: ![InputSummary],
     inherited :: ![(EnvName, Bool)], notes :: ![Text],
@@ -1152,10 +1368,11 @@ data Outcome = Accepted | Rejected !RejectionCategory !Int | NotRun !NotRunReaso
 data RejectionCategory = UsageError | SourceFailure | ConfigurationRejected | UnknownExitCode
 data NotRunReason
   = RequestInvalid !(NonEmpty PreflightProblem) | ExecutableNotFound !FilePath
-  | SpawnFailed !Text | TimedOut !Int
+  | SpawnFailed !Text | MaterializationFailed !Text | CaptureFailed !Text
+  | CleanupFailed !Text | TimedOut !Int
 data Coverage = CompleteCoverage | PartialCoverage !(NonEmpty Limitation)
 data Limitation = Limitation { input :: !InputRef, kind :: !LimitationKind, reason :: !Text }
-data LimitationKind = SyntheticStandIn | NotYetResolved | SecretUnavailable
+data LimitationKind = SyntheticStandIn | NotYetResolved | SecretUnavailable | ExtractionIncomplete
 data Verdict = Pass | Inconclusive | Fail
 data Execution = Execution
   { exitCode :: !(Maybe Int), timedOut :: !Bool, standardOutput :: !Text, standardError :: !Text }
@@ -1163,7 +1380,11 @@ renderPreflightReportText :: PreflightReport -> Text
 renderPreflightReportJson :: PreflightReport -> Text       -- settei.preflight, no trailing newline
 ```
 
-`ProposedValue`, `ProposedFile`, and `ProposedInputs` derive `Generic` and `Eq` only.
+`ProposedValue`, `ProposedFile`, `ProposedInputs`, `ArgumentPart`, `Argument`,
+`CheckCommand`, `PreflightRequest`, `RequestEntry`, `EntryForm`, and `ResolvedRequest`
+derive `Generic` and `Eq` only, never `Show`. Report constructors are private and public
+accessors expose only sanitized fields. Sanitize problems returned by `validatePreflight`
+as well as those embedded in reports; original raw names are never retained on errors.
 No record field is named `bindings`, because the reference applications import
 `Settei.Env` unqualified and `Settei.Env.bindings` would become ambiguous;
 `DuplicateRecordFields` and generic-lens labels resolve the remaining shared field names
@@ -1171,18 +1392,24 @@ as elsewhere in the family. No lens type appears in a public signature (the
 compatibility policy's audit rule).
 
 JSON layout of `settei.preflight` (`schemaVersion` 1), keys in this order:
-`schemaVersion`, `type`, `role`, `verdict` (`pass`/`inconclusive`/`fail`), `outcome`
+`schemaVersion`, `type`, `role`, `verdict` (`pass`/`inconclusive`/`fail`),
+`verdictExplanation` (the text verdict sentence, including "not a deployment validation"
+for inconclusive), `outcome`
 (object: `kind` = `accepted`/`rejected`/`not-run`; for `rejected` also `category` =
 `usage`/`source-failure`/`configuration-rejected`/`unknown-exit-code` and `exitCode`;
 for `not-run` also `reason` = `request-invalid`/`executable-not-found`/`spawn-failed`/
-`timed-out`, `detail` string or null, and `problems` array of `{kind, name, argument}`
+`materialization-failed`/`capture-failed`/`cleanup-failed`/`timed-out`, `detail` string or null, and `problems` array of `{kind, name, argument}`
 with `kind` spelled `invalid-environment-name`, `duplicate-environment-name`,
 `invalid-environment-value`, `invalid-file-name`, `duplicate-file-name`,
 `unknown-file-reference`, `secret-in-argument`, `invalid-inherited-name`,
-`inherited-name-proposed`, or `empty-role-label`), `coverage` (object: `kind` =
+`inherited-name-proposed`, `duplicate-inherited-name`, `file-path-conflict`,
+`invalid-executable`, `invalid-argument`, `secret-in-executable`, `invalid-timeout`,
+`invalid-exit-code-mapping`, or `empty-role-label`; `name` is null when inapplicable,
+a sanitized name otherwise, with `relatedName` for a file/parent conflict), `coverage` (object: `kind` =
 `complete`/`partial`, `limitations` array of `{channel, name, limitation, reason}` with
-`channel` = `environment`/`file` and `limitation` = `synthetic-stand-in`/
-`not-yet-resolved`/`secret-unavailable`), `inputs` (array of `{channel, name,
+`channel` = `environment`/`file`/`extraction` (for extraction, `name` is the decimal
+note index) and `limitation` = `synthetic-stand-in`/
+`not-yet-resolved`/`secret-unavailable`/`extraction-incomplete`), `inputs` (array of `{channel, name,
 classification, passed}` with `classification` = `supplied-public`/`supplied-secret`/
 `synthetic-public`/`synthetic-secret`/`unresolved`/`unavailable-secret`), `inherited`
 (array of `{name, present}`), `notes` (array of strings), `command` (`{executable,
@@ -1192,8 +1419,8 @@ arguments}` with arguments rendered as in the text report), and `execution` (nul
 New public module `Settei.Preflight.Request`:
 
 ```haskell
--- The parsed document. It derives Generic, Eq, and Show because it can never hold a
--- secret value: secrets appear only as references.
+-- The parsed document derives Generic and Eq only. Public text and fake stand-ins
+-- are raw inputs; real secrets must be referenced, not embedded.
 data PreflightRequest = PreflightRequest
   { role :: !RoleLabel,
     command :: !CheckCommand,
@@ -1226,7 +1453,7 @@ data RequestEnvironment = RequestEnvironment
 processRequestEnvironment :: RequestEnvironment
 data ResolvedRequest = ResolvedRequest
   { role :: !RoleLabel, command :: !CheckCommand, inputs :: !ProposedInputs,
-    options :: !PreflightOptions, notes :: ![Text] }
+    options :: !PreflightOptions }
 resolveRequest :: RequestEnvironment -> PreflightRequest -> IO ResolvedRequest
 ```
 
@@ -1240,9 +1467,10 @@ relative path), optional `inherit` (array of names; replaces the default), optio
 `notes` (array of strings). An entry is `{"name": N}` plus exactly one of `value`,
 `secretFromEnvironment`, `secretFromFile`, `synthetic` (with required `reason` and
 optional `sensitivity` = `public`/`secret`), `unresolved`, or `unavailableSecret`.
-Adding an entry form or a note field is a minor change for consumers that reject
-unknown kinds explicitly; renaming a key or the document type requires a new
-`schemaVersion`.
+All unknown fields and forms are rejected. Adding a field or entry form therefore
+requires a new `schemaVersion` unless a future explicit negotiation mechanism is added;
+renaming a key or changing meaning also requires a new version. Version 1 has no
+ignorable advisory-note field: every note makes coverage partial.
 
 Executable `settei-preflight`: `--request PATH` (group "Preflight"), `--json` (group
 "Output"); exit codes 0 pass, 1 inconclusive, 2 usage, 3 harness could not run the check,
@@ -1261,10 +1489,22 @@ ExtractionError (PreflightRequest, [Text])`; executable
 Dependencies whose choice matters: `process >=1.6.19 && <1.7` (GHC 9.12 ships 1.6.26.1;
 `cleanupProcess` exists since 1.6.4), `temporary >=1.3 && <1.4` (already a test
 dependency of the service example), `directory >=1.3.8 && <1.4` and `filepath >=1.5.4 &&
-<1.6` (the Kubernetes adapter's bounds), `aeson >=2.2 && <2.3` (the Dhall adapter's
-bound), `bytestring >=0.12 && <0.13`, and `optparse-applicative >=0.19 && <0.20` for the
-executable. Before pinning any bound, verify the current release on Hackage and consult
+<1.6` (the Kubernetes adapter's bounds), `aeson >=2.2.5.1 && <2.4` (the new package
+permits the fixed 2.2 line and current 2.3 line), `bytestring >=0.12 && <0.13`, and
+`optparse-applicative >=0.19 && <0.20` for the
+executable. Before pinning any bound, verify the current release on Hackage and upstream tags and consult
 the registered sources with `mori registry show haskell/process --full` and `mori
 registry show haskell/aeson --full`; `temporary` is not registered in Mori, so read its
 Hackage documentation for `withSystemTempDirectory`. No Pulumi SDK, Kubernetes client,
-or network library is added anywhere.
+or network library is added anywhere. Supported execution targets for this first version
+are the repository's Linux and macOS platforms; POSIX permissions and signals in this
+plan do not claim Windows support.
+
+Revision note (2026-10-21): validated the plan against IR-3, its plan 26 prerequisite,
+the current application/adapter sources, relevant ADRs, process cleanup source, and
+published dependency releases. Repaired incomplete-extraction verdicts, secret-bearing
+failure paths, reader and temporary-file cleanup, option/path validation, Kubernetes
+extraction precedence and collisions, role startup instrumentation, JSON compatibility,
+and milestone/build ordering. Milestones remain unimplemented; this update records plan
+readiness, not runtime acceptance. Existing ADRs retain their accepted behavior; the
+new harness decisions are to be recorded by Milestone 4 when implemented.
