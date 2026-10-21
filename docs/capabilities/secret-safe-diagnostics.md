@@ -4,7 +4,7 @@ type: Capability
 description: "Render schemas, successful or failed resolutions, errors, and warnings as deterministic text or versioned JSON without retaining declared secret values."
 generated:
   by: openai/codex
-  at: "2026-10-21T16:45:00Z"
+  at: "2026-10-21T16:36:34Z"
 capabilityId: CAP-3
 provider: mori://shinzui/settei
 status: shipped

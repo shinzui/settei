@@ -68,7 +68,7 @@ tests =
             problems @?= [],
       testCase "construction accumulates every offender in defined order" $ do
         let rule name ks = invariant (InvariantRule name) (validKeys ks) "safe" (error "construction forced function")
-            declarations = [rule "" [], rule "white space" ["nothing.here"], rule "line\nbreak" ["workers.concurrency"], requires [InvariantRule "later"] (rule "early" ["workers.concurrency"]), requires [InvariantRule "self"] (rule "self" ["workers.concurrency"]), rule "later" ["workers.concurrency"], rule "later" ["workers.concurrency"]]
+            declarations = [rule "" [], rule "white space" ["nothing.here"], rule "line\nbreak" ["workers.concurrency"], requires [InvariantRule "later"] (rule "early" ["workers.concurrency"]), requires [InvariantRule "self"] (rule "self" ["workers.concurrency"]), rule "later" ["workers.concurrency"], rule "later" ["workers.concurrency"], rule "later" ["workers.concurrency"]]
             expected = [InvalidInvariantRule (InvariantRule ""), EmptyInvariantKeys (InvariantRule ""), InvalidInvariantRule (InvariantRule "white space"), UndeclaredInvariantKey (InvariantRule "white space") (validKey "nothing.here"), InvalidInvariantRule (InvariantRule "line\nbreak"), UnknownPrerequisite (InvariantRule "early") (InvariantRule "later"), UnknownPrerequisite (InvariantRule "self") (InvariantRule "self"), DuplicateInvariantRule (InvariantRule "later")]
         case validators hubConfig declarations of
           Right _ -> fail "invalid declarations accepted"

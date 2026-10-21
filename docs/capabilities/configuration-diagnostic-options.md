@@ -4,7 +4,7 @@ type: Capability
 description: "Add mutually exclusive describe, check, and explain modes to an optparse-applicative program and render the matching source-free or post-resolution output."
 generated:
   by: openai/codex
-  at: "2026-10-21T16:45:00Z"
+  at: "2026-10-21T16:36:34Z"
 capabilityId: CAP-7
 provider: mori://shinzui/settei
 status: shipped

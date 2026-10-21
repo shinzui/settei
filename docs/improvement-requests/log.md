@@ -2,6 +2,7 @@
 
 ## 2026-10-21
 * **Update**: Update IR-4 lifecycle and evidence
+* **Update**: Update IR-4 lifecycle and evidence
 * **Update**: IR-2 completed by docs/plans/27-validate-supplied-environment-variable-names-against-declared-bindings.md with 42 adapter tests and 24 CLI tests.
 * **Update**: IR-2 implementation started under docs/plans/27-validate-supplied-environment-variable-names-against-declared-bindings.md.
 * **Update**: IR-3 completed: plan 28 acceptance passes with 497 workspace tests and both Aeson lines.

@@ -3,12 +3,14 @@ type: Improvement Request
 title: Integrate application validation into structured configuration diagnostics
 description: Represent post-resolution application invariants as safe structured failures shared by startup, check mode, and text or JSON explanations.
 requestId: IR-4
-status: in-progress
+status: completed
+completedAt: 2026-10-21T16:38:11Z
+resolution: "Implemented by docs/plans/29-integrate-application-validation-into-structured-configuration-diagnostics.md; 561 tests across 14 suites, full Cabal build, configured formatting, four OKF bundle checks, host flake check, and executable diagnostic acceptance pass."
 targetPlan: docs/plans/29-integrate-application-validation-into-structured-configuration-diagnostics.md
 origin: mori://tan/notification-hub
 generated:
   by: process:codex
-  at: "2026-10-21T16:24:00Z"
+  at: "2026-10-21T16:38:11Z"
 reviews:
   - kind: model
     reviewer: process:codex
@@ -93,4 +95,22 @@ check; the requested validators are pure configuration acceptance checks.
 structured result and can be implemented using current application checks first. No
 hard dependency on the deployment-contract export in
 [IR-1](export-a-deployment-configuration-contract.md) is required. AC-1 through AC-5
-define future completion; this request does not claim those capabilities are shipped.
+are satisfied by the implementation described below, targeting the next shared 0.3.0.0
+release.
+
+
+## Resolution
+
+[Plan 29](../plans/29-integrate-application-validation-into-structured-configuration-diagnostics.md)
+implements the five criteria through checked pure validators, metadata-only invariant
+failures, retained resolution provenance, and one validated diagnostic dispatch. The
+existing deployment server and worker checks now use role collections without changing
+successful values or rejection outcomes. See [CAP-16](../capabilities/structured-application-validation.md)
+and [ADR-14](../adr/0014-application-invariant-validation.md) for the public author contract.
+
+Acceptance passed on 2026-10-21: full Cabal build, 561 tests across 14 suites, configured
+`nix fmt`, all four profile/log bundle validations, and host `nix flake check`. Executable
+checks prove consistent exit 4 with the specified text and two-document JSON diagnostics,
+and secret sentinels are absent from both streams for both roles in all eight modes.
+The additive JSON fields remain version 1; the new `ConfigError` constructor requires
+0.3.0.0 and a coordinated release/pin update, which remains release workflow work.

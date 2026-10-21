@@ -2,7 +2,7 @@
 type: Architecture Decision Record
 title: Define leaf-wise resolution, provenance, and default semantics
 description: Define shared leaf-wise resolution, provenance, and default semantics across all Settei sources.
-timestamp: 2026-10-21T16:45:00Z
+timestamp: 2026-10-21T16:36:34Z
 docId: ADR-3
 status: Accepted
 date: 2026-07-17

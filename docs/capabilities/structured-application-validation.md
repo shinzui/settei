@@ -4,7 +4,7 @@ type: Capability
 description: Apply pure application invariants to typed configuration with checked rule metadata, ordered outcomes, shared rejection paths, and retained provenance.
 generated:
   by: process:codex
-  at: 2026-10-21T16:45:00Z
+  at: 2026-10-21T16:36:34Z
 capabilityId: CAP-16
 provider: mori://shinzui/settei
 status: shipped

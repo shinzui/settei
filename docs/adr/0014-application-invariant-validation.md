@@ -2,13 +2,13 @@
 type: Architecture Decision Record
 title: Validate application invariants after typed resolution
 description: Check pure application rules against declared keys and share structured failures and provenance across startup and diagnostics.
-timestamp: 2026-10-21T16:45:00Z
+timestamp: 2026-10-21T16:36:34Z
 docId: ADR-14
 status: Accepted
 date: 2026-10-21
 generated:
   by: process:codex
-  at: 2026-10-21T16:45:00Z
+  at: 2026-10-21T16:36:34Z
 ---
 
 # ADR 0014: Validate application invariants after typed resolution
@@ -27,7 +27,8 @@ provides the opaque checked-collection precedent.
 Core owns `Settei.Validate`. A `Validator a` declares a stable `InvariantRule`, nonempty
 setting keys, a fixed expectation, optional prerequisite identifiers, and a pure function
 from the typed value to finite violations. `validators config rules` accumulates invalid
-identifiers, duplicates, empty key lists, undeclared keys, and prerequisites that do not
+identifiers, duplicates (once at the second occurrence), empty key lists, undeclared
+keys, and prerequisites that do not
 name earlier rules. Shared default-cycle preflight runs before schema inspection: cycles
 suppress key-membership checks but do not suppress other construction errors. Possible
 conditional keys are valid references; authors handle optional values totally.

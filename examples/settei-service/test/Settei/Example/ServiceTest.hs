@@ -345,6 +345,7 @@ problemKey = \case
   DefaultError problem -> problem ^. #key
   DefaultCycle _ -> error "cycle has no key"
   SensitivityConflict problem -> problem ^. #key
+  InvariantError _ -> error "an invariant can involve multiple setting keys"
 
 expectResolution :: ResolveResult a -> IO a
 expectResolution result = case result ^. #answer of

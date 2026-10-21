@@ -6,7 +6,7 @@ docId: DOC-2
 tags: [settei, cli, configuration]
 generated:
   by: human:nadeem
-  at: 2026-10-21T16:45:00Z
+  at: 2026-10-21T16:36:34Z
 ---
 
 # Building a CLI application

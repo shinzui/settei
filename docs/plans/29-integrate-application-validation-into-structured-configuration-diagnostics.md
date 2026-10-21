@@ -140,9 +140,9 @@ check mode now consumes the validated result.
 - [x] Milestone 4 — Documentation, collateral, and request lifecycle (AC-3 author
       contract, AC-5 versioning): a new ADR plus an ADR-3 amendment, a new capability
       record plus CAP-3 and CAP-7 updates, guide sections, security and compatibility
-      updates, changelogs with the PVP consequences, and IR-4 still `in-progress`;
+      updates, changelogs with the PVP consequences, and IR-4 kept `in-progress` until full acceptance;
       every OKF bundle passes its prescribed profile-enforced validation.
-- [ ] Milestone 5 — Full validation and closure: `cabal build all`, `cabal test all`,
+- [x] Milestone 5 — Full validation and closure: `cabal build all`, `cabal test all`,
       `nix fmt`, the four `okf validate` commands, and `nix flake check` pass; evidence
       recorded here; Outcomes & Retrospective written; ADR distillation done; IR-4
       moved to `completed` only after those gates pass and its bundle revalidated.
@@ -154,8 +154,8 @@ unchanged. Worker process acceptance: text explain exits 4 with 35 stderr lines;
 JSON explain exits 4 with exactly two parseable JSON documents; check exits 4 with one
 error line; stdout is empty in every rejection. ADR-14, its ADR-3 amendment, CAP-16, migration guides, security and compatibility
 notes are written; all four OKF checks pass (14 ADRs, 12 guides, 16 capabilities,
-4 requests). IR-4 remains in progress. Full-workspace gates remain for
-Milestone 5.
+4 requests). Full-workspace acceptance subsequently passed as recorded under Outcomes
+& Retrospective and Validation and Acceptance; IR-4 is completed and its bundle has been strictly revalidated after closure.
 
 ## Surprises & Discoveries
 
@@ -358,7 +358,33 @@ Milestone 5.
 ## Outcomes & Retrospective
 
 
-(To be filled during and after implementation.)
+Implemented on 2026-10-21. Applications can declare checked pure rules next to their
+configuration, compose per-role collections, and share one validated result across startup,
+check, and explanation modes. Independent violations accumulate in declaration order;
+prerequisites skip safely; resolution failure leaves every validator not run. The original
+resolution report and warnings are preserved, and existing bare report/schema goldens are
+unchanged. The deployment example's existing checks are migrated once, preserving valid
+values, rejection outcomes, and overflow-safe arithmetic.
+
+Full acceptance passed: `nix develop -c cabal build all`, `nix develop -c cabal test all
+--test-show-details=direct` (561 tests in 14 suites), `nix fmt`, all four prescribed OKF
+validations (14 ADRs, 12 guides, 16 capabilities, 4 requests), and `nix flake check` on
+`aarch64-darwin`. The build has no GHC warnings. Flake evaluation intentionally omits
+incompatible systems; this is host-platform evidence, not a multi-platform release claim.
+Actual worker processes reject the invalid timeout with exit 4, empty stdout, and the
+specified text/JSON documents. Both executable roles omit the raw sentinel and its ASCII
+marker from both streams in all eight modes, and their JSON explanations parse.
+
+ADR distillation is complete: [ADR-14](../adr/0014-application-invariant-validation.md)
+records construction privacy (including the Generic bypass), declaration pairing, finite
+pure execution, ordering, skipping, role composition, metadata safety, diagnostic dispatch,
+versioning, and rejected alternatives. The ADR-3 amendment records the shared error
+vocabulary and additive JSON fields. No new dependency or package-version/pin change was
+needed; the coordinated 0.3.0.0 release remains the release workflow's responsibility.
+IR-4 was completed only after the gates passed, with completion time and evidence in its
+frontmatter, and its strict profile/log validation passed again. Nothing remains in this
+plan’s authorized scope. The useful implementation lesson is that redaction scans must include a stable ASCII
+marker because JSON and Show escape raw secret punctuation.
 
 
 ## Context and Orientation
@@ -1029,6 +1055,43 @@ under Concrete Steps exit 0, while the deliberately rejected worker commands exi
 the four `okf validate` commands pass; `git status --short` shows nothing from this plan
 after the final commit. The expected number of core tests is the pre-plan total plus the
 new `Settei.ValidateTest` cases; record the real totals here during Milestone 5.
+
+Final-candidate acceptance evidence (2026-10-21): all 14 suites pass, totaling 561
+cases: core 142, environment 42, YAML 45, KDL 34, Dhall 26 plus prototype 7, optparse 17,
+formats 15, Kubernetes 32, CLI 24, service 20, conformance 14, deployment 54, and preflight
+89. Core gained 20 validation cases; adapter gained 6; deployment gained 6. Existing
+schema and resolution golden files were not edited. `git diff --check` is clean, and
+the full build reports no GHC warnings. The configured `nix fmt` treefmt wrapper and
+`nix flake check` both exit 0; four strict/profile/log bundle checks pass. The three
+single-key test helpers now explicitly acknowledge that an invariant may involve multiple
+keys, rather than leaving incomplete matches after `ConfigError` grew a constructor.
+The construction test repeats one rule three times and verifies a single duplicate
+problem at its second occurrence.
+
+The worker process invoked with the exact fixture under Concrete Steps produces exit 4
+and empty stdout in all three diagnostic runs. Text explain has 35 stderr lines, JSON
+explain has exactly two parseable documents, and check has one error line. The text
+explanation ends with the following outcomes, after the full report whose timeout node
+names `WORKER_VISIBILITY_TIMEOUT_SECONDS` as its winning environment origin:
+
+```text
+invariant worker-visibility-covers-concurrency [failed (1 violation)]: workers.visibilityTimeoutSeconds, workers.concurrency
+  expects workers.visibilityTimeoutSeconds must be at least twice workers.concurrency
+invariant production-webhook-secret [passed]: server.webhookSecret, runtime.environment
+  expects the development webhook secret must never reach production
+```
+
+The first JSON stderr line is exactly:
+
+```json
+{"schemaVersion":1,"type":"settei.errors","errors":[{"kind":"invariant","rule":"worker-visibility-covers-concurrency","keys":["workers.visibilityTimeoutSeconds","workers.concurrency"],"expectation":"workers.visibilityTimeoutSeconds must be at least twice workers.concurrency","detail":null}]}
+```
+
+The second parses as version-1 `settei.resolution`, with both winning-source nodes and
+ordered outcomes `failed`, `passed`. A separate executable check injects the punctuation-rich
+secret sentinel into all three secret environment inputs and confirms its ASCII marker is
+absent from both streams for both roles in all eight modes; successful JSON explanations
+are one document, rejected JSON explanations two.
 
 Proposed, not required: a `settei.validation` standalone document for check-mode JSON
 output, and a `focus :: (b -> a) -> Validator a -> Validator b` combinator for reusing

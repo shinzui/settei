@@ -117,11 +117,11 @@ validators config declarations =
   where
     cycleErrors = [CyclicDeclaration problem | DefaultCycle problem <- validateDefaultCycles config]
     possible = if null cycleErrors then Just (Set.fromList (fmap schemaSettingKey (schemaPossible (describe config)))) else Nothing
-    (_, problems) = mapAccumL inspect Set.empty declarations
-    inspect earlier (Validator rule keys _ prerequisites _) =
-      ( Set.insert rule earlier,
+    (_, problems) = mapAccumL inspect (Set.empty, Set.empty) declarations
+    inspect (earlier, duplicates) (Validator rule keys _ prerequisites _) =
+      ( (Set.insert rule earlier, if Set.member rule earlier then Set.insert rule duplicates else duplicates),
         [InvalidInvariantRule rule | let name = renderInvariantRule rule, Text.null name || Text.any (\c -> isSpace c || isControl c) name]
-          <> [DuplicateInvariantRule rule | Set.member rule earlier]
+          <> [DuplicateInvariantRule rule | Set.member rule earlier, Set.notMember rule duplicates]
           <> [EmptyInvariantKeys rule | null keys]
           <> [UndeclaredInvariantKey rule key | key <- keys, Just known <- [possible], Set.notMember key known]
           <> [UnknownPrerequisite rule prerequisite | prerequisite <- prerequisites, Set.notMember prerequisite earlier]

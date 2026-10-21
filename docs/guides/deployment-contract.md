@@ -6,7 +6,7 @@ docId: DOC-11
 tags: [settei, deployment, configuration]
 generated:
   by: process:codex
-  at: 2026-10-21T16:45:00Z
+  at: 2026-10-21T16:36:34Z
 ---
 
 # Authoring a first deployment from the configuration contract

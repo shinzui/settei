@@ -6,7 +6,7 @@ docId: DOC-6
 tags: [settei, getting-started, configuration]
 generated:
   by: human:nadeem
-  at: 2026-10-21T16:45:00Z
+  at: 2026-10-21T16:36:34Z
 ---
 
 # Getting started with Settei
