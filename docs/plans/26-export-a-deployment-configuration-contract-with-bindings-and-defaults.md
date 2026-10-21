@@ -123,9 +123,9 @@ demonstrates the feature (see docs/adr/0007-reference-applications-are-the-publi
       updated CAP-7 under docs/capabilities/, ADR-12 plus an ADR-7 amendment under
       docs/adr/, README, compatibility, security, and changelog updates, and IR-1 moved to
       `completed` with acceptance evidence; every OKF bundle validates strictly. Verified 2026-10-21: 12 ADRs, 11 guides, 14 capabilities, and 4 improvement requests pass their prescribed profile and log enforcement checks.
-- [ ] Milestone 6 — Full validation and closure: `cabal build all`, `cabal test all`,
+- [x] Milestone 6 — Full validation and closure: `cabal build all`, `cabal test all`,
       `nix fmt`, `cabal check` for the new package, and `nix flake check` pass; evidence
-      recorded here; Outcomes & Retrospective written; ADR distillation done.
+      recorded here; Outcomes & Retrospective written; ADR distillation done. Verified 2026-10-21: all 375 tests across 13 suites pass; all Cabal components build; configured formatting, new-package check, four OKF validators, installed documentation hooks, and the pure flake check pass. Fourteen actual executable checks pass. Only concurrent plan 29 work remains outside these commits.
 
 
 ## Surprises & Discoveries
@@ -288,7 +288,31 @@ demonstrates the feature (see docs/adr/0007-reference-applications-are-the-publi
 
 ## Outcomes & Retrospective
 
-(To be filled during and after implementation.)
+Completed 2026-10-21. Applications can export one deterministic deployment contract
+joining their declaration, every explicit input binding, safely displayable defaults,
+source provenance and validity, deferred dependency metadata, and deployment-profile
+requirements. Existing schema/resolution JSON is unchanged. Static executable dispatch
+precedes both environment access and file loading. The reference server/worker workflow
+pairs credential-free discovery with actual post-resolution application checks.
+
+All six milestones and IR-1 AC-1 through AC-7 are implemented. Final acceptance is 375
+passing tests across 13 suites, a successful complete Cabal build, clean configured
+formatting, a warning-free new-package check, four enforced OKF bundle validations, and
+a passing `nix flake check` on aarch64-darwin. Fourteen direct checks of the actual
+server/worker executables cover both contract modes, both schema modes, incomplete and
+complete production inputs, and distinct role-check failures. The original schema JSON
+golden is byte-identical to the pre-implementation revision.
+
+ADR distillation is complete: ADR-12 owns contract semantics, the ADR-7 amendment owns
+its reference-application boundary, and the ADR-1 amendment owns the configured formatter
+and host-OKF validation boundary. The main lesson is that merged schema requiredness and
+presence cannot answer runtime input requirements: request occurrences must retain their
+own decoder and conditionality. Default availability also must not be confused with
+successful computation or safe production policy.
+
+No feature work remains in this plan. Consumer adoption, mounted-file conversion, and
+live infrastructure/provider validation remain outside its scope. Concurrent changes to
+plan 29 are preserved and excluded from this work's commits.
 
 
 ## Context and Orientation
@@ -986,9 +1010,34 @@ Each acceptance criterion of IR-1 maps to observable checks:
   (`"type":"settei.schema"` with the same five fields); the core golden
   settei/test/golden/schema.json is byte-identical to its pre-plan content.
 
+Final acceptance evidence (2026-10-21), from the repository root unless specified:
+
+```text
+nix develop -c cabal build all                         exit 0
+nix develop -c cabal test all --test-show-details=direct
+  All 375 tests passed across 13 suites.
+  Core 122; environment 21; optparse 11; CLI 13; service 20;
+  conformance 14; deployment 15; remaining adapter suites 159.
+nix fmt -- --fail-on-change --no-cache                  exit 0; no changes
+nix flake check                                       exit 0; pure treefmt check
+  All current-platform package outputs, including deployment, evaluate.
+cabal check (examples/settei-deployment)                no errors or warnings
+okf validate docs/adr --strict ...                      OK: 12 concepts
+okf validate docs/guides --strict ...                   OK: 11 concepts
+okf validate docs/capabilities ...                      OK: 14 concepts
+okf validate docs/improvement-requests --strict ...     OK: 4 concepts
+Installed okf-documentation-check commit hook          Passed (validation + graphs)
+Actual server/worker executable checks                 14 passed
+Original schema.json golden                           unchanged from 0bd5cfd^
+```
+
+The Nix check evaluates package outputs and runs pure formatting; it does not claim
+Nix package builds or host-tool documentation validation. Cabal and the separately
+required host OKF validators supply that evidence, as documented in ADR-1.
+
 Required gates before the plan is complete: all commands in Milestone 6 pass; the four
 `okf validate` commands pass; `cabal check` in examples/settei-deployment reports no
-errors; `git status --short` is empty after the final commit.
+errors; `git status --short` has no outstanding plan 26 changes after the final commit; unrelated concurrent plan 29 edits are preserved.
 
 Observed deployment contract transcript (2026-10-21), from the actual server
 executable with no credentials. Conditions match the existing schema renderer,
