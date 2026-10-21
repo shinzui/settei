@@ -10,6 +10,18 @@ provenance:
     model: "gpt-6-astra"
     harness: "codex-cli"
     at: 2026-10-21T18:40:22Z
+  reviews:
+    - model: "claude-fable-5-1"
+      harness: "claude-code"
+      at: 2026-10-21T19:02:11Z
+      verdict: "changes-requested"
+      note: "Verified helpers, examples, tests, ADRs, and the cabal exec compile-check spike against the working tree; Milestone 3 omits deployment-contract guide, contract capability, and example changelog updates, and executable probes should use the existing startup-failure switch."
+  revisions:
+    - model: "claude-fable-5-1"
+      harness: "claude-code"
+      at: 2026-10-21T19:03:55Z
+      mode: "update"
+      note: "Apply review findings: widen documentation scope, use the startup-failure switch in executable probes, record cabal exec and formatter facts, require exporting preparation constructors."
 ---
 
 
@@ -28,7 +40,9 @@ An application requesting a configuration diagnostic must never accidentally sta
 normal work. Static schema and deployment-contract requests must complete, or fail
 explicitly, before reading runtime files, environment variables, or credentials. After
 this change, applications will use one library-owned dispatch boundary and only a
-successful `NoDiagnostic` run will receive permission to start.
+successful `NoDiagnostic` run will receive permission to start. Consumers cross the
+resulting 0.3.0.0 break with one `seihou agent migrate settei-upgrade` run, because this
+plan also publishes Settei's first Seihou upgrade blueprint.
 
 This plan addresses [IR-5](../improvement-requests/prevent-diagnostic-modes-from-falling-through-to-startup.md).
 It is a focused library improvement: the parser already recognizes contract flags, but
@@ -44,7 +58,8 @@ and downstream deployment have not occurred under this plan.
 - [ ] Milestone 1: checked preparation and runtime dispatch reject incomplete composition, with exhaustive mode, laziness, failure, and API migration tests (AC-1 through AC-5).
 - [ ] Milestone 2: CLI, service, and deployment runners use the boundary before effects; executable and omitted-contract consumer regressions prove diagnostics never start the application (AC-1 through AC-6).
 - [ ] Milestone 3: adoption guidance, architecture records, and compatibility notes describe the checked API and preserve diagnostic formats and application-owned exit policy (AC-4 through AC-6).
-- [ ] Milestone 4: workspace tests, public API checks, documentation validation, and executable acceptance pass; IR-5 closes with evidence (AC-1 through AC-6).
+- [ ] Milestone 4: the `settei-upgrade` Seihou blueprint, its registry entry, the 0.2.0.0 to 0.3.0.0 edge, the version probe, and the release-collateral gate validate and preview as one step (AC-6).
+- [ ] Milestone 5: workspace tests, public API checks, blueprint validation, documentation validation, and executable acceptance pass; IR-5 closes with evidence (AC-1 through AC-6).
 
 
 ## Surprises & Discoveries
@@ -72,6 +87,29 @@ and constructors to avoid unrelated API renaming.
 startup in applications. Preparation is pure and distinguishes static output, static
 failure, and permission to acquire runtime inputs. This provides the required ordering
 without adding a general IO runner framework or forcing every application to use validators.
+
+2026-10-21: Rename the shared decision type from `ValidatedDiagnostic` to
+`DiagnosticDecision`, superseding the retention recorded above. Once
+`resolutionDiagnostic` returns the same type, a continuation can arrive from a path that
+ran no validators, so a name claiming validation would mislead adopters. The type exists
+only in the unreleased working tree: the adapter changelog lists it under Unreleased,
+Hackage 0.2.0.0 predates it, and the originating consumer still calls
+`resolutionDiagnostic`. Renaming inside the same major release that changes both helper
+signatures costs one export, one changelog line, and one ADR sentence; renaming after
+0.3.0.0 ships would cost a further major bump. The three constructors and both helper
+names stay, because each helper name already describes its input.
+
+2026-10-21: Ship the 0.3.0.0 upgrade as a Seihou blueprint migration published from
+this repository, `settei-upgrade` with one agent-guided edge from 0.2.0.0 to 0.3.0.0,
+instead of leaving consumers to migrate by hand from the changelog and compatibility
+notes. The sibling libraries keiro, kiroku, and kioku ship every breaking release this
+way, and the consumer that raised IR-5 upgrades through `seihou agent migrate`. The edge
+covers the whole 0.3.0.0 breaking surface, not only this plan's dispatch change, because
+an edge describes one release window and no earlier plan created the blueprint. The
+version probe reads the resolved `settei` version from the consumer's Cabal build plan.
+No upstream edge is entailed, because Settei absorbs no other blueprint's break. The
+release checklist and the release skill gain a gate so each later breaking release adds
+its edge in the same change that cuts the release.
 
 
 ## Outcomes & Retrospective
@@ -147,6 +185,29 @@ Preserve stable ADR handles and existing metadata when amending records. The cur
 README.md and docs/compatibility.md target the unreleased shared 0.3.0.0 release while
 Cabal versions and exact family pins remain 0.2.0.0 pending coordinated release work.
 
+Seihou (`mori://shinzui/seihou`; the installed CLI reports v0.10.1.0) is the project
+scaffolding tool that already manages this repository through .seihou/manifest.json. A
+Seihou blueprint migration is upgrade knowledge a library ships beside its code: a
+directory holding `blueprint.dhall`, a shared `prompt.md`, and one Markdown prompt per
+released version edge, listed in a `seihou-registry.dhall` at the repository root. A
+consumer installs it with `seihou install <git url> --module <name>` and runs
+`seihou agent migrate <name>`; Seihou selects the edges inside the consumer's version
+window, runs one agent session per edge inside the consumer's project, and records a
+receipt in that project's manifest. The author guide is docs/user/blueprint-migrations.md
+in the Seihou repository, and the decision that a blueprint declares its own read-only
+version probe is that repository's
+docs/adr/0009-seihou-reads-no-package-manager-format-artifacts-declare-the-command.md
+(its artifact-level `mori://` URI is pending). Settei has neither a registry file nor a
+blueprint today. The exemplars to copy the shape from are `mori://shinzui/keiro` at
+blueprints/keiro-upgrade/ and `mori://shinzui/kiroku` at blueprints/kiroku-upgrade/,
+whose release skills decide at every release whether an edge is needed. Installed
+blueprints resolve from ~/.config/seihou/installed/<name>, a symlink under
+~/.config/seihou/modules/ exposes a working-tree blueprint for previews, and
+`seihou agent --debug migrate` renders the pending prompts without contacting a provider
+or writing anything. The seihou-schema checkout registered in Mori predates the
+`versionProbe` and `entails` fields; the sibling blueprints pin a newer schema commit
+by URL and hash, shown under Interfaces and Dependencies.
+
 
 ## Plan of Work
 
@@ -168,9 +229,10 @@ no constructor, `Generic`, `Read`, writable optics, or public conversion from an
 `DiagnosticMode`. The only supported way to obtain it is `DiagnosticNeedsRuntime` from
 preparation. It carries no configuration or source values.
 
-Change `resolutionDiagnostic` to consume the token and return `ValidatedDiagnostic a`
-rather than `Maybe Text`; change `validatedDiagnostic` to consume the same token. The
-shared final decision type retains its existing name and three constructors. Document
+Rename the shared decision type `ValidatedDiagnostic a` to `DiagnosticDecision a`,
+keeping its three constructors. Change `resolutionDiagnostic` to consume the token and
+return `DiagnosticDecision a` rather than `Maybe Text`; change `validatedDiagnostic` to
+consume the same token and return the renamed type. Document
 that its unvalidated use checks resolution only; applications with invariants must call
 `validate` and use `validatedDiagnostic`. Preserve the existing absence of `Show` and
 `Eq` on decisions that can carry typed secrets.
@@ -210,10 +272,14 @@ fail on `DiagnosticMode` versus `RuntimeDiagnosticMode`, not a missing package o
 error. Add a compiling sibling fixture at
 settei-optparse-applicative/test/compile-pass/CheckedDispatch.hs that
 prepares a mode and consumes the returned token. Include these files in the adapter's
-`extra-source-files`; they are not test-suite modules. Add
+`extra-source-files`; they are not test-suite modules. The repository formatter
+(`nix fmt`, backed by treefmt with fourmolu) formats every Haskell file, and
+`nix flake check` runs the same formatter check, so keep the fixtures formatted. Add
 scripts/check-diagnostic-dispatch-api.sh to run the positive and negative compiler checks
-against the Cabal package environment and inspect expected error categories. This makes
-the migration requirement executable instead of relying on prose alone.
+against the Cabal package environment and inspect expected error categories; the
+repository has no scripts/ directory yet, so create it, and the formatter does not touch
+shell scripts. This makes the migration requirement executable instead of relying on
+prose alone.
 
 Milestone acceptance is passing adapter tests and the public compile checks. Older
 example callers may temporarily fail compilation until milestone 2; keep this as a local
@@ -246,7 +312,9 @@ examples/settei-deployment/test/Settei/Example/DeploymentTest.hs. Use the same e
 wrappers as their app/Main.hs executables, and the server/worker wrappers in
 examples/settei-deployment/app/server/Main.hs and app/worker/Main.hs. Keep
 examples/settei-deployment/test/Settei/Example/Deployment/PreflightTest.hs and
-examples/settei-conformance/test/Settei/Example/ConformanceTest.hs passing.
+examples/settei-conformance/test/Settei/Example/ConformanceTest.hs passing; the
+conformance suite calls `contractDiagnostic` directly with a prebuilt contract and keeps
+compiling only because that selector's signature is unchanged.
 
 Prove static requests work with nonexistent runtime paths and absent credentials, with
 failing environment, validator, and startup actions where injection is available. Keep
@@ -267,10 +335,14 @@ injected public-API consumer fixture.
 ### Milestone 3: publish an actionable migration contract
 
 
-Update the diagnostic sections and examples in docs/guides/cli-application.md and
-docs/guides/environment-and-cli.md, and the README.md
-files beneath examples/settei-cli/, examples/settei-service/, and
-examples/settei-deployment/. Show an exhaustive preparation match, input loading solely
+Update the diagnostic sections and examples in docs/guides/cli-application.md,
+docs/guides/environment-and-cli.md, and docs/guides/deployment-contract.md, and the
+README.md files beneath examples/settei-cli/, examples/settei-service/, and
+examples/settei-deployment/. The deployment-contract guide currently tells adopters to
+dispatch `schemaDiagnostic` and then `contractDiagnostic` before loading inputs and
+presents the selector's `Nothing` as the path to every other mode; rewrite that passage
+around preparation so no guide still teaches the composition this plan rejects. Show an
+exhaustive preparation match, input loading solely
 in `DiagnosticNeedsRuntime`, and an exhaustive final decision match. Explain that
 `DiagnosticNeedsRuntime` authorizes resolution, not application startup. The prepared
 token belongs to that invocation: do not cache a `NoDiagnostic` token and reuse it for
@@ -284,8 +356,10 @@ contract. The compiler now forces callers to handle preparation; a dependency up
 alone does not migrate an executable. Compile the guide's main dispatch example against
 public modules using the positive fixture; avoid `Settei.Prelude` in adopter snippets.
 
-Record the signature changes, unchanged final constructors, and fixed unsupported text
-failure in docs/compatibility.md and settei-optparse-applicative/CHANGELOG.md. Target the
+Record the signature changes, the decision type rename with its unchanged constructors,
+and the fixed unsupported text failure in docs/compatibility.md and settei-optparse-applicative/CHANGELOG.md, and note
+the deployment example's migration in examples/settei-deployment/CHANGELOG.md; the CLI
+and service examples have no changelog. Target the
 already planned next shared major release; leave numeric version bumps and release pins
 to release tooling. If implementation occurs after 0.3.0.0 is released, re-evaluate the
 next major version before assigning one. Update README.md and docs/release-checklist.md
@@ -296,26 +370,121 @@ plain-text stderr and exit 4 in reference applications; the library itself exits
 
 Amend docs/adr/0014-application-invariant-validation.md and
 docs/adr/0007-reference-applications-are-the-public-api-conformance-boundary.md to record
-the checked preparation requirement and startup-only-on-continue rule. Preserve ADR-12's
+the checked preparation requirement and startup-only-on-continue rule, and change
+ADR-14's no-`Show`-or-`Eq` note to name `DiagnosticDecision`. Preserve ADR-12's
 source-free contract interpretation. Update
-docs/capabilities/configuration-diagnostic-options.md and
-docs/capabilities/structured-application-validation.md only after behavior is implemented.
+docs/capabilities/configuration-diagnostic-options.md,
+docs/capabilities/structured-application-validation.md, and
+docs/capabilities/deployment-configuration-contract.md, which presents
+`contractDiagnostic` as the early application dispatch, only after behavior is implemented.
 Preserve handles, advance changed document timestamps as applicable, maintain bundle logs
 with `okf log add`, and validate all changed bundles. Do not claim this plan is already a
 shipped capability while only planning it.
 
 
-### Milestone 4: verify and close the request
+### Milestone 4: publish the Seihou upgrade blueprint
+
+
+Without a blueprint, every consumer of the 0.3.0.0 break would reconstruct the migration
+from the changelog and compatibility notes by hand. This milestone creates the blueprint
+the sibling libraries already ship and wires it into the release collateral so each
+later breaking release adds its own edge.
+
+Create seihou-registry.dhall at the repository root with the record shape the keiro
+registry uses: `repoName = "settei"`, explicitly typed empty `modules`, `recipes`, and
+`prompts` lists, and one `blueprints` entry named `settei-upgrade` at version `0.1.0`,
+path `blueprints/settei-upgrade`, tags `haskell`, `configuration`, `settei`, and
+`migration`. Create blueprints/settei-upgrade/blueprint.dhall pinned to the seihou-schema
+import shown under Interfaces and Dependencies. Declare one edge from `0.2.0.0` to
+`0.3.0.0` importing blueprints/settei-upgrade/migrations/0.2.0.0-to-0.3.0.0.md. The
+`from` is the last released version before the break, not the earliest version the
+guidance could apply to, because Seihou selects an edge whose `from` is at or after the
+consumer's recorded position. If the release number changes before implementation,
+change both ends together. Declare no `entails`.
+
+Supply the version probe as the one read-only command that reports the `settei` version
+a consumer's build plan resolved:
+
+```bash
+jq -r '."install-plan"[] | select(."pkg-name"=="settei") | ."pkg-version"' dist-newstyle/cache/plan.json 2>/dev/null | sort -u | tail -1 | grep .
+```
+
+It reads the core package because every family consumer depends on it and the family
+versions move in lockstep. A project without a configured Cabal build or without `jq`
+gets a reported probe failure and is asked for `--to`; that degradation is intended.
+Seihou runs the probe in the consumer's project root and takes its last non-empty line.
+
+Write blueprints/settei-upgrade/prompt.md as the guidance shared by every edge: the nine
+public packages release under one version with exact intra-family pins, so an edge moves
+every Settei package a project depends on together; the surfaces a Settei project may
+use (declarations and decoders, file and environment sources, the optparse-applicative
+diagnostic dispatch, validators, the deployment contract, preflight); and ground rules:
+find real call sites before editing, grep for added constructors because `-Wall` only
+warns on an incomplete match, change only what the edge names, prove the result with
+the project's own build and test commands, never import `Settei.Prelude`, and never log
+or print the typed configuration value because it carries real secrets.
+
+Write the edge prompt as the consumer-facing half of docs/compatibility.md. Its
+precondition is that the project depends on at least one Settei package; otherwise the
+agent reports the edge not applicable, which Seihou records without marking the edge
+done. The edge then walks, in order: raise every Settei bound in lockstep; add
+`InvariantError` to exhaustive `ConfigError` matches and kind `invariant` to JSON error
+consumers; add `DeploymentContractText` and `DeploymentContractJson` to exhaustive
+`DiagnosticMode` matches; replace the old schema, contract, load, and resolve
+composition with `prepareDiagnostic`, an exhaustive match on `DiagnosticPreparation`,
+input loading only under `DiagnosticNeedsRuntime`, the token passed to
+`resolutionDiagnostic` or `validatedDiagnostic`, and an exhaustive match on
+`DiagnosticDecision`, with `Nothing` declaring that the application supplies no
+deployment contract; and, for applications with validators, the two-document stderr
+convention for validated JSON explain failures. It states what the agent must not do:
+restore the old unchecked composition, pass `Just` a contract built from the wrong
+inputs to silence the compiler, or add a public flag that disables contract support. It
+names the validation that proves the edge: the project's build and tests, then invoking
+its executable with `--describe-config-json` and `--deployment-contract-json` against a
+missing configuration path and no credentials, expecting exit 0 and no startup. The
+before-and-after dispatch code in this prompt is the same code as the guide's main
+example and the compile-pass fixture; keep the three in step.
+
+Add blueprints/settei-upgrade/README.md with the consumer commands, the declared edge
+table, the probe, and the maintainer rule that every breaking release adds its edge in
+the same change that cuts the release, mirroring the keiro blueprint's README. Add
+blueprints/settei-upgrade/files/checked-dispatch.md holding the before-and-after
+dispatch example for the agent to read, declared in the blueprint's `files` list.
+
+Wire the release collateral so the blueprint cannot rot. docs/release-checklist.md gains
+a Seihou upgrade blueprint item under its final-candidate metadata section requiring an
+edge for the release window or a recorded decision that none is needed, bumped blueprint
+and registry versions, a passing `seihou validate-blueprint`, and a debug preview
+transcript. agents/skills/release/SKILL.md, which is not Seihou-managed, gains a
+"Blueprint migration edge" step in its release-preparation section modelled on the keiro
+release skill: decide at every release whether an edge is needed and record the decision
+either way, write the edge, append the `S.BlueprintMigration` entry, bump the blueprint
+and registry versions, update the README edge table, validate, preview, and verify
+before tagging that the blueprint commit is on the pushed remote, because consumers
+install from git. README.md and docs/compatibility.md name
+`seihou install https://github.com/shinzui/settei.git --module settei-upgrade` followed
+by `seihou agent migrate settei-upgrade` as the supported upgrade path beside the written
+notes. Change nothing in mori.dhall: whether Mori should list a library's blueprint is a
+registry question outside this plan, and keiro's registration lists none today.
+
+Milestone acceptance is a passing `seihou validate-blueprint` and a debug preview that
+shows exactly one step for the window, using the commands under Concrete Steps, plus
+the release collateral edits.
+
+
+### Milestone 5: verify and close the request
 
 
 Run the commands below on the integrated candidate. Record concise acceptance evidence,
 including tests for the omitted-contract case, compile failures for the old API, valid
-normal startup, and retained dynamic diagnostic behavior. Run the full workspace because
+normal startup, retained dynamic diagnostic behavior, and the blueprint validation and
+preview transcript. Run the full workspace because
 all reference applications and the preflight subprocesses depend on the adapter. Resolve
 relevant failures without changing the requested semantics. Complete the ADR distillation
 pass, fill Outcomes & Retrospective, and set IR-5 to completed with its targetPlan retained
 only when AC-1 through AC-6 are demonstrated. No release, tag, push, or downstream
-deployment is part of this plan.
+deployment is part of this plan; the blueprint ships with the release, and the release
+skill step added in milestone 4 requires it to be pushed before the tag.
 
 
 ## Concrete Steps
@@ -335,9 +504,13 @@ nix develop -c cabal test settei-optparse-applicative-tests --test-show-details=
 nix develop -c bash scripts/check-diagnostic-dispatch-api.sh
 ```
 
-The script must build the adapter, then use `cabal exec -- ghc -fno-code -package settei
+The script must build the adapter library, then use `cabal exec -- ghc -fno-code -package settei
 -package settei-optparse-applicative` on each fixture, capturing compiler output in a
-fresh temporary directory. The positive fixture must compile; each negative fixture
+fresh temporary directory. `cabal exec` computes the project plan without building
+anything and exposes only libraries that are already built through a temporary GHC
+environment file, which is why the build step comes first; a plan review on 2026-10-21
+confirmed that this invocation typechecks a standalone fixture against the built adapter
+from the repository root. The positive fixture must compile; each negative fixture
 must fail for the expected type mismatch. Print a concise success summary and return
 nonzero on an unexpected result. Clean up only the script-owned temporary directory.
 
@@ -357,11 +530,11 @@ credentials and with a path inside a fresh empty directory:
 ```bash
 worker_bin=$(nix develop -c cabal list-bin exe:settei-example-deployment-worker)
 probe_dir=$(mktemp -d)
-env -i "$worker_bin" --config "$probe_dir/missing.yaml" --describe-config-json
+env -i SETTEI_DEPLOYMENT_TEST_FAIL_ON_STARTUP=1 "$worker_bin" --config "$probe_dir/missing.yaml" --describe-config-json
 printf 'exit %s\n' "$?"
-env -i "$worker_bin" --config "$probe_dir/missing.yaml" --deployment-contract-json
+env -i SETTEI_DEPLOYMENT_TEST_FAIL_ON_STARTUP=1 "$worker_bin" --config "$probe_dir/missing.yaml" --deployment-contract-json
 printf 'exit %s\n' "$?"
-env -i "$worker_bin" --config "$probe_dir/missing.yaml" --check-config
+env -i SETTEI_DEPLOYMENT_TEST_FAIL_ON_STARTUP=1 "$worker_bin" --config "$probe_dir/missing.yaml" --check-config
 printf 'exit %s\n' "$?"
 rmdir "$probe_dir"
 ```
@@ -369,10 +542,40 @@ rmdir "$probe_dir"
 The first two commands produce their existing version-1 `settei.schema` and
 `settei.contract` JSON documents with exit 0, no stderr, and no startup summary. The
 third must report a source-load error with exit 3 and never print `configuration valid`.
-Repeat the static probes with text flags and the server executable, plus equivalent CLI
-and service flags using their existing parser options. Tests must cover the same property
-at their injected reader boundaries; executable success alone cannot prove no read
-occurred.
+The deployment executables in examples/settei-deployment/app/server/Main.hs and
+app/worker/Main.hs already pass a startup action that raises an IO error when
+`SETTEI_DEPLOYMENT_TEST_FAIL_ON_STARTUP` is `1`, so an uncaught
+`deployment startup action invoked` failure in any probe proves the executable reached
+startup. Repeat the static probes with text flags and the server executable, plus
+equivalent CLI and service flags using their existing parser options; those two
+executables have no startup switch, so their probes show only output and exit codes.
+Tests must cover the same property at their injected reader boundaries; executable
+success alone cannot prove no read occurred.
+
+After authoring the blueprint, run:
+
+```bash
+seihou validate-blueprint blueprints/settei-upgrade --lint
+ln -s "$PWD/blueprints/settei-upgrade" ~/.config/seihou/modules/settei-upgrade
+seihou list --blueprints | grep settei-upgrade
+seihou agent --debug migrate settei-upgrade --from 0.2.0.0 --to 0.3.0.0
+```
+
+Validation evaluates the Dhall, rejects an empty prompt, an unparseable version, an edge
+whose `from` is not below its `to`, and duplicate starts, and with `--lint` prints
+advisory warnings; it executes nothing. The symlink exposes the working-tree blueprint
+as a user-local artifact, the same way existing local blueprints are exposed under
+~/.config/seihou/modules/, so the preview resolves this checkout rather than a stale or
+absent installed copy; the listing must show `settei-upgrade` with a `user [blueprint]`
+source. The preview prints `Blueprint migrations for settei-upgrade: 0.2.0.0 -> 0.3.0.0`
+and exactly one `[1/1] settei-upgrade 0.2.0.0 -> 0.3.0.0` section containing the shared
+guidance, the edge instructions, and the mounted files path. It contacts no provider and
+writes nothing, but it does run the version probe in the current directory and reports
+it with its source; in this repository the probe reads 0.2.0.0 from the Cabal plan, and
+the explicit flags win. Remove the symlink afterwards with
+`rm ~/.config/seihou/modules/settei-upgrade` unless you want the working tree to keep
+shadowing a later git install. Consumers install the published blueprint with
+`seihou install https://github.com/shinzui/settei.git --module settei-upgrade`.
 
 For integrated validation run:
 
@@ -381,6 +584,7 @@ nix develop -c cabal build all
 nix develop -c cabal test all --test-show-details=direct
 nix develop -c bash scripts/check-diagnostic-dispatch-api.sh
 nix develop -c cabal haddock settei-optparse-applicative
+seihou validate-blueprint blueprints/settei-upgrade --lint
 nix fmt
 okf validate docs/adr --strict --profile docs/adr/profile.dhall --profile-enforce --log-enforce
 okf validate docs/guides --strict --profile mori/user-documentation-profile.dhall --profile-enforce --log-enforce
@@ -437,6 +641,11 @@ For AC-6, all examples and guide snippets compile against the public API, the om
 contract consumer case runs automatically, migration and next-major-release notes are
 explicit, and the required workspace and documentation checks pass. Library decisions
 have no process-exit effects; reference applications demonstrate the routing policy.
+The `settei-upgrade` blueprint passes `seihou validate-blueprint`, its debug preview
+shows exactly one step for the 0.2.0.0 to 0.3.0.0 window with the shared prompt, the
+edge prompt, and the reference file resolved, the edge prompt's dispatch example is the
+same code as the compile-pass fixture, and docs/release-checklist.md and
+agents/skills/release/SKILL.md name the blueprint gate.
 
 
 ## Idempotence and Recovery
@@ -447,7 +656,10 @@ script uses an isolated temporary directory and returns meaningful failure outpu
 a failed build after repairing the actual cause, never accept a missing package as an
 expected negative test. Inspect git status before edits and stage only this plan's files.
 Keep the current branch and preserve unrelated changes. No migration of persisted data,
-remote consumer, or dependency pin is required.
+remote consumer, or dependency pin is required. The blueprint is plain files that can be
+rewritten freely before release; `seihou validate-blueprint` and the debug preview write
+nothing, the preview symlink is user-local and removable, and a consumer who previously
+installed a same-named blueprint from another source needs `seihou install --force`.
 
 An interrupted implementation resumes at the next unchecked milestone. Keep IR-5 accepted
 or in progress until all required behavior passes; a changed API alone is not completion.
@@ -481,23 +693,25 @@ prepareDiagnostic
 resolutionDiagnostic
   :: RuntimeDiagnosticMode
   -> ResolveResult a
-  -> ValidatedDiagnostic a
+  -> DiagnosticDecision a
 
 validatedDiagnostic
   :: RuntimeDiagnosticMode
   -> ValidatedResult a
-  -> ValidatedDiagnostic a
+  -> DiagnosticDecision a
 
--- Existing type and constructors are retained.
-data ValidatedDiagnostic a
+-- Renamed from ValidatedDiagnostic; the three constructors are retained.
+data DiagnosticDecision a
   = DiagnosticFailure !Text
   | DiagnosticOutput !Text
   | DiagnosticContinue a
 ```
 
 The abstract declaration above describes the export surface, not an empty runtime data
-type. Implement its four private constructors in the adapter module. `DiagnosticPreparation`
-needs no `Generic` instance. `prepareDiagnostic` accepts a lazy optional contract result,
+type. Implement its four private constructors in the adapter module. Export
+`DiagnosticPreparation` with all three constructors and `prepareDiagnostic` next to the
+abstract token type, because applications and guide examples match on the preparation
+exhaustively. `DiagnosticPreparation` needs no `Generic` instance. `prepareDiagnostic` accepts a lazy optional contract result,
 not an already executed IO action. `Nothing` explicitly means this application has not
 supplied deployment-contract support. Both contract modes then return
 `DiagnosticRejected "deployment contract diagnostic is unavailable\n"`. Use the existing
@@ -516,3 +730,65 @@ The parser dependency was located through Mori at
 the current parser API and bounds. If implementation proposes a dependency change,
 first discover its source/docs with Mori and verify current registry releases and upstream
 tags before choosing bounds or pins; this plan does not authorize a speculative upgrade.
+
+The planned blueprint declaration in blueprints/settei-upgrade/blueprint.dhall is:
+
+```dhall
+let S =
+      https://raw.githubusercontent.com/shinzui/seihou-schema/49ff1e5b353b171b1b52946f478623ee4423ea93/package.dhall
+        sha256:cadacb688dd31ec39feb7f2fe599973a1ad58ef8fcc8ed1100bf3da22a1222cb
+
+in  S.Blueprint::{
+    , name = "settei-upgrade"
+    , version = Some "0.1.0"
+    , description = Some
+        "Upgrade guidance for Settei consumers: one agent-guided edge per released version window that needs judgement work"
+    , prompt = ./prompt.md as Text
+    , versionProbe = Some
+        "jq -r '.\"install-plan\"[] | select(.\"pkg-name\"==\"settei\") | .\"pkg-version\"' dist-newstyle/cache/plan.json 2>/dev/null | sort -u | tail -1 | grep ."
+    , allowedTools = Some [ "Bash(cabal *)", "Bash(rg *)" ]
+    , files =
+      [ S.Blueprint.BlueprintFile::{
+        , src = "checked-dispatch.md"
+        , description = Some "Before-and-after diagnostic dispatch for the 0.3.0.0 checked boundary"
+        }
+      ]
+    , migrations =
+      [ S.BlueprintMigration::{
+        , from = "0.2.0.0"
+        , to = "0.3.0.0"
+        , prompt = ./migrations/0.2.0.0-to-0.3.0.0.md as Text
+        }
+      ]
+    , tags = [ "haskell", "configuration", "settei", "migration" ]
+    }
+```
+
+The schema import is the commit and hash the keiro, kiroku, and kioku blueprints pin;
+the seihou-schema checkout registered in Mori lacks `versionProbe` and would reject this
+record. The root seihou-registry.dhall lists the blueprint with the same name, version,
+path, description, and tags, and explicitly typed empty `modules`, `recipes`, and
+`prompts` lists as in the keiro registry. `seihou` and `jq` are host tools used by the
+author and the consumer; no Cabal dependency, bound, or Nix input changes for the
+blueprint.
+
+
+Revision note (2026-10-21): reviewed against the current adapter, examples, tests, ADRs,
+and a `cabal exec` compile-check spike. Added the deployment-contract guide, the contract
+capability, and the deployment example changelog to the documentation scope so no
+published text keeps teaching the rejected selector composition; made the executable
+probes use the deployment executables' existing startup-failure switch; recorded that
+`cabal exec` exposes only built libraries, that scripts/ is new, and that the formatter
+covers the compile fixtures; and required exporting the preparation constructors.
+Implementation milestones remain open.
+
+Revision note (2026-10-21, later): renamed the shared decision type to
+`DiagnosticDecision` after discussion, because the bare resolution helper will return it
+without running validators and the type is still unreleased. Constructors and helper
+names are unchanged; the Decision Log records the trade-off.
+
+Revision note (2026-10-21, blueprint): added milestone 4, publishing the `settei-upgrade`
+Seihou blueprint with the 0.2.0.0 to 0.3.0.0 edge, a read-only version probe, a root
+registry file, and release-collateral gates, so consumers upgrade with
+`seihou agent migrate` as they do for the sibling libraries; verification moved to
+milestone 5. The Decision Log records why the edge covers the whole release window.
