@@ -1,6 +1,10 @@
 # Bundle Update Log
 
 ## 2026-10-21
+* **Add**: IR-5 requests explicit diagnostic dispatch that permits startup only for
+  NoDiagnostic, handles static modes before input acquisition, and rejects an omitted
+  contract handler instead of falling through toward application startup. The request
+  follows the notification-hub consumer validation and complements its adoption IR.
 * **Update**: Update IR-4 lifecycle and evidence
 * **Update**: Update IR-4 lifecycle and evidence
 * **Update**: IR-2 completed by docs/plans/27-validate-supplied-environment-variable-names-against-declared-bindings.md with 42 adapter tests and 24 CLI tests.
