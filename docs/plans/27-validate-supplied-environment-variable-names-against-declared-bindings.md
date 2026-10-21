@@ -16,6 +16,17 @@ provenance:
       at: 2026-10-21T13:09:55Z
       mode: "update"
       note: "Add renderSuppliedNameErrorsJson and the settei.supplied-names document; set IR-2 accepted with targetPlan"
+    - model: "gpt-6-astra"
+      harness: "codex-cli"
+      at: 2026-10-21T13:19:51Z
+      mode: "update"
+      note: "Address all three review findings: define safe text-name escaping, prove absent bindings use built-in defaults, and require JSON consistently in ADR instructions."
+  reviews:
+    - model: "gpt-6-astra"
+      harness: "codex-cli"
+      at: 2026-10-21T13:15:09Z
+      verdict: "changes-requested"
+      note: "Escape hostile names in one-line text diagnostics; correct AC-5 snapshot evidence; remove superseded JSON rejection from ADR-10 instructions."
 ---
 
 # Validate supplied environment variable names against declared bindings
@@ -146,6 +157,14 @@ shell variables such as `PATH` are never part of the checked collection.
   so they must be distinguishable by type. Keeping the text renderers to the singular
   plus `Text.unlines` shape of docs/adr/0009-adapter-error-rendering-contract.md gives
   operators the same grep-friendly lines every other adapter produces.
+  Date: 2026-10-21
+
+- Decision: Text diagnostics print portable names verbatim and quote and escape all
+  other names using the display rule in Milestone 1. Structured errors retain the
+  original name, and JSON encodes that original name independently.
+  Rationale: Supplied names are untrusted text and can contain newlines or terminal
+  controls. Escaping preserves one physical line per problem without normalizing the
+  name used for comparison or changing the JSON document's data.
   Date: 2026-10-21
 
 - Decision: `Settei.Env` also exports `renderSuppliedNameErrorsJson`, producing one
@@ -368,6 +387,16 @@ the label to `"environment"`. The two renderers produce, respectively,
 `supplied environment variable NAME: supplied more than once`, and the plural renderer is
 `Text.unlines . fmap renderSuppliedNameErrorText . NonEmpty.toList`.
 
+In those sentences, `NAME` is a display representation, never raw interpolation of
+arbitrary input. A name satisfying `validEnvName` is printed verbatim, preserving the
+ordinary-name transcripts. Otherwise wrap it in double quotes and use the JSON string
+escapes specified below, additionally escaping U+007F–U+009F, U+2028, and U+2029 as
+four-digit lowercase `\u` escapes for text display. This includes empty names, spaces,
+quotes, backslashes, newlines, carriage returns, tabs, and escape characters without
+letting them create additional diagnostic lines or terminal controls. Keep this display
+helper private. Both error constructors use it; comparison and the retained `EnvName`
+remain byte-for-byte unchanged. JSON encodes the original name, not this display string.
+
 `renderSuppliedNameErrorsJson` renders the same non-empty list as one compact JSON
 document with no whitespace and no trailing newline (callers that print it append `"\n"`,
 as `schemaDiagnostic` does for schema JSON). For the list `[UnsupportedSuppliedName
@@ -424,6 +453,13 @@ shown above for the two-error list, byte-identical JSON on two calls with the sa
 and a supplied name containing a double quote, a backslash, a newline, and U+0001 (for
 example `EnvName "BAD\"\\\n\SOHNAME"`) reported as unsupported and rendered in JSON as
 `"BAD\"\\\n\u0001NAME"`, mirroring `errorRenderingTests`.
+Use the same hostile name to pin the complete singular text sentence for both error
+constructors and the plural output. Add empty-name, carriage-return, tab, ESC, DEL,
+U+0085, U+2028, and U+2029 cases: singular output has no physical line break or raw
+control character, and plural output has exactly one terminating newline per error.
+Assert ordinary portable names keep the existing unquoted spelling. JSON goldens must
+encode the original hostile name once, without the text renderer's surrounding quotes
+or double escaping.
 
 Add an `## Unreleased` section at the top of settei-env/CHANGELOG.md describing the new
 functions as an additive minor change.
@@ -466,7 +502,15 @@ snapshot`, so a passing check changes nothing about precedence or provenance.
 Add tests to examples/settei-cli/test/Settei/Example/CliTest.hs: the accepted names
 validate at construction (`length (acceptedNamesList acceptedEnvironmentNames) @?= 6`);
 `--supplied-env HASKELL_ENV --supplied-env SERVICE_ENDPOINT --check-config` with
-`environmentSnapshot` exits 0 with `configuration valid`; `--supplied-env ENVIRONMENT
+an explicit snapshot containing only `HASKELL_ENV=production` and
+`SERVICE_ENDPOINT=https://environment.example` exits 0 with `configuration valid`.
+Do not reuse `environmentSnapshot` for this absence case: it also contains
+`SERVICE_TIMEOUT` and `OUTPUT_FORMAT`. Resolve the same two-entry snapshot and options
+with `resolveCliOptions`, then use `expectResolution` and `expectAnswer` to assert
+`timeout == 30` and `outputFormat == TextOutput`; inspect the report nodes for
+`service.timeout` and `output.format` and assert their winning origins have kind
+`BuiltInSource` and name `CLI built-in defaults`. This proves the omitted bound variables
+are satisfied by the built-in source. `--supplied-env ENVIRONMENT
 --check-config` with a snapshot containing `ENVIRONMENT=production` exits
 `sourceExitCode`, prints nothing on stdout, and names `ENVIRONMENT` on stderr, while the
 same snapshot without `--supplied-env` exits 0 (the hidden typo, proving permissive
@@ -484,6 +528,13 @@ line containing `"type":"settei.supplied-names"` and `"name":"ENVIRONMENT"`, whi
 same arguments with `--explain-config` print only the text line; the sentinel case is
 repeated in `--explain-config-json` mode; and `--help` lists `--supplied-env` under the
 Configuration group.
+
+Pass the hostile name from Milestone 1 as one argument following `--supplied-env`
+through `expectOptions`. In check and text-explain modes, assert exit 3, empty stdout,
+and exactly one escaped text line on stderr. In JSON-explain mode, assert exactly two
+stderr lines: the same escaped text sentence followed by the exact
+`settei.supplied-names` JSON document containing the original name encoded once. These
+checks ensure control characters cannot forge a text line or an extra JSON document.
 
 Update examples/settei-cli/README.md with one paragraph on `--supplied-env` and the
 representative allowance.
@@ -526,14 +577,18 @@ Append `## Amendment <date>: supplied-name validation` to
 docs/adr/0010-validate-environment-bindings-at-construction.md recording: the helper
 compares explicit supplied names against bindings plus validated allowances; it never
 reads the process environment or any value; absence is not an error; failures are a
-separate runtime error type with text renderers; and the rejected alternatives (rejecting
+separate runtime error type with escaped one-line text renderers and the required
+`renderSuppliedNameErrorsJson` renderer; and the rejected alternatives (rejecting
 the whole process environment by default, fuzzy name suggestions or silent normalization,
-a JSON renderer ahead of IR-3, a `Settei.Optparse` flag ahead of a harness contract).
+a `Settei.Optparse` flag ahead of a harness contract). State explicitly that the earlier
+JSON deferral is superseded: IR-2 needs machine-readable supplied-name diagnostics now,
+and IR-3 is not a prerequisite. Link the ADR-9 amendment for the JSON document contract.
 Advance the record's `timestamp` to the amendment date. Append an amendment
 `## Amendment <date>: supplied-name diagnostics and the first adapter JSON document` to
 docs/adr/0009-adapter-error-rendering-contract.md recording: `Settei.Env` adds the
 `renderSuppliedNameErrorText`/`renderSuppliedNameErrorsText` pair under the unchanged
-text contract; it also adds `renderSuppliedNameErrorsJson`, the first adapter JSON
+text contract, with portable names verbatim and other names quoted and escaped under
+Milestone 1's display rule; it also adds `renderSuppliedNameErrorsJson`, the first adapter JSON
 renderer, admitted because IR-2's deployment tooling is the load-time consumer the
 original decision anticipated; the document type is `settei.supplied-names` with
 `schemaVersion` 1, compact encoding, and the core's string-escaping rules, so one consumer
@@ -699,12 +754,17 @@ Each acceptance criterion of IR-2 maps to observable checks:
   sentinels placed in a known and an unknown variable are absent from `show`, from the
   text renderers, from the JSON renderer, from the CLI's stdout and stderr on the failure
   path in check and both explain modes, and from the CLI's `--explain-config-json` output
-  on the success path. A hostile supplied name is escaped, not interpolated, in the JSON.
+  on the success path. Hostile supplied names retain their original spelling in errors
+  and are escaped independently for text and JSON. Adapter and CLI tests enforce one
+  physical text line per error and one subsequent JSON document in JSON-explain mode.
 - AC-5 (documentation). The guide section shows a container-specification name list being
   checked, the three CLI transcripts, and the paragraph on absent bindings; the CLI test
   `--supplied-env HASKELL_ENV --supplied-env SERVICE_ENDPOINT --check-config` passes
-  although `SERVICE_TIMEOUT` and `OUTPUT_FORMAT` are bound and not supplied (they come from
-  `builtInSource`), which is the executable form of "absence is not an error".
+  with a snapshot containing only `HASKELL_ENV` and `SERVICE_ENDPOINT`, so
+  `SERVICE_TIMEOUT` and `OUTPUT_FORMAT` are absent from both the supplied-name list and
+  snapshot. The companion resolution assertions prove timeout `30` and `TextOutput`
+  come from `CLI built-in defaults` with `BuiltInSource` provenance, which is the
+  executable form of "absence is not an error".
 
 Required gates before the plan is complete: all Milestone 4 commands pass; the four
 `okf validate` commands pass; `git status --short` is empty after the final commit; the
@@ -795,3 +855,9 @@ Revision note (2026-10-21): after discussion, the plan now adds
 deferring JSON to IR-3. The earlier deferral decision is retained in the Decision Log as
 superseded; Milestones 1–3, the acceptance mapping for AC-1 and AC-4, the CLI transcripts,
 the ADR-9 amendment, and the interface list were updated together.
+
+Revision note (2026-10-21): addressed all three review findings by specifying and testing
+escaped one-line text diagnostics, replacing the absence fixture with a two-entry
+snapshot and explicit default-value/provenance assertions, and removing the obsolete
+JSON rejection from the ADR-10 instructions. The JSON renderer, versioned document,
+CLI integration, and acceptance tests remain required scope, as confirmed by the user.
