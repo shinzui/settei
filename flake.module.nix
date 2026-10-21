@@ -45,10 +45,14 @@
           settei = setteiPackage;
         };
       setteiPreflightPackage =
-        haskellPackages.callCabal2nix "settei-preflight" ./settei-preflight {
-          settei = setteiPackage;
-          settei-env = setteiEnvPackage;
-        };
+        # Cabal owns executable tests; nixpkgs tasty still embeds optparse 0.18.
+        pkgs.haskell.lib.dontCheck (
+          haskellPackages.callCabal2nix "settei-preflight" ./settei-preflight {
+            optparse-applicative = optparseApplicativePackage;
+            settei = setteiPackage;
+            settei-env = setteiEnvPackage;
+          }
+        );
       setteiYamlPackage =
         haskellPackages.callCabal2nix "settei-yaml" ./settei-yaml {
           settei = setteiPackage;

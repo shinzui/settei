@@ -129,7 +129,7 @@ pre-provisioning half of that pair.
       passes with the fixture-application tests covering every classification, every
       execution-failure path, output redaction, environment isolation, cleanup, and the
       startup-marker instrumentation. Verified 2026-10-21: all 60 harness tests pass, including native environment isolation, concurrent capture, timeout/pipe-drain cleanup, injected IO failures, secret-channel scans, and four report goldens.
-- [ ] Milestone 2 — Request document and executable (AC-2 interface, AC-4 channels):
+- [x] Milestone 2 — Request document and executable (AC-2 interface, AC-4 channels):
       `Settei.Preflight.Request` parses and renders the strict `settei.preflight-request`
       document, resolves secret references through an injectable environment, and the
       `settei-preflight` executable maps verdicts to exit codes 0/1/2/3/4; the suite
