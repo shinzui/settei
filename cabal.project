@@ -2,6 +2,7 @@ packages:
   examples/settei-cli
   examples/settei-conformance
   examples/settei-service
+  examples/settei-deployment
   settei
   settei-dhall
   settei-env
@@ -48,3 +49,6 @@ package settei-example-service
 -- dhall-haskell monorepo widens the same release's source bound to <0.13, and
 -- the adapter is tested against GHC 9.12's bytestring 0.12 API.
 allow-newer: dhall-json:aeson, dhall-json:bytestring, dhall-json:text
+
+package settei-example-deployment
+  tests: True

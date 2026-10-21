@@ -1,0 +1,10 @@
+runtime:
+  environment: production
+database:
+  url: postgres://example.invalid/notification
+email:
+  credentials: '{"account":"dummy"}'
+server:
+  webhookSecret: explicit-production-test-secret
+workers:
+  deliveryEndpoint: https://delivery.example.invalid

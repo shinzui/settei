@@ -111,7 +111,7 @@ demonstrates the feature (see docs/adr/0007-reference-applications-are-the-publi
       new modes before opening any file or reading any environment value; the conformance
       suite scans a contract built through public modules for a secret sentinel; the
       three example suites pass. Verified 2026-10-21: CLI 13, service 20, and conformance 14 tests pass; failing environment-reader actions stay uncalled in static modes and actual executable smoke exports succeed.
-- [ ] Milestone 4 — Notification-hub-shaped reference application (AC-4 instrumentation,
+- [x] Milestone 4 — Notification-hub-shaped reference application (AC-4 instrumentation,
       AC-6 workflow): the new `examples/settei-deployment` package with server and worker
       executables, a built-in defaults source, `ENVIRONMENT`/`DATABASE_URL` bindings, a
       defaulted secret, a production deployment profile, distinct server and worker

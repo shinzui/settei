@@ -113,6 +113,16 @@
             settei-yaml = setteiYamlPackage;
           }
         );
+      setteiExampleDeploymentPackage =
+        pkgs.haskell.lib.dontCheck (
+          haskellPackages.callCabal2nix "settei-example-deployment" ./examples/settei-deployment {
+            optparse-applicative = optparseApplicativePackage;
+            settei = setteiPackage;
+            settei-env = setteiEnvPackage;
+            settei-optparse-applicative = setteiOptparseApplicativePackage;
+            settei-yaml = setteiYamlPackage;
+          }
+        );
       setteiExampleConformancePackage =
         # Cabal is the test authority for these examples. nixpkgs' tasty closure still
         # carries optparse-applicative 0.18, while the examples deliberately test the
@@ -140,6 +150,7 @@
       packages.settei-example-cli = setteiExampleCliPackage;
       packages.settei-example-conformance = setteiExampleConformancePackage;
       packages.settei-example-service = setteiExampleServicePackage;
+      packages.settei-example-deployment = setteiExampleDeploymentPackage;
       packages.settei-dhall = setteiDhallPackage;
       packages.settei-env = setteiEnvPackage;
       packages.settei-formats = setteiFormatsPackage;
