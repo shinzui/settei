@@ -3,7 +3,8 @@ type: Improvement Request
 title: Validate supplied environment variable names against declared bindings
 description: Catch misspelled or unsupported application environment variables before deployment without rejecting unrelated process variables or exposing values.
 requestId: IR-2
-status: proposed
+status: accepted
+targetPlan: docs/plans/27-validate-supplied-environment-variable-names-against-declared-bindings.md
 origin: mori://tan/notification-hub
 generated:
   by: process:codex
