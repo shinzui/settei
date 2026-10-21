@@ -2,7 +2,7 @@
 type: Architecture Decision Record
 title: Use internal reference applications as the public-API conformance boundary
 description: Use three internal reference applications as the conformance boundary that proves the public API composes.
-timestamp: 2026-10-21T14:30:00Z
+timestamp: 2026-10-21T15:13:00Z
 docId: ADR-7
 status: Accepted
 date: 2026-07-18
@@ -152,3 +152,16 @@ The independent conformance suite scans contract outputs for secret sentinels.
 [ADR-12](0012-deployment-contract-export-semantics.md) defines contract semantics and
 uncertainty. Static discovery is paired with application check mode; the example does
 not contact a database, provider, or cluster.
+
+
+## Amendment 2026-10-21: deployment preflight at the process boundary
+
+The deployment server and worker also exercise `settei-preflight` through real
+executables and a normalized rendered-manifest extractor, without cluster access.
+Tests compare file/environment/CLI precedence and in-process check results, mutate
+container wiring, and scan request/report/CLI channels for secret sentinels.
+`runDeploymentWithStartup` injects the resource-acquisition boundary after all diagnostics
+have declined; both check roles skip a failing action and non-check controls enter it.
+This establishes configuration-only behavior, without claiming connectivity, credentials,
+image identity, or readiness. [ADR-13](0013-deployment-preflight-harness-semantics.md)
+records coverage, secret channels, cleanup, and execution limitations.

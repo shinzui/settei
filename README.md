@@ -39,6 +39,10 @@ reference-service integration without adding cluster access to application proce
 
 The unreleased deployment contract joins bindings, safe defaults, and explicit profile
 requirements without loading runtime inputs; see the [first-deployment guide](docs/guides/deployment-contract.md).
+The unreleased ninth public package, `settei-preflight`, runs application check mode on
+proposed inputs with explicit secret references and coverage; see the
+[preflight guide](docs/guides/deployment-preflight.md). Both additions target the next
+shared 0.3.0.0 release.
 
 The annotated `v0.2.0.0` tag and all eight public packages are available from Hackage.
 The [release checklist](docs/release-checklist.md) remains the historical record of the
@@ -52,6 +56,7 @@ bounds, and public adoption surface.
 | Package | Role |
 | --- | --- |
 | [`settei`](settei/) | Declaration algebra, hierarchical resolver, provenance, defaults, schemas, errors, and report rendering. |
+| [`settei-preflight`](settei-preflight/) | Isolated application checks on proposed inputs, strict request documents, redaction, and honest gate verdicts (unreleased). |
 | [`settei-env`](settei-env/) | Explicit environment-variable bindings and injectable snapshots. |
 | [`settei-optparse-applicative`](settei-optparse-applicative/) | Ordered generic and named CLI overrides for optparse-applicative. |
 | [`settei-formats`](settei-formats/) | Tagged `FORMAT:PATH` inputs and shared YAML, KDL, and Dhall loading. |
@@ -146,6 +151,7 @@ not receive a recoverable secret value.
 - [KDL v2 adapter](docs/guides/kdl.md)
 - [Dhall adapter and import policy](docs/guides/dhall.md)
 - [Authoring a first deployment](docs/guides/deployment-contract.md)
+- [Preflight-checking deployment inputs](docs/guides/deployment-preflight.md)
 - [Building a CLI application](docs/guides/cli-application.md)
 - [Building a Kubernetes-shaped service](docs/guides/kubernetes-service.md)
 - [Deploying one image across Kubernetes namespaces](docs/guides/kubernetes-cookbook.md)

@@ -20,4 +20,5 @@ okf_version: "0.2"
 - [Validate environment bindings at construction](0010-validate-environment-bindings-at-construction.md) - Validate environment bindings once at construction through an opaque Bindings collection.
 - [Map Kubernetes mounted directories through explicit file bindings](0011-kubernetes-mounted-directory-input-semantics.md) - Map Kubernetes mounted directories to Settei keys through explicit validated file bindings.
 - [Export deployment contracts from declarations and explicit default sources](0012-deployment-contract-export-semantics.md) - Define source-free deployment contract inspection with occurrence-aware input verdicts, deferred computations, and redaction before retention.
+- [Run deployment preflight through application-owned check commands](0013-deployment-preflight-harness-semantics.md) - Define controlled preflight execution, strict secret references, honest coverage verdicts, cleanup, and tooling document compatibility.
 

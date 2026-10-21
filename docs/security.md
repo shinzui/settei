@@ -143,3 +143,33 @@ explanations, source names, annotations, and profile reasons free of secrets.
 Application entry points must dispatch static diagnostics before reading environment
 values or runtime files. A contract does not validate credentials or deployment wiring;
 use application check mode and operational checks for those responsibilities.
+
+
+## Preflight harness
+
+The unreleased `settei-preflight` request document admits real secrets only by references
+to the harness environment or files. Inline values are public; synthetic credentials
+must be fake. Callers must classify credentials correctly and keep names, reasons, and
+other metadata credential-free. Secret file bytes must be UTF-8 and are not trimmed.
+
+The child receives secrets only through explicit environment or UTF-8 files beneath a
+fresh 0700 temporary directory. Its environment starts empty except proposed entries and
+the documented allowlist (default PATH, LANG, LC_ALL, LC_CTYPE). Proposed/inherited
+name overlap is invalid. Known nonempty secrets in assembled arguments or the executable
+invalidate the request. Files are removed and absence verified before returning success;
+failed cleanup blocks the gate, with bracket cleanup retained as fallback.
+
+Captured output is read concurrently as bytes, decoded leniently, and exact known secrets
+are redacted across chunks before retention. Longest matches win and markers are never
+rescanned; names containing secrets use numeric markers. Metadata and failure fields are
+sanitized as well. Unmarked, transformed, encoded, partial, and empty secrets cannot be
+recognized; applications must retain safe diagnostics. Raw request/input/capture types
+have no Show instances. Reports remain operational metadata revealing names and topology.
+
+The harness is not a sandbox and cannot vouch for an arbitrary selected executable.
+Timeout includes pipe draining and requests SIGTERM, but does not force-kill resistant
+children or descendants. Output is buffered in memory, so run trusted checks with bounded
+output. Linux and macOS are supported execution targets. Configuration-only acceptance
+proves no connectivity, provider authentication, deployed image identity, or readiness;
+use actual-input init-container gates and live checks afterward. See the
+[preflight guide](guides/deployment-preflight.md) for the full contract.

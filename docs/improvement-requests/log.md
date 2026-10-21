@@ -1,6 +1,7 @@
 # Bundle Update Log
 
 ## 2026-10-21
+* **Update**: IR-3 preflight implementation and documentation prepared; completion awaits final gates.
 * **Update**: IR-3 implementation started under plan 28.
 * **Update**: IR-1 completed by docs/plans/26-export-a-deployment-configuration-contract-with-bindings-and-defaults.md.
 * **Update**: IR-4 accepted after validation against the core resolver and renderer seams and the notification-hub post-resolution checks; targetPlan set to docs/plans/29-integrate-application-validation-into-structured-configuration-diagnostics.md (planned, not yet implemented).

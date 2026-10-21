@@ -26,8 +26,10 @@ independently:
 | [CAP-13](kubernetes-environment-bindings.md) | Kubernetes-derived environment bindings | settei-kubernetes, settei-env | 0.2.0.0 |
 | [CAP-14](deployment-configuration-contract.md) | Deployment configuration contract | settei, settei-env, settei-optparse-applicative | 0.3.0.0 (unreleased) |
 
+| [CAP-15](deployment-preflight-harness.md) | Deployment preflight harness | settei-preflight | 0.3.0.0 (unreleased) |
+
 Every record is `status: shipped` and `stability: experimental`. The package family is
-released and usable at 0.2.0.0; CAP-14 is implemented for the next 0.3.0.0 release. The
+released and usable at 0.2.0.0; CAP-14 and CAP-15 are implemented for the next 0.3.0.0 release. The
 compatibility policy explicitly makes no semantic-stability promise beyond the documented modules and release notes.
 
 ## Deliberately excluded

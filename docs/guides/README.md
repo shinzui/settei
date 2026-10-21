@@ -27,6 +27,7 @@ application guide that match your program:
 | [KDL configuration](kdl.md) | You want KDL v2 files with exact source spans. |
 | [Dhall configuration](dhall.md) | You want typed Dhall input with an explicit import policy. |
 | [Tagged multi-format configuration](formats.md) | You accept `--config FORMAT:PATH` inputs across YAML, KDL, and Dhall with one shared loader. |
+| [Preflight-checking deployment inputs](deployment-preflight.md) | You need to run application check mode on proposed container inputs before provisioning. |
 | [Authoring a first deployment](deployment-contract.md) | You need environment names, safe defaults, and explicit deployment inputs before writing a deployment. |
 | [Building a CLI application](cli-application.md) | You are assembling files, environment variables, overrides, and exit behavior in a command-line program. |
 | [Building a Kubernetes service](kubernetes-service.md) | You are writing application code that loads mounted configuration and Secret-backed environment variables. |

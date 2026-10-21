@@ -1,6 +1,7 @@
 # Bundle Update Log
 
 ## 2026-10-21
+* **Add**: ADR-13 defines preflight execution and coverage; ADR-7 adds reference workflow evidence.
 * **Update**: ADR-1 records configured formatting and host-only OKF validation separately from sandboxed flake checks.
 * **Add**: ADR-12 defines deployment-contract export semantics; ADR-7 amended for the deployment example.
 

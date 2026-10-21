@@ -210,6 +210,7 @@ Useful diagnostic modes are:
 | `--describe-config-json` | Render the source-free schema as JSON. |
 | `--deployment-contract` | Join bindings, safe defaults, and profile requirements without loading runtime inputs. |
 | `--deployment-contract-json` | Render the source-free versioned `settei.contract` document. |
+| `settei-preflight --request PATH` | [Run check mode on proposed deployment inputs](deployment-preflight.md) with explicit coverage and secret channels. |
 | `--check-config` | Load and resolve configuration, print a short success message, then exit. |
 | `--explain-config` | Load and resolve, then render the redacted text report. |
 | `--explain-config-json` | Load and resolve, then render the versioned JSON report. |

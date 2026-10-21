@@ -144,11 +144,11 @@ pre-provisioning half of that pair.
       visible unsupported inputs, and configuration-only execution;
       `nix develop -c cabal test settei-example-deployment-tests --test-show-details=direct`
       passes. Verified 2026-10-21: all 47 deployment tests pass, including both roles' in-process equivalence, three-source precedence, startup failure controls, extraction mutations, namespace and collision handling, unsupported inputs, and executable sentinel scans. The shared preflight suite also passes all 86 tests with an explicitly reaped pipe retainer.
-- [ ] Milestone 4 — Documentation and collateral (AC-2 assumptions, AC-3 reporting
+- [x] Milestone 4 — Documentation and collateral (AC-2 assumptions, AC-3 reporting
       contract, AC-5 separation from readiness evidence): guide DOC-12, capability
       CAP-15, ADR-13 plus an ADR-7 amendment, cookbook cross-link, README,
       compatibility, security, and changelog; IR-3 remains `in-progress` until final gates; every OKF
-      bundle passes its repository-required profile validation.
+      bundle passes its repository-required profile validation. Verified 2026-10-21: ADR-13, DOC-12, and CAP-15 allocated by OKF; 13 ADRs, 12 guides, 15 capabilities, and 4 improvement requests validate with profile/log enforcement. IR-3 remains in-progress pending final gates.
 - [ ] Milestone 5 — Full validation and closure: `cabal build all`, `cabal test all`,
       `treefmt`, `cabal check` for the new package, and `nix flake check` pass; evidence
       recorded here; IR-3 completed and revalidated; Outcomes & Retrospective written;

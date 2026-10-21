@@ -36,6 +36,9 @@ The host's unrelated GHC 9.10 installation cannot satisfy `base >=4.21`; use
 | Mounted-directory traversal | `directory-1.3.10.1` | Kubernetes adapter: `>=1.3.8 && <1.4` |
 | Mounted path handling | `filepath-1.5.5.0` | Kubernetes adapter: `>=1.5.4 && <1.6` |
 | Freshness timestamps | `time-1.14` | Kubernetes adapter: `>=1.14 && <1.17` |
+| Preflight subprocesses | `process-1.6.26.1` | `>=1.6.19 && <1.7`; Linux/macOS SIGTERM and pipe semantics |
+| Preflight private directories | `temporary-1.3` | `>=1.3 && <1.4`; explicit cleanup verification in addition to bracket fallback |
+| Preflight tooling JSON | `aeson-2.2.5.1`, `aeson-2.3.2.0` | `>=2.2.5.1 && <2.4`; separate solver tests preserve other adapters' bounds |
 | Test framework | `tasty-1.5.4` | `>=1.5 && <1.6` |
 
 Nix overrides Dhall and dhall-json to the pinned optparse-applicative 0.19 derivation so
@@ -53,6 +56,7 @@ affected package artifacts without mixing those test closures.
 | YAML | One strict mapping document with exact locations; only case-insensitive `true` and `false` are booleans, YAML 1.1 spellings remain text, exponent magnitudes above 4096 fail, and ambiguous features fail. |
 | KDL | Canonical KDL v2 mapping with exact spans; one argument is scalar, two or more are an array, and numeric exponent magnitudes above 4096 fail. |
 | Dhall | JSON-compatible normalized values under `NoImports` or explicit `LocalImportsWithin`; root and local-import parse failures carry one-based positions. |
+| Preflight request | Strict `settei.preflight-request` schema version 1; closed keys and forms, reference-only real secrets, explicit inheritance, relative file paths, notes reduce coverage. |
 | `settei-kubernetes` | Mounted ConfigMap/Secret directories with explicit per-file key bindings and atomic-writer symlink handling; no cluster access. |
 
 
@@ -69,6 +73,9 @@ The supported adoption surface is:
 - Multi-format umbrella: `Settei.Formats` and `Settei.Formats.Optparse`.
 - `settei-kubernetes` adapter: `Settei.Kubernetes` and
   `Settei.Kubernetes.Bindings`.
+
+The unreleased preflight package exposes `Settei.Preflight` and `Settei.Preflight.Request`.
+Its `Settei.Preflight.Internal` module is private.
 
 Modules beneath `Settei.Internal` and all packages beneath `examples/` are not public API.
 Version 0.2.0.0 is experimental and does not promise semantic stability beyond these
@@ -103,3 +110,18 @@ The next shared release targets 0.3.0.0. Core adds `Settei.Contract`,
 separate version 1 document, reusing setting metadata and origin encodings. Existing
 `--describe-config-json` consumers require no migration. No third-party dependency
 bounds or pins change for this feature.
+
+
+## Unreleased deployment preflight
+
+`settei-preflight` joins the family for the next shared 0.3.0.0 release; it is not in
+the released 0.2.0.0 package set. Its Cabal manifest uses the current workspace family
+version until the coordinated release bump. Reports expose sanitized fields through
+read-only accessors and carry no public lens types. Request and input types deliberately
+lack Show. Execution targets are Linux and macOS; acceptance was run on aarch64-darwin.
+
+Both `settei.preflight-request` and `settei.preflight` use schemaVersion 1. Requests reject
+unknown fields/forms, so adding a field/form or changing meaning requires a new version.
+All notes in version 1 reduce coverage. These tooling formats use Aeson with fixed pair
+order and byte-identical goldens; existing core schema/resolution documents are unchanged.
+The standalone Aeson 2.3 suite excludes the Dhall adapter rather than widening its bounds.

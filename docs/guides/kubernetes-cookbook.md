@@ -349,6 +349,12 @@ credential from the same secret pipeline used by deployment; do not put it in a 
 line, repository file, or CI log.
 
 
+Before provisioning, use the [deployment preflight harness](deployment-preflight.md)
+to run the same application-owned checks on proposed inputs. Synthetic, unresolved,
+unavailable, and unsupported inputs prevent a preflight pass. This init-container gate
+then checks the actual provisioned files and secrets; live connectivity and readiness
+remain separate checks.
+
 ## 7. Use the incident runbook
 
 Start with rollout and init-container state:
