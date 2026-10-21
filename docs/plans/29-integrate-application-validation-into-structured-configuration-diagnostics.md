@@ -10,9 +10,22 @@ provenance:
     model: "claude-fable-5-1"
     harness: "claude-code"
     at: 2026-10-21T14:11:22Z
+  revisions:
+    - model: "gpt-6-astra"
+      harness: "codex-cli"
+      at: 2026-10-21T14:33:14Z
+      mode: "update"
+      note: "Validate against current APIs and ADRs; fix opaque collection instances, diagnostic acceptance, sentinel coverage, migration details, and closure sequencing."
+  reviews:
+    - model: "gpt-6-astra"
+      harness: "codex-cli"
+      at: 2026-10-21T14:37:38Z
+      verdict: "approved"
+      note: "Updated plan is implementable against current core, adapter, example, IR-4, and ADRs; three baseline test suites and all four bundle checks pass. Feature acceptance remains pending implementation."
 ---
 
 # Integrate application validation into structured configuration diagnostics
+
 
 This ExecPlan is a living document. The sections Progress, Surprises & Discoveries,
 Decision Log, and Outcomes & Retrospective must be kept up to date as work proceeds.
@@ -25,6 +38,7 @@ plan; each milestone below names the criteria it discharges.
 
 
 ## Purpose / Big Picture
+
 
 Settei is a Haskell configuration library. An application declares its settings once as
 a `Config a` value, and `resolve` turns ordered sources (files, environment variables,
@@ -61,20 +75,27 @@ implemented, a worker whose visibility timeout cannot cover its concurrency is r
 like this (environment variables stand in for the container's proposed inputs):
 
 ```bash
-ENVIRONMENT=production DATABASE_URL=postgres://db.invalid/hub \
-WEBHOOK_SECRET=a-sufficiently-long-production-secret \
-DELIVERY_ENDPOINT=http://delivery.production.internal:8080 \
-EMAIL_CREDENTIALS_JSON='{"sendgrid":"placeholder"}' \
-WORKER_VISIBILITY_TIMEOUT_SECONDS=1 \
-  nix develop -c cabal run settei-example-deployment-worker -- --explain-config-json; echo "exit $?"
+nix develop -c cabal build exe:settei-example-deployment-worker
+deployment_worker=$(nix develop -c cabal list-bin exe:settei-example-deployment-worker)
+env -i ENVIRONMENT=production DATABASE_URL=postgres://db.invalid/hub \
+  WEBHOOK_SECRET=a-sufficiently-long-production-secret \
+  DELIVERY_ENDPOINT=http://delivery.production.internal:8080 \
+  EMAIL_CREDENTIALS_JSON='{"sendgrid":"placeholder"}' \
+  WORKER_VISIBILITY_TIMEOUT_SECONDS=1 \
+  "$deployment_worker" --explain-config-json
+printf 'exit %s\n' "$?"
 ```
 
-The command prints nothing on stdout, exits `4`, and prints two JSON documents to stderr,
-one per line. The first is the `settei.errors` document, whose only entry has
+Build and locate the executable first so build-tool messages are separate from its
+streams. `env -i` supplies only the fixture inputs, avoiding inherited overrides. The
+executable prints nothing on stdout, exits `4`, and prints two JSON documents to stderr,
+one per line (the following `printf` reports its exit code separately on stdout). The
+first is the `settei.errors` document, whose only entry has
 `"kind":"invariant"`, `"rule":"worker-visibility-covers-concurrency"`, and
 `"keys":["workers.visibilityTimeoutSeconds","workers.concurrency"]`. The second is the
-`settei.resolution` document with every setting's winning origin (the timeout's node shows
-`environment variable WORKER_VISIBILITY_TIMEOUT_SECONDS`) and a new `invariants` array
+`settei.resolution` document with every setting's winning origin (the timeout's origin
+has kind `environment` and annotation `environment.variable` equal to
+`WORKER_VISIBILITY_TIMEOUT_SECONDS`) and a new `invariants` array
 listing each rule the worker role declares with its status. With `--explain-config`
 instead, the same run prints one error line, the text report, and one `invariant …` line
 per rule. With `--check-config` it prints the error line only and still exits `4`; the
@@ -83,6 +104,7 @@ check mode now consumes the validated result.
 
 
 ## Progress
+
 
 - [ ] Milestone 1 — Core validation mechanism (AC-1, AC-3, AC-4 at the library
       boundary): the new public module `Settei.Validate`, the `InvariantError`
@@ -113,15 +135,28 @@ check mode now consumes the validated result.
 - [ ] Milestone 4 — Documentation, collateral, and request lifecycle (AC-3 author
       contract, AC-5 versioning): a new ADR plus an ADR-3 amendment, a new capability
       record plus CAP-3 and CAP-7 updates, guide sections, security and compatibility
-      updates, changelogs with the PVP consequences, and IR-4 moved to `completed`;
-      every OKF bundle validates strictly.
+      updates, changelogs with the PVP consequences, and IR-4 still `in-progress`;
+      every OKF bundle passes its prescribed profile-enforced validation.
 - [ ] Milestone 5 — Full validation and closure: `cabal build all`, `cabal test all`,
       `treefmt`, the four `okf validate` commands, and `nix flake check` pass; evidence
-      recorded here; Outcomes & Retrospective written; ADR distillation done.
+      recorded here; Outcomes & Retrospective written; ADR distillation done; IR-4
+      moved to `completed` only after those gates pass and its bundle revalidated.
 
 
 ## Surprises & Discoveries
 
+
+- Validation evidence (2026-10-21): ADR-10 deliberately omits `Generic` from an
+  opaque validated collection because generic conversion bypasses its smart constructor.
+  Apply that same restriction to `Validators`; constructor privacy alone is insufficient.
+  A raw sentinel containing quotes and newlines also cannot detect its JSON-escaped or
+  `Show`-escaped form. The tests below scan a unique plain-ASCII marker within the
+  adversarial sentinel as well as the complete raw sentinel.
+- Validation evidence (2026-10-21): plan 26's core cycle helper and deployment example
+  are now tracked, and its Milestones 1–5 are checked. Baseline core, optparse, and
+  deployment suites pass; core reports 122 tests and deployment reports 15. All four
+  prescribed OKF validations pass (12 ADRs, 11 guides, 14 capabilities, 4 requests).
+  These are pre-implementation checks, not acceptance of this plan's new feature.
 - Planning evidence (2026-10-21): plan 26 is being implemented in this working tree
   concurrently. At planning time `git status` showed uncommitted changes that add
   settei/src/Settei/Contract.hs and settei/src/Settei/Internal/DefaultValidation.hs and
@@ -146,6 +181,7 @@ check mode now consumes the validated result.
 
 ## Decision Log
 
+
 - Decision: Validation lives in the core `settei` package as a new public module
   `Settei.Validate`, re-exported by `Settei`, and an application invariant failure is a
   new constructor `InvariantError !InvariantProblem` of the existing `ConfigError` type.
@@ -162,7 +198,9 @@ check mode now consumes the validated result.
 
 - Decision: `validate :: Validators a -> ResolveResult a -> ValidatedResult a` is pure
   and total. `ValidatedResult` carries `answer`, `report`, `warnings`, and a new
-  `validation :: ValidationReport`. Validators run only when `answer` is `Right`; when
+  `validation :: ValidationReport`. Totality assumes finite, total author-supplied
+  validators; the pure API does not catch exceptions or terminate divergent code.
+  Validators run only when `answer` is `Right`; when
   resolution failed, the errors, report, and warnings are returned unchanged and every
   rule is reported as not run, without forcing any validator function. `resolve`,
   `ResolveResult`, `describe`, and the `Config` algebra are not changed.
@@ -205,11 +243,16 @@ check mode now consumes the validated result.
   Date: 2026-10-21
 
 - Decision: Secret safety is structural first and contractual second. `Validator`,
-  `Validators`, and `ValidatedResult` have no `Show` or `Eq` instances. A failure retains
+  `Validators`, and `ValidatedResult` have no `Show` or `Eq` instances. `Validator` and
+  `Validators` also have no `Generic` instance or exported constructor; in particular,
+  `Validators` must not expose a generic conversion or writable optic that bypasses
+  `validators`, following ADR-10. A failure retains
   only `rule`, `keys`, `expectation`, and `detail :: Maybe Text`. The expectation is fixed
-  at declaration time, so the common case cannot interpolate anything. `detail` is the
-  only runtime-computed text; it exists for public labels such as an account or pool
-  name and is produced by `violationWithDetail`, whose documentation states that the
+  at declaration time, so the common path does not need value interpolation. All
+  author-supplied metadata (including rule names, keys, expectations, and details) must
+  be safe to publish; a fixed `Text` is not proof of safety if an author constructed it
+  from a secret. `detail` is the explicit per-run text channel; it exists for public
+  labels such as an account or pool name and is produced by `violationWithDetail`, whose documentation states that the
   author must not embed the value of any setting declared `Secret` and that Settei does
   not and cannot sanitise it. The guide, docs/security.md, and the capability record
   repeat that contract and recommend referencing keys instead of interpolating values.
@@ -266,14 +309,16 @@ check mode now consumes the validated result.
   worker: visibility timeout versus concurrency, and the development webhook default in
   production), so no fixture changes its accept or reject outcome. The CLI and
   Kubernetes service examples are not migrated because they declare no cross-setting
-  rule. The one observable change, the wording of rejection lines, is documented in the
-  example's README and changelog as the compatibility path.
+  rule. The wording of invariant rejection lines and the JSON explain failure stream both
+  change; document those changes in the example's README and changelog as the
+  compatibility path.
   Rationale: AC-5 requires moving an existing post-resolution check that returns plain
   text, without duplicating rules, changing successful typed values, or weakening
   rejection. Plan 26's example reproduces the consumer's shape in miniature and is the
   reference application that docs/adr/0007-reference-applications-are-the-public-api-conformance-boundary.md
   (as amended by plan 26) admits to the conformance boundary. If plan 26 has not reached
-  Milestone 4, implement it first; do not build plan 26's checks directly on
+  Milestone 4, record that prerequisite before migration; do not build plan 26's checks
+  directly on
   `Settei.Validate`, because the migration itself is this plan's deliverable.
   Date: 2026-10-21
 
@@ -290,12 +335,15 @@ check mode now consumes the validated result.
 
 ## Outcomes & Retrospective
 
+
 (To be filled during and after implementation.)
 
 
 ## Context and Orientation
 
+
 ### Validation of the request
+
 
 IR-4 was checked against the working tree and the registered consumer before this plan
 was written, and it fits. The seams it needs already exist: `resolve` in
@@ -319,6 +367,7 @@ to exit `4` with the text and a trailing newline, and both print the explain rep
 for resolution failures, never for these. Nothing in this plan modifies the consumer.
 
 ### What exists today in this repository
+
 
 - settei/src/Settei/Resolve.hs: `ResolveResult a` (`answer`, `report`, `warnings`),
   `ResolveOptions`, `resolve`. At planning time the uncommitted plan 26 work imports
@@ -391,6 +440,7 @@ for resolution failures, never for these. Nothing in this plan modifies the cons
 
 ### Terms used in this plan
 
+
 An **invariant** is a rule that relates one or more resolved settings and that no single
 decoder can express, such as "the visibility timeout must be at least twice the
 concurrency". A **validator** is one declared invariant: a stable identifier, the
@@ -408,11 +458,13 @@ whoever writes a validator: never put the value of a secret setting into a detai
 
 ### Relationship to concurrent work
 
+
 Plans 26, 27, and 28 were authored on the same day and are in various states of
 implementation. Files that more than one plan edits, and how to merge: settei/src/Settei.hs
 (each plan adds one re-export line); settei/settei.cabal (each adds its own modules);
 settei/src/Settei/Render.hs (plan 26 adds contract renderers, this plan adds validation
-renderers and two `ConfigError` cases, no shared functions); settei/src/Settei/Error.hs
+renderers and one new case in each error renderer; preserve both plans' changes to
+shared JSON helpers); settei/src/Settei/Error.hs
 (only this plan adds a constructor); settei-optparse-applicative/src/Settei/Optparse.hs
 (plan 26 adds two `DiagnosticMode` constructors and `contractDiagnostic`; this plan adds
 `validatedDiagnostic`, whose `case` must treat plan 26's constructors like the describe
@@ -426,29 +478,30 @@ counting; re-run the command.
 
 ### Relevant architecture decisions
 
-- docs/adr/0002-inspectable-configuration-algebra.md: `Config` is a private GADT with no
+
+- [docs/adr/0002-inspectable-configuration-algebra.md](../adr/0002-inspectable-configuration-algebra.md): `Config` is a private GADT with no
   `Monad` instance so that complete static inspection is possible. Validators run over
   the typed value *after* interpretation and add no syntax node; `describe` and the
   schema documents are unchanged.
-- docs/adr/0003-resolution-provenance-and-default-semantics.md: redaction happens
+- [docs/adr/0003-resolution-provenance-and-default-semantics.md](../adr/0003-resolution-provenance-and-default-semantics.md): redaction happens
   before data enters a report or structured error; reports never contain application
   values; JSON documents are compact, deterministic, version 1, emitted without Aeson,
   and may gain additive fields. This plan's failure record retains metadata only, its
   `invariant` kind and `invariants` array are additive, and Milestone 4 amends this ADR
   to record both and the rule that `ConfigError` may grow a constructor per failure
   family under a major bump.
-- docs/adr/0007-reference-applications-are-the-public-api-conformance-boundary.md:
+- [docs/adr/0007-reference-applications-are-the-public-api-conformance-boundary.md](../adr/0007-reference-applications-are-the-public-api-conformance-boundary.md):
   every public capability is exercised by an internal reference application;
   `--check-config` prints `configuration valid` and keeps the 2/3/4 exit discipline.
   Plan 26's amendment admits the deployment example, which hosts this plan's migration.
-- docs/adr/0009-adapter-error-rendering-contract.md: one operator-readable line per
+- [docs/adr/0009-adapter-error-rendering-contract.md](../adr/0009-adapter-error-rendering-contract.md): one operator-readable line per
   problem; plural renderers are the singular mapped over `NonEmpty` and joined with
   `Text.unlines`; renderers concatenate only retained fields. The `ValidatorError`
   renderers and the invariant error line follow that shape.
-- docs/adr/0010-validate-environment-bindings-at-construction.md: validate once at
+- [docs/adr/0010-validate-environment-bindings-at-construction.md](../adr/0010-validate-environment-bindings-at-construction.md): validate once at
   construction into an opaque collection and report every problem. `validators` follows
   the same pattern for rule identifiers, keys, and prerequisites.
-- docs/adr/0001-haskell-project-conventions.md: `GHC2024`, the shared `common common`
+- [docs/adr/0001-haskell-project-conventions.md](../adr/0001-haskell-project-conventions.md): `GHC2024`, the shared `common common`
   stanza, strict record fields, explicit deriving strategies, generic-lens labels, and
   no lens type in a public signature.
 
@@ -458,7 +511,9 @@ validator sequencing; Milestone 4 creates one.
 
 ## Plan of Work
 
+
 ### Milestone 1 — Core validation mechanism
+
 
 Scope: the library boundary. At the end, a Haskell caller can declare validators next to
 a `Config`, check them against the declaration, run them on a resolved result, and
@@ -474,18 +529,23 @@ for the cycle walk, `Settei.Config` for `describe`, `Settei.Schema` for the poss
 keys, `Settei.Resolve` for `ResolveResult`, and `Settei.Report`. Its module header is the
 author contract: what a validator may compute, that `expectation` is fixed at
 declaration, that `detail` is for public labels only and must never carry the value of a
-`Secret` setting, that functions must be total, and that Settei cannot sanitise
+`Secret` setting, that all metadata must be safe to publish, that functions must be
+total and return finite lists, and that Settei cannot sanitise
 author-supplied text. Extend settei/src/Settei/Render.hs with the `InvariantError`
 cases of `renderErrorText` and `errorJson`, `renderValidationText`, and
 `renderValidatedResolutionJson` (reuse `versionedJson` with the existing `nodes` and
 `branches` fields followed by `invariants`). Re-export `Settei.Validate` from
-settei/src/Settei.hs and list the module in both stanzas of settei/settei.cabal (and
-`Settei.ValidateTest` plus the new goldens under `extra-source-files`).
+settei/src/Settei.hs. In settei/settei.cabal add `Settei.Validate` to the library
+`exposed-modules` and test-suite `other-modules`, and add `Settei.ValidateTest` to
+the latter. The existing `test/golden/*.json` and `test/golden/*.txt`
+`extra-source-files` globs already include the new goldens.
 
 `validators config list` proceeds in this order and collects every problem rather than
 stopping at the first: run `validateDefaultCycles config` and turn each `DefaultCycle`
 problem into `CyclicDeclaration`; compute the possible keys from `describe config` only
-when no cycle was found; then, for each validator in list order, check the rule spelling
+when no cycle was found, and otherwise omit key-membership checks while still checking
+rule names, empty key lists, and prerequisites. Cycle errors precede validator errors.
+Then, for each validator in list order, check the rule spelling
 (non-empty, no whitespace, no control characters), duplicate rule names (reported at the
 second occurrence), an empty key list, every key against the possible keys, and every
 prerequisite against the rules declared *earlier* in the list (a self-reference or a
@@ -493,10 +553,22 @@ later rule is `UnknownPrerequisite`). `runValidators` walks the list in order wi
 from rule to status: a validator whose prerequisites are all `InvariantPassed` runs and
 yields `InvariantPassed` or `InvariantFailed n` plus `n` problems, each carrying the
 validator's rule, keys, expectation, and the violation's detail; otherwise it is
-`InvariantSkipped` with the unmet prerequisites in declaration order and its function is
-never applied. `validate` applies `runValidators` on `Right`; on `Left` it returns the
-input's fields with `describeValidators` as the report. `describeValidators` lists every
-validator with `InvariantNotRun`.
+`InvariantSkipped` with the unmet prerequisites in their attached list order and its
+function is never applied. `requires` appends prerequisites, removes duplicates while preserving
+first occurrence, and composes additively across repeated calls. Outcomes preserve that
+order for `prerequisites` and `blockedBy`. `check` returns no violations when its predicate
+is true and `[violation]` otherwise; `violation` has no detail. Empty validator collections
+are valid and yield an empty report.
+
+`validate` applies `runValidators` on `Right value`: no problems preserves `Right value`,
+and a non-empty problem list becomes `Left (fmap InvariantError problems)` in the same
+order. Both cases preserve the original resolution report and warnings exactly. On
+`Left`, retain the input errors, report, and warnings and put `describeValidators` in
+the `validation` field. `describeValidators` lists every validator with `InvariantNotRun`.
+Use the collection with the same declaration that produced the resolution result; the
+type parameter alone cannot prove two `Config a` values describe the same keys.
+Conditional keys are valid references, and authors must handle optional fields in their
+total functions; declaration membership does not imply a key ran on this path.
 
 The validation text block for one outcome is `invariant RULE [STATUS]: KEY1, KEY2` on the
 first line, then `  expects EXPECTATION`, then `  after RULE1, RULE2` only when the
@@ -508,7 +580,10 @@ validator has prerequisites, where STATUS is `passed`, `failed (N violation)` or
 RULE failed: EXPECTATION` with ` (DETAIL)` appended when a detail exists; its JSON object
 is `{"kind":"invariant","rule":…,"keys":[…],"expectation":…,"detail":null|"…"}`.
 `renderValidatorErrorText` emits one line per construction problem naming only the rule,
-key, or prerequisite involved, and `renderValidatorErrorsText` is the singular mapped
+key, prerequisite, or cycle-rule path involved. Escape control characters in invalid
+rule names so a rejected newline cannot create an extra diagnostic line. The author
+contract requires expectations and details used in line-oriented text to be single-line.
+`renderValidatorErrorsText` is the singular mapped
 over `NonEmpty` and joined with `Text.unlines`.
 
 Write settei/test/Settei/ValidateTest.hs and register it in settei/test/Main.hs. The
@@ -530,8 +605,11 @@ account without one, never touching the token. Build `workerValidators` from all
 and `serverValidators` from `provider-account` alone; sources are built with the
 existing test helpers (`sourceFromPairs` or a `RawObject` tree) so every test is pure.
 
-Required cases: every `ValidatorError` kind (an empty rule, a rule with a space, a
-duplicate rule, an empty key list, the key `nothing.here`, a prerequisite naming a later
+Required cases: empty validator collections pass without changing the typed answer;
+repeated `requires` calls accumulate distinct prerequisites in first-occurrence order;
+multiple blocked prerequisites are reported in that order, including one transitively
+skipped prerequisite; every `ValidatorError` kind (an empty rule, a rule with a space or
+control character, a duplicate rule, an empty key list, the key `nothing.here`, a prerequisite naming a later
 rule, a self-prerequisite, and the mutually recursive declaration from
 settei/test/Settei/DefaultTest.hs) with the rendered line naming the offender; a
 complete valid configuration passes every rule, `answer` is `Right`, and every outcome is
@@ -552,7 +630,12 @@ label is retained verbatim in the problem, the text line, and the JSON; a sentin
 placed in `database.url` and in a credential token is absent from `show` of the problems,
 the report, and the outcomes, from `renderErrorsText`, `renderErrorsJson`,
 `renderValidationText`, `renderResolutionText`, and `renderValidatedResolutionJson`
-(scan every output with `Text.isInfixOf`); and the goldens
+(scan every output with `Text.isInfixOf`). Use a unique contiguous ASCII marker such as
+`SETTEI_VALIDATION_SECRET_29` within the punctuation-rich sentinel and assert absence of
+both the marker and full sentinel: JSON and Haskell `Show` escape quotes and newlines,
+so checking only the raw sentinel gives false assurance. Verify the scan detects a
+deliberate escaped leak in a test-local string. Apply this scan to adapter and application
+tests too. The goldens
 settei/test/golden/validation.txt, validation.json, invariant-errors.txt, and
 invariant-errors.json pin the vocabulary for the multi-failure run (write them by hand
 from the format above first, then correct them to real output only after reviewing the
@@ -560,6 +643,7 @@ diff for leaks). The existing golden tests must keep passing unchanged, which pr
 `renderResolutionJson` is byte-identical.
 
 ### Milestone 2 — Diagnostic integration
+
 
 Scope: the adapter boundary. At the end, an application consumes one validated result
 through one helper in every mode.
@@ -594,34 +678,45 @@ second the resolution document whose node for `service.poolSize` names the winni
 source; `NoDiagnostic` success yields `DiagnosticContinue` with the typed value; a
 resolution failure (missing `service.workers`) through `ExplainText` yields
 `DiagnosticFailure` containing `required value is missing` and `[not run]`; and a
-sentinel in `service.token` is absent from every text produced above.
+sentinel in `service.token` is absent from every text produced above. Exercise a failing
+validated result through all eight constructors, including the four static-mode fallbacks
+of the helper, and assert `DiagnosticFailure` for each. Add a decode failure and a result
+with a non-empty warnings list to check unchanged errors, report, and warnings. Static
+application dispatch still happens before calling this helper; passing a result directly
+to a static-mode fallback is only an adapter test.
 
 ### Milestone 3 — Migration of the notification-hub-shaped example
+
 
 Scope: the application boundary and AC-5. Prerequisite: plan 26 implemented through
 its Milestone 4, so that examples/settei-deployment exists with `checkServer` and
 `checkWorker`. Verify with `ls examples/settei-deployment/src/Settei/Example/Deployment.hs`
-and `grep -n 'checkServer\|checkWorker' examples/settei-deployment/src/Settei/Example/Deployment.hs`
-before starting; if absent, implement plan 26 first.
+and `rg -n 'checkServer|checkWorker' examples/settei-deployment/src/Settei/Example/Deployment.hs`
+before starting. The prerequisite is present at this validation; if it is absent in a
+later checkout, record the blocked migration and continue independent work. Implementing
+an unfinished part of plan 26 requires authorization for that separate plan.
 
 In `Settei.Example.Deployment`, declare three validators next to `deploymentConfig`:
 `server-webhook-secret-length` over `server.webhookSecret` expecting "must be at least
-16 characters" (a `check` on the wrapped secret's length; no detail, so the value is
+16 characters" (a `check` on the `Text` secret's length; no detail, so the value is
 never echoed); `worker-visibility-covers-concurrency` over
 `workers.visibilityTimeoutSeconds` and `workers.concurrency` expecting
 "workers.visibilityTimeoutSeconds must be at least twice workers.concurrency"; and
 `production-webhook-secret` over `server.webhookSecret` and `runtime.environment`
 expecting "the development webhook secret must never reach production". Build
 `serverValidators` from the first and `workerValidators` from the second and third, both
-with `validators deploymentConfig …`, forced at module level like `environmentBindings`
-so an invalid declaration fails in tests. Export `roleValidators :: Role -> Validators
-DeploymentConfig`, `serverValidators`, and `workerValidators`; remove `checkServer` and
+with `validators deploymentConfig …` in top-level definitions like `environmentBindings`,
+and explicitly force them in tests so an invalid declaration fails. Preserve the current
+`toInteger` conversions in the timeout comparison before multiplying by two; unchecked
+`Int` multiplication changes rejection at large values. Export
+`roleValidators :: Role -> Validators DeploymentConfig`, `serverValidators`, and `workerValidators`; remove `checkServer` and
 `checkWorker` (the `DeploymentConfig -> [Text]` functions) and the `case role of` that
 selects between them. Change the dispatch to `schemaDiagnostic`, `contractDiagnostic`, load,
 `resolve`, `validate (roleValidators role)`, then `validatedDiagnostic`: route
 `DiagnosticFailure` to stderr with `resolutionExitCode`, `DiagnosticOutput` to stdout with
 the rendered warnings on stderr and exit 0, and `DiagnosticContinue config` to the safe
-startup summary. Delete the application-local `failureReport`.
+startup summary with rendered warnings on stderr, as today. Failures continue omitting
+warning output. Delete the application-local `explanation` helper.
 
 Update the example's test suite so that the plan 26 fixture matrix keeps its outcomes:
 the complete production snapshot passes both roles with `configuration valid\n` and
@@ -630,23 +725,33 @@ stderr line `server.webhookSecret: invariant server-webhook-secret-length failed
 be at least 16 characters` and no value; `WORKER_VISIBILITY_TIMEOUT_SECONDS=1` is
 rejected by the worker with the `worker-visibility-covers-concurrency` line; the
 development webhook default in production is rejected by the worker only; the typed
-values of the valid fixtures are unchanged (assert the same safe fields the plan 26
-tests already assert); `--explain-config` on a failing worker prints the error line, the
-full report including `workers.visibilityTimeoutSeconds = 1` with its winning
-environment origin, and three `invariant …` lines in declaration order with the two
-passing rules marked `passed`; `--explain-config-json` prints exactly two lines, the
+values of the valid fixtures are unchanged (the existing suite checks process outcomes,
+so add assertions comparing the pre-validation and post-validation `Right` values using
+`DeploymentConfig`'s `Eq` instance without requiring or printing `Show`);
+`--explain-config` on a failing worker prints the error line, the
+full report including `workers.visibilityTimeoutSeconds = "1"` with its winning
+environment origin, and exactly two `invariant …` outcome lines in declaration order: the
+timeout rule failed and the production-secret rule passed; `--explain-config-json` prints
+exactly two lines, the
 `settei.errors` document with `"kind":"invariant"` and the `settei.resolution` document
 containing both the node and the `invariants` entry; `--check-config` with the same
-inputs prints only the error line and never `configuration valid`; a missing
+inputs prints only the error line and never `configuration valid`; startup with the
+same invalid inputs exits 4 without printing a ready message. Include large `Int` values
+whose doubled concurrency exceeds `maxBound :: Int` to prove the original rejection is
+preserved, and a worker fixture failing both rules to prove ordered accumulation. A missing
 `DATABASE_URL` yields the resolution error, `[not run]` for every rule in text explain,
-and no invariant line in the errors; the static modes still pass with a failing
+and no invariant line in the errors; a malformed numeric setting produces a decode error
+with not-run outcomes; an unreadable source still exits 3 through its existing adapter
+text renderer before validation. The static modes still pass with a failing
 environment reader (unchanged plan 26 tests, which now also prove validators are not
 reached); and the secret sentinel in `DATABASE_URL`, `WEBHOOK_SECRET`, and
 `EMAIL_CREDENTIALS_JSON` is absent from stdout and stderr in every mode. Add a
 "Rejection lines changed" note to examples/settei-deployment/README.md and its changelog
-showing one old and one new line.
+showing one old and one new line, and the change from mixed text/JSON to two JSON
+documents on JSON explain failure (including base resolution failure).
 
 ### Milestone 4 — Documentation, collateral, and request lifecycle
+
 
 Scope: make the capability discoverable, bounded, versioned, and recorded.
 
@@ -655,7 +760,8 @@ where `NN` is the handle number `okf id next docs/adr --profile docs/adr/profile
 ADR` returns at creation; frontmatter `type: Architecture Decision Record`, `title`,
 `description`, `docId`, `status: Accepted`, `date`, `timestamp`, `generated`). Record:
 validators are pure rules over the typed value, declared with stable identifiers and
-declared keys checked at construction; invariant failures are `ConfigError`s so every
+declared keys checked at construction, with no public constructor or `Generic` instance
+for the checked collection; invariant failures are `ConfigError`s so every
 renderer and exit path is shared; validators run only after successful resolution and
 never in describe modes; declaration order, accumulation, explicit prerequisites and
 skipping, and per-role collections; the metadata-only failure record, the fixed
@@ -704,28 +810,37 @@ cannot sanitise; validators receive the typed record and must not log it). Add
 "Versioning policy" that `ConfigError` grew a constructor in this release. Add
 `## Unreleased` bullets to settei/CHANGELOG.md (breaking: `InvariantError`; new:
 `Settei.Validate`, report types, renderers, additive JSON fields) and
-settei-optparse-applicative/CHANGELOG.md (`ValidatedDiagnostic`, `validatedDiagnostic`).
+settei-optparse-applicative/CHANGELOG.md (`ValidatedDiagnostic`, `validatedDiagnostic`). Record these changes under the shared
+next major release target already documented in docs/compatibility.md (currently
+0.3.0.0), without incrementing only the core package or changing exact intra-family
+pins during feature implementation; the release workflow owns the coordinated bump.
 Mention application invariants in README.md's package-map line for `settei` only if that
 line lists features; otherwise leave README.md alone.
 
 Finally edit docs/improvement-requests/integrate-application-validation-into-structured-diagnostics.md.
 The record carries `status: accepted` and `targetPlan` naming this plan (set when the
-plan was created); the first implementation session moves it to `status: in-progress`,
-and this milestone sets `status: completed`, adds `completedAt` (RFC 3339 UTC) and a
-`resolution` line naming this plan and the test evidence, with field names from the
-improvement-request profile docs/improvement-requests/profile.dhall (okf-profiles
-v0.22.0). Run the strict validation after each lifecycle edit and append a log entry with
-`okf log add docs/improvement-requests`.
+plan was created); the first implementation session moves it to `status: in-progress`.
+Keep it in progress through this milestone. After Milestone 5 acceptance, set
+`status: completed`, add `completedAt` (RFC 3339 UTC) and a `resolution` line naming this
+plan and the test evidence. These field names come from the pinned
+docs/improvement-requests/profile.dhall, which imports
+`mori://shinzui/okf-profiles/profiles/improvement-requests` v0.22.0. After each lifecycle
+edit, update the record's `generated.at`, append a log entry with
+`okf log add docs/improvement-requests --kind Update -m "Update IR-4 lifecycle and evidence"`,
+and run strict profile and log validation.
 
 ### Milestone 5 — Full validation and closure
+
 
 Run the complete gates under Validation and Acceptance, record the test totals and the
 Milestone 3 transcripts in this plan, write Outcomes & Retrospective, and confirm the new
 ADR and the ADR-3 amendment capture everything durable from the Decision Log and
-Surprises & Discoveries.
+Surprises & Discoveries. Only then complete IR-4 using the fields above and revalidate
+its bundle. No checkbox for this plan is complete merely because the baseline tests pass.
 
 
 ## Concrete Steps
+
 
 All commands run from the repository root, /Users/shinzui/Keikaku/bokuno/settei, inside
 the Nix development shell (`nix develop -c …`), which provides GHC 9.12.4, Cabal 3.16,
@@ -767,16 +882,19 @@ and changelog. Then:
 
 ```bash
 nix develop -c cabal test settei-example-deployment-tests --test-show-details=direct
-ENVIRONMENT=production DATABASE_URL=postgres://db.invalid/hub \
-WEBHOOK_SECRET=a-sufficiently-long-production-secret \
-DELIVERY_ENDPOINT=http://delivery.production.internal:8080 \
-EMAIL_CREDENTIALS_JSON='{"sendgrid":"placeholder"}' \
-WORKER_VISIBILITY_TIMEOUT_SECONDS=1 \
-  nix develop -c cabal run settei-example-deployment-worker -- --explain-config; echo "exit $?"
+nix develop -c cabal build exe:settei-example-deployment-worker
+deployment_worker=$(nix develop -c cabal list-bin exe:settei-example-deployment-worker)
+env -i ENVIRONMENT=production DATABASE_URL=postgres://db.invalid/hub \
+  WEBHOOK_SECRET=a-sufficiently-long-production-secret \
+  DELIVERY_ENDPOINT=http://delivery.production.internal:8080 \
+  EMAIL_CREDENTIALS_JSON='{"sendgrid":"placeholder"}' \
+  WORKER_VISIBILITY_TIMEOUT_SECONDS=1 \
+  "$deployment_worker" --explain-config
+printf 'exit %s\n' "$?"
 ```
 
-Expected stderr (vocabulary and order are requirements; the report lines between the
-error and the invariant block are the full report and are abbreviated here):
+Expected application stderr (vocabulary and order are requirements; the report lines
+between the error and the invariant block are the full report and are abbreviated here):
 
 ```text
 workers.visibilityTimeoutSeconds, workers.concurrency: invariant worker-visibility-covers-concurrency failed: workers.visibilityTimeoutSeconds must be at least twice workers.concurrency
@@ -790,8 +908,10 @@ invariant worker-visibility-covers-concurrency [failed (1 violation)]: workers.v
   expects workers.visibilityTimeoutSeconds must be at least twice workers.concurrency
 invariant production-webhook-secret [passed]: server.webhookSecret, runtime.environment
   expects the development webhook secret must never reach production
-exit 4
 ```
+
+The shell prints `exit 4` on stdout after the application exits; it is not part of
+either diagnostic document.
 
 Replace `--explain-config` with `--explain-config-json` and confirm two lines on stderr,
 the first beginning `{"schemaVersion":1,"type":"settei.errors","errors":[{"kind":"invariant"`
@@ -837,6 +957,7 @@ commit another plan's uncommitted files.
 
 ## Validation and Acceptance
 
+
 Each acceptance criterion of IR-4 maps to observable checks:
 
 - AC-1 (public mechanism, stable identifiers, key references, invalid references).
@@ -850,12 +971,18 @@ Each acceptance criterion of IR-4 maps to observable checks:
 - AC-2 (one validated result across modes, consistent rejection, retained provenance,
   compatibility with existing failures). The optparse suite feeds one failing validated
   result through every `DiagnosticMode` and asserts non-success with the rule and keys in
-  text and JSON and the winning origin of the involved key in the same JSON document;
-  the deployment example suite repeats that against real server and worker runs and
-  asserts that a resolution failure still renders as before with every rule `not run`;
+  text and JSON; the error document identifies the rule and keys, and the second JSON
+  document contains both the winning origin and the matching invariant outcome;
+  the deployment example suite repeats that against server and worker run helpers.
+  Resolution failures retain their original errors and provenance with every rule
+  `not run`: text explain appends outcomes, and JSON explain deliberately changes the
+  old mixed text/JSON stream to two valid JSON documents. Source-load failures retain
+  their existing exit-3 text path;
   `configuration valid` never appears in any failing output.
 - AC-3 (safe metadata, author contract). `Validator`, `Validators`, and
-  `ValidatedResult` compile without `Show`; the sentinel tests in the core, optparse,
+  `ValidatedResult` compile without `Show`; public API inspection confirms no constructor
+  or `Generic` instance exposes unchecked `Validators`; the sentinel tests in the core,
+  optparse,
   and example suites scan `show` of problems, reports, and outcomes plus every text and
   JSON renderer and both process streams; the Haddock of `Settei.Validate`, the guide
   section, docs/security.md, and the capability record document the detail channel's
@@ -870,12 +997,13 @@ Each acceptance criterion of IR-4 maps to observable checks:
   byte-identical.
 - AC-5 (migration without duplication or behaviour change, documented versioning). The
   deployment example's fixture matrix from plan 26 keeps every accept and reject outcome
-  and exit code and the same safe typed fields; `checkServer` and `checkWorker` no longer
+  and exit code and the same typed values (compared without rendering secrets); `checkServer` and `checkWorker` no longer
   exist and no rule is declared twice; the changelogs record the `ConfigError` major bump
   and the additive JSON fields, and the README note shows the old and new rejection
   line.
 
-Required gates before the plan is complete: every command under Concrete Steps passes;
+Required gates before the plan is complete: the build, test, and validation commands
+under Concrete Steps exit 0, while the deliberately rejected worker commands exit 4;
 the four `okf validate` commands pass; `git status --short` shows nothing from this plan
 after the final commit. The expected number of core tests is the pre-plan total plus the
 new `Settei.ValidateTest` cases; record the real totals here during Milestone 5.
@@ -887,21 +1015,27 @@ validators across record shapes. Both need a scope decision.
 
 ## Idempotence and Recovery
 
-Every change is additive to the working tree and safe to repeat. Re-running any test
-command is harmless. Goldens are created by hand from the documented format and only
+
+The migration removes application-local checks and changes their diagnostics; inspect
+the diff before retrying an edit. Re-running tests is harmless. Goldens are created by hand from the documented format and only
 then corrected to real output after the diff has been reviewed for leaked sentinels; if a
-golden is accidentally overwritten with leaking output, `git checkout -- settei/test/golden`
-restores the committed version. `okf log add` appends a dated entry each time it runs, so
+golden is accidentally overwritten with leaking output, restore only the affected lines
+from the pre-edit snapshot or a reviewed Git diff. Do not restore the entire golden
+directory: concurrent plan 26 work may own changes there. `okf log add` appends a dated
+entry each time it runs, so
 run it once per logical change and remove a duplicate entry by hand if a command is
 repeated. The improvement-request status edits are plain frontmatter edits; re-running
-the validation command after each one confirms the record. If plan 26's uncommitted work
-is reverted or rewritten while this plan is in progress, the only coupling is the import
-of `Settei.Internal.DefaultValidation`; recreate that module with its two exports and
-continue. Milestone 3 can be deferred without blocking Milestones 1, 2, and the
+the validation command after each one confirms the record. If plan 26 changes or is
+reverted, reassess all three integration seams: the shared cycle module, contract-mode
+constructors, and deployment example. Coordinate changes to shared files and preserve
+the other work. Extracting the cycle helper, if needed, must retain both resolver
+behaviour and Cabal module registration; do not create a duplicate cycle walk.
+Milestone 3 can be deferred without blocking Milestones 1, 2, and the
 non-example parts of 4; record a handoff note in Progress if it is.
 
 
 ## Interfaces and Dependencies
+
 
 Additions to settei/src/Settei/Error.hs:
 
@@ -949,7 +1083,7 @@ data Violation                                         -- private; Generic, Eq, 
 violation :: Violation
 violationWithDetail :: Text -> Violation               -- author contract applies
 
-data Validator a                                       -- private; Generic only
+data Validator a                                       -- private; no Generic, Eq, Show
 invariant :: InvariantRule -> [Key] -> Text -> (a -> [Violation]) -> Validator a
 check :: InvariantRule -> [Key] -> Text -> (a -> Bool) -> Validator a
 requires :: [InvariantRule] -> Validator a -> Validator a
@@ -964,7 +1098,7 @@ data ValidatorError
 renderValidatorErrorText :: ValidatorError -> Text
 renderValidatorErrorsText :: NonEmpty ValidatorError -> Text
 
-data Validators a                                      -- private; Generic only
+data Validators a                                      -- private; no Generic, Eq, Show
 validators :: Config a -> [Validator a] -> Either (NonEmpty ValidatorError) (Validators a)
 describeValidators :: Validators a -> ValidationReport
 runValidators :: Validators a -> a -> (ValidationReport, [InvariantProblem])
@@ -1000,8 +1134,10 @@ exports `serverValidators`, `workerValidators`, and `roleValidators :: Role -> V
 DeploymentConfig` and no longer exports `checkServer` or `checkWorker`.
 
 No lens type appears in any public signature. `ValidatedResult` derives only `Generic`
-because it holds the typed configuration; `Validator` and `Validators` derive only
-`Generic` because they hold functions. No new third-party dependency is introduced; the
+because it holds the typed configuration; `Validator` and `Validators` expose neither
+constructors nor `Generic`, `Eq`, or `Show` instances. Construction invariants must not
+be bypassable through generic representation conversion. No new third-party dependency
+is introduced; the
 core keeps its own deterministic JSON encoder
 (docs/adr/0003-resolution-provenance-and-default-semantics.md). The shared cycle walk is
 `Settei.Internal.DefaultValidation.validateDefaultCycles :: Config a -> [ConfigError]`
@@ -1014,3 +1150,12 @@ Milestones 1 and 2 depend on nothing unimplemented. Plan 28's harness classifies
 `4` as "configuration rejected", which invariant failures already use, so no harness
 change is needed; a future structured consumer would parse the two stderr lines this
 plan defines for `--explain-config-json`.
+
+
+Revision note (2026-10-21): validated this plan against the current core, CLI adapter,
+deployment example, relevant ADRs, IR-4, and Mori-located consumer. Removed generic
+construction bypasses, strengthened escaped-secret checks, specified result conversion
+and prerequisite composition, corrected the worker outcome count and migration details,
+made process transcripts independent of build output, and deferred request completion
+until final acceptance. The three baseline suites and four bundle checks pass; all
+implementation milestones remain open.
