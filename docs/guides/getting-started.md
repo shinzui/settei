@@ -6,7 +6,7 @@ docId: DOC-6
 tags: [settei, getting-started, configuration]
 generated:
   by: human:nadeem
-  at: 2026-07-19T23:44:23Z
+  at: 2026-10-21T16:45:00Z
 ---
 
 # Getting started with Settei
@@ -313,6 +313,11 @@ failure path, which is usually when operators need provenance most.
 Do not log the complete typed configuration record: it contains the real values needed by
 the application, including secrets. Prefer an allowlisted startup summary plus Settei's
 report renderers.
+
+For relationships between resolved settings, declare pure validators next to your
+configuration and consume a single validated result for startup, check, and explain
+modes. See [Validate cross-setting invariants after resolution](cli-application.md#validate-cross-setting-invariants-after-resolution)
+for checked rule keys, role lists, safe details, and diagnostic dispatch (0.3.0.0).
 
 ## Write deterministic tests
 

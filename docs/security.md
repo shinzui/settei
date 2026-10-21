@@ -176,3 +176,19 @@ output. Linux and macOS are supported execution targets. Configuration-only acce
 proves no connectivity, provider authentication, deployed image identity, or readiness;
 use actual-input init-container gates and live checks afterward. See the
 [preflight guide](guides/deployment-preflight.md) for the full contract.
+
+
+## Application validators
+
+`Settei.Validate` runs pure rules over the typed configuration after successful
+resolution. Failures retain rule, keys, a fixed expectation, and optional public detail
+only. They never automatically retain the typed record or raw candidates. Validators
+receive real secrets and must not log the record. All declaration metadata must be safe
+to publish: fixed text can still leak if it was constructed from a secret.
+
+`violation` carries no per-run text. `violationWithDetail` retains author text verbatim
+for public labels; never embed values of Secret settings. Settei cannot sanitise arbitrary
+text. Keep expectations and details single-line for line-oriented diagnostics. Functions
+must be total and finite. These are configuration acceptance checks; connectivity and
+credential verification remain separate operational checks. See the
+[validation guide](guides/cli-application.md#validate-cross-setting-invariants-after-resolution).

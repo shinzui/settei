@@ -67,7 +67,7 @@ The supported adoption surface is:
 - Core umbrella: `Settei`.
 - Core focused modules: `Settei.Config`, `Settei.Contract`, `Settei.Default`, `Settei.Error`, `Settei.Key`,
   `Settei.Origin`, `Settei.Provenance`, `Settei.Render`, `Settei.Report`, `Settei.Resolve`,
-  `Settei.Schema`, `Settei.Setting`, `Settei.Source`, and `Settei.Value`.
+  `Settei.Schema`, `Settei.Setting`, `Settei.Source`, `Settei.Validate`, and `Settei.Value`.
 - Adapters: `Settei.Env`, `Settei.Optparse`, `Settei.Yaml`, `Settei.Kdl`, and
   `Settei.Dhall`.
 - Multi-format umbrella: `Settei.Formats` and `Settei.Formats.Optparse`.
@@ -82,6 +82,14 @@ Version 0.2.0.0 is experimental and does not promise semantic stability beyond t
 documented modules and their release notes.
 
 ### Versioning policy
+
+The next shared release, 0.3.0.0, adds `InvariantError` to `ConfigError`, requiring
+adopters to update exhaustive matches. `Settei.Validate`, validation report types, and
+`validatedDiagnostic` add a post-resolution boundary; the existing `resolve` API stays
+unchanged. Version-1 error JSON gains kind `invariant`; the validated resolution renderer
+adds optional `invariants`, while bare resolution JSON remains byte-identical. The release
+workflow updates all family versions and exact intra-family pins together.
+
 
 The packages in this family follow the Haskell Package Versioning Policy (PVP). The
 surface adopters may depend on and pin against is exactly the modules listed above, in

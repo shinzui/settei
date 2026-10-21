@@ -1,0 +1,11 @@
+invariant pool-capacity [failed (1 violation)]: workers.jobPoolSize, workers.concurrency
+  expects pool covers concurrency
+invariant visibility-timeout [failed (1 violation)]: workers.visibilityTimeoutSeconds, workers.concurrency
+  expects timeout covers twice concurrency
+invariant replica [passed]: workers.replica.index, workers.replica.count
+  expects index is within replica count
+invariant replica-pool-share [passed]: workers.jobPoolSize, workers.replica.count
+  expects pool covers replicas
+  after replica
+invariant provider-account [failed (2 violations)]: email.accounts, email.credentials
+  expects every account has a credential

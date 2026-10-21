@@ -16,7 +16,8 @@ tests :: TestTree
 tests =
   testGroup
     "Settei.Optparse"
-    [ testCase "deployment contract modes parse and reject combinations" $ do
+    [ validationTests,
+      testCase "deployment contract modes parse and reject combinations" $ do
         mapM_
           ( \(flag, mode) -> do
               parsed <- expectParse diagnosticModeOptions [flag]
@@ -178,3 +179,116 @@ validKey value = either (error . show) id (parseKey value)
 
 secretSentinel :: Text
 secretSentinel = "never-render-this-cli-secret"
+
+validationTests :: TestTree
+validationTests =
+  testGroup
+    "validated diagnostics"
+    [ testCase "check succeeds only after validation and startup gets the same value" $ do
+        case validatedDiagnostic CheckConfig passingResult of
+          DiagnosticOutput output -> output @?= "configuration valid\n"
+          _ -> fail "check did not succeed"
+        case validatedDiagnostic NoDiagnostic passingResult of
+          DiagnosticContinue value -> assertBool "typed value changed" (Right value == validationBase [] ^. #answer)
+          _ -> fail "startup did not continue",
+      testCase "all eight modes reject one failingResult validated result" $
+        mapM_
+          ( \mode -> case validatedDiagnostic mode failingResult of
+              DiagnosticFailure output -> do
+                assertBool "rule missing" ("pool-covers-workers" `Text.isInfixOf` output)
+                assertBool "key missing" ("service.poolSize" `Text.isInfixOf` output)
+                assertBool "check falsely succeeded" (not ("configuration valid" `Text.isInfixOf` output))
+                safe output
+              _ -> fail "invalid configuration accepted"
+          )
+          modes,
+      testCase "text success and failure include provenance and outcomes" $ do
+        case validatedDiagnostic ExplainText passingResult of
+          DiagnosticOutput output -> do
+            assertBool "setting missing" ("service.workers = \"4\"" `Text.isInfixOf` output)
+            assertBool "outcome missing" ("invariant pool-covers-workers [passed]" `Text.isInfixOf` output)
+            safe output
+          _ -> fail "explain did not succeed"
+        case validatedDiagnostic ExplainText failingResult of
+          DiagnosticFailure output -> do
+            assertBool "origin missing" ("from environment source validation fixture" `Text.isInfixOf` output)
+            assertBool "failed trace missing" ("[failed (1 violation)]" `Text.isInfixOf` output)
+            safe output
+          _ -> fail "explain did not fail",
+      testCase "JSON success is one line and failure is two versioned documents" $ do
+        case validatedDiagnostic ExplainJson passingResult of
+          DiagnosticOutput output -> do
+            length (Text.lines output) @?= 1
+            assertBool "resolution type missing" ("{\"schemaVersion\":1,\"type\":\"settei.resolution\"" `Text.isPrefixOf` output)
+            assertBool "invariant array missing" ("\"invariants\":[{\"rule\":\"pool-covers-workers\"" `Text.isInfixOf` output)
+            safe output
+          _ -> fail "explain did not succeed"
+        case validatedDiagnostic ExplainJson failingResult of
+          DiagnosticFailure output -> case Text.lines output of
+            [errors, report] -> do
+              assertBool "error document missing" ("{\"schemaVersion\":1,\"type\":\"settei.errors\"" `Text.isPrefixOf` errors)
+              assertBool "invariant kind missing" ("\"kind\":\"invariant\"" `Text.isInfixOf` errors)
+              assertBool "origin missing" ("\"name\":\"validation fixture\",\"key\":\"service.poolSize\"" `Text.isInfixOf` report)
+              assertBool "failed outcome missing" ("\"status\":\"failed\"" `Text.isInfixOf` report)
+              safe output
+            _ -> fail "expected two JSON documents"
+          _ -> fail "explain did not fail",
+      testCase "missing and decode failures retain original evidence and not-run outcomes" $
+        mapM_
+          ( \base -> do
+              let result = validate validationRules base
+              assertBool "answer changed" (result ^. #answer == base ^. #answer)
+              result ^. #report @?= base ^. #report
+              result ^. #warnings @?= base ^. #warnings
+              fmap (^. #status) (validationOutcomes (result ^. #validation)) @?= [InvariantNotRun]
+              case validatedDiagnostic ExplainText result of
+                DiagnosticFailure output -> do
+                  assertBool "not-run trace missing" ("[not run]" `Text.isInfixOf` output)
+                  safe output
+                _ -> fail "base error accepted"
+              case validatedDiagnostic ExplainJson result of
+                DiagnosticFailure output -> length (Text.lines output) @?= 2
+                _ -> fail "base JSON error accepted"
+          )
+          [ resolve defaultResolveOptions [] validationConfig,
+            validationBase [("service.workers", RawText "broken")]
+          ],
+      testCase "nonempty warnings and static-mode success fallbacks survive validation" $ do
+        let base = validationBase [("unknown.setting", RawText "public")]
+            result = validate validationRules base
+        assertBool "warning fixture empty" (not (null (base ^. #warnings)))
+        result ^. #warnings @?= base ^. #warnings
+        result ^. #report @?= base ^. #report
+        mapM_
+          ( \mode -> case validatedDiagnostic mode result of
+              DiagnosticContinue value -> assertBool "value changed" (Right value == base ^. #answer)
+              _ -> fail "static fallback changed"
+          )
+          [DescribeConfigText, DescribeConfigJson, DeploymentContractText, DeploymentContractJson]
+    ]
+  where
+    passingResult = validate validationRules (validationBase [])
+    failingResult = validate validationRules (validationBase [("service.poolSize", RawText "1")])
+    modes = [NoDiagnostic, ExplainText, ExplainJson, CheckConfig, DescribeConfigText, DescribeConfigJson, DeploymentContractText, DeploymentContractJson]
+    safe output = assertBool "secret escaped into diagnostic" (not (any (`Text.isInfixOf` output) [validationSentinel, "SETTEI_VALIDATION_SECRET_29"]))
+
+validationSentinel :: Text
+validationSentinel = "SETTEI_VALIDATION_SECRET_29\"\\\n秘密"
+
+validationConfig :: Config (Int, Int, Text)
+validationConfig =
+  (,,)
+    <$> required (publicSetting (validKey "service.workers") "workers" boundedIntegralDecoder)
+    <*> required (publicSetting (validKey "service.poolSize") "pool" boundedIntegralDecoder)
+    <*> required (secretSetting (validKey "service.token") "token" textDecoder)
+
+validationRules :: Validators (Int, Int, Text)
+validationRules =
+  either (error . Text.unpack . renderValidatorErrorsText) id $
+    validators validationConfig [check (InvariantRule "pool-covers-workers") (fmap validKey ["service.poolSize", "service.workers"]) "pool must cover workers" (\(workers, pool, _) -> pool >= workers)]
+
+validationBase :: [(Text, RawValue)] -> ResolveResult (Int, Int, Text)
+validationBase changes = resolve defaultResolveOptions [input] validationConfig
+  where
+    pairs = [("service.workers", RawText "4"), ("service.poolSize", RawText "8"), ("service.token", RawText validationSentinel)]
+    input = either (const (error "invalid fixture")) id (sourceFromPairs "validation fixture" EnvironmentSource [(validKey name, value) | (name, value) <- changes <> filter (\(name, _) -> name `notElem` fmap fst changes) pairs])

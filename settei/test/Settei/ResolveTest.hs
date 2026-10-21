@@ -382,6 +382,7 @@ errorKey = \case
   DefaultError problem -> problem ^. #key
   DefaultCycle _ -> error "a cycle has no single setting key"
   SensitivityConflict problem -> problem ^. #key
+  InvariantError _ -> error "an invariant can involve multiple setting keys"
 
 serviceConfig :: Config (Text, Int)
 serviceConfig = (,) <$> required hostSetting <*> required portSetting

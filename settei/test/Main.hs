@@ -7,6 +7,7 @@ import Settei.KeyTest qualified as KeyTest
 import Settei.RenderTest qualified as RenderTest
 import Settei.ResolveTest qualified as ResolveTest
 import Settei.SourceTest qualified as SourceTest
+import Settei.ValidateTest qualified as ValidateTest
 import Settei.ValueTest qualified as ValueTest
 import Test.Tasty (defaultMain, testGroup)
 
@@ -22,5 +23,6 @@ main =
         ResolveTest.tests,
         DefaultTest.tests,
         RenderTest.tests,
-        ContractTest.tests
+        ContractTest.tests,
+        ValidateTest.tests
       ]

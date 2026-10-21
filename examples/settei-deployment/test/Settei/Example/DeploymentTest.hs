@@ -16,7 +16,8 @@ tests :: TestTree
 tests =
   testGroup
     "Settei.Example.Deployment"
-    [ testCase "environment bindings validate at construction" $
+    [ validationTests,
+      testCase "environment bindings validate at construction" $
         length (bindingsList environmentBindings) @?= 11,
       testCase "all four static modes skip environment and missing files for both roles" $
         mapM_
@@ -108,16 +109,16 @@ tests =
       testCase "server rejects a short webhook secret without echoing it" $ do
         result <- run Server (replace "WEBHOOK_SECRET" "SHORT" productionInputs) ["--check-config"]
         deploymentExitCode result @?= resolutionExitCode
-        deploymentStandardError result @?= "server.webhookSecret: must be at least 16 characters\n"
+        deploymentStandardError result @?= "server.webhookSecret: invariant server-webhook-secret-length failed: must be at least 16 characters\n"
         assertBool "short value leaked" (not ("SHORT" `Text.isInfixOf` deploymentStandardError result)),
       testCase "worker rejects insufficient visibility timeout" $ do
         result <- run Worker (replace "WORKER_VISIBILITY_TIMEOUT_SECONDS" "1" productionInputs) ["--check-config"]
         deploymentExitCode result @?= resolutionExitCode
-        deploymentStandardError result @?= "workers.visibilityTimeoutSeconds: must be at least twice workers.concurrency\n",
+        deploymentStandardError result @?= "workers.visibilityTimeoutSeconds, workers.concurrency: invariant worker-visibility-covers-concurrency failed: workers.visibilityTimeoutSeconds must be at least twice workers.concurrency\n",
       testCase "worker rejects the development secret in production" $ do
         result <- run Worker (filter ((/= "WEBHOOK_SECRET") . fst) productionInputs) ["--check-config"]
         deploymentExitCode result @?= resolutionExitCode
-        deploymentStandardError result @?= "server.webhookSecret: development default is forbidden in production\n",
+        deploymentStandardError result @?= "server.webhookSecret, runtime.environment: invariant production-webhook-secret failed: the development webhook secret must never reach production\n",
       testCase "complete production snapshot resolves real defaults and passes both roles" $
         mapM_
           ( \role -> do
@@ -175,3 +176,94 @@ productionInputs =
 
 sentinel :: Text
 sentinel = "DEPLOYMENT-SNAPSHOT-SENTINEL"
+
+validationTests :: TestTree
+validationTests =
+  testGroup
+    "structured validation"
+    [ testCase "role declarations validate and preserve successful typed values" $
+        mapM_
+          ( \role -> do
+              let base = resolve defaultResolveOptions [builtInDefaultsSource, environmentSource environmentBindings (envSnapshot productionInputs)] deploymentConfig
+                  result = validate (roleValidators role) base
+              assertBool "typed answer changed" (result ^. #answer == base ^. #answer)
+              fmap (^. #status) (validationOutcomes (describeValidators (roleValidators role))) @?= replicate (if role == Server then 1 else 2) InvariantNotRun
+              assertBool "fixture failed resolution" (case base ^. #answer of Right _ -> True; _ -> False)
+          )
+          [Server, Worker],
+      testCase "worker failure rejects startup and every dynamic mode with retained provenance" $
+        mapM_
+          ( \args -> do
+              result <- run Worker invalidWorker args
+              deploymentExitCode result @?= 4
+              deploymentStandardOutput result @?= ""
+              let output = deploymentStandardError result
+              assertBool "rule missing" ("worker-visibility-covers-concurrency" `Text.isInfixOf` output)
+              assertBool "false check success" (not ("configuration valid" `Text.isInfixOf` output))
+              case args of
+                ["--explain-config"] -> do
+                  assertBool "winning value missing" ("workers.visibilityTimeoutSeconds = \"1\"" `Text.isInfixOf` output)
+                  assertBool "origin missing" ("from environment variable WORKER_VISIBILITY_TIMEOUT_SECONDS" `Text.isInfixOf` output)
+                  filter (Text.isPrefixOf "invariant ") (Text.lines output)
+                    @?= [ "invariant worker-visibility-covers-concurrency [failed (1 violation)]: workers.visibilityTimeoutSeconds, workers.concurrency",
+                          "invariant production-webhook-secret [passed]: server.webhookSecret, runtime.environment"
+                        ]
+                ["--explain-config-json"] -> case Text.lines output of
+                  [errors, report] -> do
+                    assertBool "structured error missing" ("\"kind\":\"invariant\",\"rule\":\"worker-visibility-covers-concurrency\"" `Text.isInfixOf` errors)
+                    assertBool "origin missing" ("\"environment.variable\":\"WORKER_VISIBILITY_TIMEOUT_SECONDS\"" `Text.isInfixOf` report)
+                    assertBool "trace missing" ("\"invariants\":[{\"rule\":\"worker-visibility-covers-concurrency\"" `Text.isInfixOf` report)
+                  _ -> fail "expected two JSON documents"
+                _ -> length (Text.lines output) @?= 1
+          )
+          [[], ["--check-config"], ["--explain-config"], ["--explain-config-json"]],
+      testCase "timeout comparison preserves rejection beyond Int multiplication bounds" $ do
+        result <- run Worker (replace "WORKER_CONCURRENCY" (Text.pack (show (maxBound :: Int))) (replace "WORKER_VISIBILITY_TIMEOUT_SECONDS" (Text.pack (show (maxBound :: Int))) productionInputs)) ["--check-config"]
+        deploymentExitCode result @?= 4,
+      testCase "worker rules accumulate and the server retains role applicability" $ do
+        let inputs = filter ((/= "WEBHOOK_SECRET") . fst) invalidWorker
+        result <- run Worker inputs ["--check-config"]
+        deploymentExitCode result @?= 4
+        length (Text.lines (deploymentStandardError result)) @?= 2
+        assertBool "rule order changed" ("workers.visibilityTimeoutSeconds, workers.concurrency:" `Text.isPrefixOf` deploymentStandardError result)
+        server <- run Server inputs ["--check-config"]
+        deploymentExitCode server @?= 0,
+      testCase "missing and decode failures retain their type with not-run rules" $
+        mapM_
+          ( \inputs -> do
+              text <- run Worker inputs ["--explain-config"]
+              deploymentExitCode text @?= 4
+              length (filter (Text.isInfixOf "[not run]") (Text.lines (deploymentStandardError text))) @?= 2
+              assertBool "invariant error invented" (not ("failed:" `Text.isInfixOf` deploymentStandardError text))
+              json <- run Worker inputs ["--explain-config-json"]
+              deploymentExitCode json @?= 4
+              case Text.lines (deploymentStandardError json) of
+                [errors, report] -> do
+                  assertBool "error type missing" ("{\"schemaVersion\":1,\"type\":\"settei.errors\"" `Text.isPrefixOf` errors)
+                  assertBool "invariant error invented" (not ("\"kind\":\"invariant\"" `Text.isInfixOf` errors))
+                  assertBool "not run missing" ("\"status\":\"not-run\"" `Text.isInfixOf` report)
+                _ -> fail "expected two JSON documents"
+          )
+          [filter ((/= "DATABASE_URL") . fst) productionInputs, replace "WORKER_CONCURRENCY" "broken" productionInputs],
+      testCase "secret markers never enter either stream in any mode on success or failure" $
+        mapM_
+          ( \role ->
+              mapM_
+                ( \inputs ->
+                    mapM_
+                      ( \args -> do
+                          result <- run role inputs args
+                          let output = deploymentStandardOutput result <> deploymentStandardError result
+                          assertBool "secret retained in stream" (not (any (`Text.isInfixOf` output) [validationSentinel, "SETTEI_VALIDATION_SECRET_29"]))
+                      )
+                      allModes
+                )
+                [secretInputs, replace "WORKER_VISIBILITY_TIMEOUT_SECONDS" "1" secretInputs, replace "WORKER_CONCURRENCY" "broken" secretInputs]
+          )
+          [Server, Worker]
+    ]
+  where
+    invalidWorker = replace "WORKER_VISIBILITY_TIMEOUT_SECONDS" "1" productionInputs
+    secretInputs = foldr (\name inputs -> replace name validationSentinel inputs) productionInputs ["DATABASE_URL", "WEBHOOK_SECRET", "EMAIL_CREDENTIALS_JSON"]
+    allModes = [[], ["--check-config"], ["--explain-config"], ["--explain-config-json"], ["--describe-config"], ["--describe-config-json"], ["--deployment-contract"], ["--deployment-contract-json"]]
+    validationSentinel = "SETTEI_VALIDATION_SECRET_29\"\\\n秘密"

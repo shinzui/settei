@@ -18,6 +18,7 @@ tested-with: ghc ==9.12.4
 extra-source-files:
   README.md
 
+extra-doc-files: CHANGELOG.md
 data-files:
   test/fixtures/*.json
   test/fixtures/*.yaml

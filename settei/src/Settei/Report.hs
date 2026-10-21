@@ -7,6 +7,10 @@ module Settei.Report
     ResolutionNode (..),
     ResolutionOutcome (..),
     ResolutionReport (..),
+    InvariantStatus (..),
+    InvariantOutcome (..),
+    ValidationReport (..),
+    validationOutcomes,
     reportBranches,
     reportNodes,
   )
@@ -14,6 +18,7 @@ where
 
 import Data.Generics.Labels ()
 import Data.Map.Strict qualified as Map
+import Settei.Error (InvariantRule)
 import Settei.Key (Key)
 import Settei.Origin (Origin)
 import Settei.Prelude
@@ -68,3 +73,30 @@ reportNodes value = value ^. #nodes . to Map.elems
 -- | Return branch decisions in evaluation order.
 reportBranches :: ResolutionReport -> [BranchTrace]
 reportBranches value = value ^. #branches
+
+-- | The result of one application rule, without retaining application values.
+data InvariantStatus
+  = InvariantPassed
+  | InvariantFailed !Int
+  | InvariantSkipped !(NonEmpty InvariantRule)
+  | InvariantNotRun
+  deriving stock (Generic, Eq, Show)
+
+-- | Public declaration metadata and one rule's execution status.
+data InvariantOutcome = InvariantOutcome
+  { rule :: !InvariantRule,
+    keys :: ![Key],
+    expectation :: !Text,
+    prerequisites :: ![InvariantRule],
+    status :: !InvariantStatus
+  }
+  deriving stock (Generic, Eq, Show)
+
+newtype ValidationReport = ValidationReport
+  { invariants :: [InvariantOutcome]
+  }
+  deriving stock (Generic, Eq, Show)
+
+-- | Outcomes in validator declaration order.
+validationOutcomes :: ValidationReport -> [InvariantOutcome]
+validationOutcomes value = value ^. #invariants

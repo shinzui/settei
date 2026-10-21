@@ -212,7 +212,7 @@ tests =
             [ ("invalid environment mapping", Server, resource "settei-example-deployment" (change ["data", "ENVIRONMENT"] (const (A.String "prod"))), "runtime.environment:", P.ConfigurationRejected, 4),
               ("malformed mounted file", Server, resource "settei-example-deployment" (change ["data", "application.yaml"] (const (A.String "server: ["))), "configuration file", P.SourceFailure, 3),
               ("broken secret mapping", Server, container Server (setEnv "DATABASE_URL" (change ["valueFrom", "secretKeyRef", "key"] (const (A.String "NONEXISTENT")))), "database.url: required value is missing", P.ConfigurationRejected, 4),
-              ("worker-specific value", Worker, container Worker (setEnv "WORKER_VISIBILITY_TIMEOUT_SECONDS" (const (literal "WORKER_VISIBILITY_TIMEOUT_SECONDS" "1"))), "workers.visibilityTimeoutSeconds: must be at least twice workers.concurrency", P.ConfigurationRejected, 4)
+              ("worker-specific value", Worker, container Worker (setEnv "WORKER_VISIBILITY_TIMEOUT_SECONDS" (const (literal "WORKER_VISIBILITY_TIMEOUT_SECONDS" "1"))), "workers.visibilityTimeoutSeconds, workers.concurrency: invariant worker-visibility-covers-concurrency failed: workers.visibilityTimeoutSeconds must be at least twice workers.concurrency", P.ConfigurationRejected, 4)
             ]
         ],
       testCase "renamed variable is invisible to check mode, honestly documenting the gap" $ do

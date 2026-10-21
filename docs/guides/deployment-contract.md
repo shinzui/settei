@@ -6,7 +6,7 @@ docId: DOC-11
 tags: [settei, deployment, configuration]
 generated:
   by: process:codex
-  at: 2026-10-21T14:30:00Z
+  at: 2026-10-21T16:45:00Z
 ---
 
 # Authoring a first deployment from the configuration contract
@@ -192,3 +192,23 @@ redacted before storage in the contract. Keys, variable names, caller-supplied
 annotations, public defaults, and dependency topology are operational metadata; keep
 secrets out of descriptions, rule explanations, profile reasons, and annotations. See
 the [security model](../security.md).
+
+
+## Structured check failures
+
+The example now declares server and worker `Validators` and consumes
+`validatedDiagnostic`. Acceptance, successful typed values, and exit code 4 are preserved.
+A timeout of 1 in production rejects startup and check mode before resources open;
+text explanation includes the winning environment origin and both worker rule outcomes.
+JSON explanation emits two stderr lines. Its first document is:
+
+```json
+{"schemaVersion":1,"type":"settei.errors","errors":[{"kind":"invariant","rule":"worker-visibility-covers-concurrency","keys":["workers.visibilityTimeoutSeconds","workers.concurrency"],"expectation":"workers.visibilityTimeoutSeconds must be at least twice workers.concurrency","detail":null}]}
+```
+
+The second is version-1 `settei.resolution`, including the environment origin and
+`invariants` statuses. Missing or malformed base settings also use two JSON documents,
+with rules `not-run`. Source-load errors remain adapter text and exit 3. See the
+[validation guide](cli-application.md#validate-cross-setting-invariants-after-resolution)
+for the declaration and author contract. Validators never verify live connectivity or
+credentials.

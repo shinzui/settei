@@ -1,0 +1,4 @@
+workers.jobPoolSize, workers.concurrency: invariant pool-capacity failed: pool covers concurrency
+workers.visibilityTimeoutSeconds, workers.concurrency: invariant visibility-timeout failed: timeout covers twice concurrency
+email.accounts, email.credentials: invariant provider-account failed: every account has a credential (account alpha)
+email.accounts, email.credentials: invariant provider-account failed: every account has a credential (account beta)

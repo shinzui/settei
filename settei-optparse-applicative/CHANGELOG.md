@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Add `ValidatedDiagnostic` and `validatedDiagnostic` for the next shared 0.3.0.0
+  release: startup and all diagnostic modes consume one validated answer. Check success
+  follows application validation. JSON explain failure emits error and resolution
+  documents on separate stderr lines, including on base resolution failures.
+
 - Add deployment contract diagnostic flags and `contractDiagnostic`. `DiagnosticMode` gains constructors: a major PVP API change for exhaustive matches.
 
 ## 0.2.0.0 — 2026-07-19

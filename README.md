@@ -55,7 +55,7 @@ bounds, and public adoption surface.
 
 | Package | Role |
 | --- | --- |
-| [`settei`](settei/) | Declaration algebra, hierarchical resolver, provenance, defaults, schemas, errors, and report rendering. |
+| [`settei`](settei/) | Declaration algebra, hierarchical resolver, provenance, defaults, schemas, application invariants, errors, and report rendering. |
 | [`settei-preflight`](settei-preflight/) | Isolated application checks on proposed inputs, strict request documents, redaction, and honest gate verdicts (unreleased). |
 | [`settei-env`](settei-env/) | Explicit environment-variable bindings, injectable snapshots, and opt-in supplied-name validation. |
 | [`settei-optparse-applicative`](settei-optparse-applicative/) | Ordered generic and named CLI overrides for optparse-applicative. |

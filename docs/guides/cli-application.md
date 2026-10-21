@@ -6,7 +6,7 @@ docId: DOC-2
 tags: [settei, cli, configuration]
 generated:
   by: human:nadeem
-  at: 2026-07-19T23:44:23Z
+  at: 2026-10-21T16:45:00Z
 ---
 
 # Building a CLI application
@@ -202,6 +202,9 @@ environment.
 
 ## Add diagnostics that match user intent
 
+For applications with invariants, check mode consumes the validated result through
+`validatedDiagnostic`.
+
 Useful diagnostic modes are:
 
 | Option | Work performed |
@@ -239,6 +242,126 @@ output should use an allowlist of known-public fields.
 Also render `result ^. #warnings` or reject unknown keys with `RejectUnknownKeys`. A
 successful `--check-config` that silently drops warnings is usually less useful to users.
 
+## Validate cross-setting invariants after resolution
+
+The next shared 0.3.0.0 release adds `Settei.Validate`. Declare pure rules next to the
+configuration. Each rule has a stable identifier, declared keys, a fixed expectation,
+and a function over the typed value. For a declaration with pool, concurrency, account,
+and credential fields:
+
+```haskell
+poolCapacity :: Validator AppConfig
+poolCapacity =
+  check (InvariantRule "pool-capacity")
+    [validKey "workers.jobPoolSize", validKey "workers.concurrency"]
+    "pool must cover concurrency"
+    (\config -> jobPool config >= concurrency config)
+
+providerAccounts :: Validator AppConfig
+providerAccounts =
+  invariant (InvariantRule "provider-account")
+    [validKey "email.accounts", validKey "email.credentials"]
+    "every account must have a credential"
+    (\config ->
+      [ violationWithDetail ("account " <> publicAccountName account)
+      | account <- accounts config
+      , not (hasCredential config account)
+      ])
+
+workerValidators, serverValidators :: Validators AppConfig
+workerValidators = checked [poolCapacity, providerAccounts]
+serverValidators = checked [providerAccounts]
+
+checked :: [Validator AppConfig] -> Validators AppConfig
+checked rules =
+  either (error . Text.unpack . renderValidatorErrorsText) id
+    (validators appConfig rules)
+```
+
+Here `jobPool`, `concurrency`, `accounts`, `publicAccountName`, and `hasCredential` are
+application functions; account names must be public labels, never tokens. Force the
+module-level collections in tests. `validators` checks all identifiers, keys, and
+prerequisites without loading inputs. Use each collection with the same declaration
+used for resolution. Conditional keys are accepted, so predicates must handle optional
+values. An empty collection is valid.
+
+Rules run in declaration order and independent failures accumulate. To run a rule only
+when earlier rules passed, attach `requires [InvariantRule "earlier-rule"]`. Repeated
+calls append distinct prerequisites in first-occurrence order. A failed or skipped
+prerequisite skips the dependent function. Base resolution failure runs no validators
+and marks every outcome `not run`. Functions must be total and return finite lists.
+
+> **Author contract:** All metadata must be safe to publish, including rule identifiers,
+> keys, expectations, and details. `violation` has no detail; `violationWithDetail` retains
+> author text verbatim for public labels. Never embed secret setting values or log the
+> typed configuration. Settei cannot sanitise arbitrary text. Keep expectations and details
+> single-line for line-oriented output.
+
+After static schema and contract dispatch and source loading, replace the earlier
+`resolutionDiagnostic` dispatch with:
+
+```haskell
+let resolved = resolve defaultResolveOptions sources appConfig
+    validated = validate workerValidators resolved
+case validatedDiagnostic mode validated of
+  DiagnosticFailure output -> do
+    TextIO.hPutStr stderr output
+    exitWith (ExitFailure 4)
+  DiagnosticOutput output -> do
+    TextIO.putStr output
+    TextIO.hPutStr stderr (renderWarningsText (validated ^. #warnings))
+  DiagnosticContinue config -> do
+    TextIO.hPutStr stderr (renderWarningsText (validated ^. #warnings))
+    runApplication config
+```
+
+Import `Data.Text.IO qualified as TextIO`, `System.IO (stderr)`, and
+`System.Exit (ExitCode(..), exitWith)` for this dispatch. In a multi-role program select
+the appropriate collection before `validate`; share each domain rule once across role
+lists. The [deployment example](../../examples/settei-deployment/src/Settei/Example/Deployment.hs)
+migrates its original server and worker checks this way, including overflow-safe timeout
+arithmetic. Successful typed values are preserved. The helper checks the validated
+answer before emitting `configuration valid`; normal startup receives that same value.
+Source-loading errors still exit 3 before validation.
+
+Build the worker, locate it with `cabal list-bin` inside `nix develop`, and run the
+production fixture with `WORKER_VISIBILITY_TIMEOUT_SECONDS=1` and `--explain-config`.
+The application writes the following to stderr and exits 4 (the full report is abbreviated):
+
+```text
+workers.visibilityTimeoutSeconds, workers.concurrency: invariant worker-visibility-covers-concurrency failed: workers.visibilityTimeoutSeconds must be at least twice workers.concurrency
+...
+workers.visibilityTimeoutSeconds = "1"
+  from environment variable WORKER_VISIBILITY_TIMEOUT_SECONDS
+...
+invariant worker-visibility-covers-concurrency [failed (1 violation)]: workers.visibilityTimeoutSeconds, workers.concurrency
+  expects workers.visibilityTimeoutSeconds must be at least twice workers.concurrency
+invariant production-webhook-secret [passed]: server.webhookSecret, runtime.environment
+  expects the development webhook secret must never reach production
+```
+
+`--explain-config-json` rejects the same input with exactly two stderr lines, one
+`settei.errors` document and one `settei.resolution` document. The latter contains the
+winning origins and an ordered `invariants` array. The first document is:
+
+```json
+{"schemaVersion":1,"type":"settei.errors","errors":[{"kind":"invariant","rule":"worker-visibility-covers-concurrency","keys":["workers.visibilityTimeoutSeconds","workers.concurrency"],"expectation":"workers.visibilityTimeoutSeconds must be at least twice workers.concurrency","detail":null}]}
+```
+
+The resolution document includes this outcome (excerpt):
+
+```json
+{"rule":"worker-visibility-covers-concurrency","keys":["workers.visibilityTimeoutSeconds","workers.concurrency"],"expectation":"workers.visibilityTimeoutSeconds must be at least twice workers.concurrency","prerequisites":[],"status":"failed","violations":1,"blockedBy":[]}
+```
+
+Check mode prints only the error line, and startup also rejects before acquiring
+resources. Successful JSON explain emits one resolution document on stdout. With this
+helper, missing and decode failures also emit two JSON documents in JSON explain mode,
+with outcomes marked `not-run`; source-load failures retain their adapter text path.
+Bare `renderResolutionJson` stays byte-identical; `renderValidatedResolutionJson` adds
+optional `invariants` to the existing version-1 representation. `ConfigError` gains a
+constructor, so update exhaustive matches for 0.3.0.0.
+
 ## Distinguish exit behavior
 
 Choose stable exit codes and document them. The reference application uses:
@@ -248,7 +371,7 @@ Choose stable exit codes and document them. The reference application uses:
 | `0` | Normal run or successful diagnostic. |
 | `2` | Command-line usage error. |
 | `3` | File IO, format, or adapter error. |
-| `4` | Missing, malformed, structurally conflicting, or strictly unknown configuration. |
+| `4` | Missing, malformed, structurally conflicting, or strictly unknown configuration, or a failed invariant. |
 
 Unsupported or duplicated explicitly supplied environment names also use exit code `3`.
 

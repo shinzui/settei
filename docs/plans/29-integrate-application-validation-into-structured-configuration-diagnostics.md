@@ -16,6 +16,11 @@ provenance:
       at: 2026-10-21T14:33:14Z
       mode: "update"
       note: "Validate against current APIs and ADRs; fix opaque collection instances, diagnostic acceptance, sentinel coverage, migration details, and closure sequencing."
+    - model: "gpt-6.1-sol"
+      harness: "codex-cli"
+      at: 2026-10-21T16:23:43Z
+      mode: "implement"
+      note: "Implement core invariants, diagnostic dispatch, deployment migration, and acceptance documentation."
   reviews:
     - model: "gpt-6-astra"
       harness: "codex-cli"
@@ -106,7 +111,7 @@ check mode now consumes the validated result.
 ## Progress
 
 
-- [ ] Milestone 1 — Core validation mechanism (AC-1, AC-3, AC-4 at the library
+- [x] Milestone 1 — Core validation mechanism (AC-1, AC-3, AC-4 at the library
       boundary): the new public module `Settei.Validate`, the `InvariantError`
       constructor of `ConfigError`, the `ValidationReport` types in `Settei.Report`, and
       the `renderValidationText` and `renderValidatedResolutionJson` renderers exist, the
@@ -116,13 +121,13 @@ check mode now consumes the validated result.
       rejections, accumulation, prerequisite skipping, not-run after failed resolution,
       role lists, sentinel scans, determinism, and goldens) while every existing golden
       stays byte-identical.
-- [ ] Milestone 2 — Diagnostic integration (AC-2 at the adapter boundary):
+- [x] Milestone 2 — Diagnostic integration (AC-2 at the adapter boundary):
       `Settei.Optparse.validatedDiagnostic` turns one validated result into a failure
       text, a diagnostic output, or a continue-with-value decision for every
       `DiagnosticMode`; the settei-optparse-applicative suite passes with the cases that
       prove check mode cannot succeed before validation and that text and JSON explain
       output carry the rule, keys, provenance, and outcome trace.
-- [ ] Milestone 3 — Migration of the notification-hub-shaped example (AC-2 at the
+- [x] Milestone 3 — Migration of the notification-hub-shaped example (AC-2 at the
       application boundary, AC-4 role lists, AC-5; requires plan 26 through its
       Milestone 4): `examples/settei-deployment` replaces its plain-text server and
       worker checks (`checkServer`, `checkWorker :: DeploymentConfig -> [Text]`) with
@@ -132,19 +137,36 @@ check mode now consumes the validated result.
       structured failure in text and JSON explain modes, the retained provenance, and
       the absence of secret sentinels; `nix develop -c cabal test
       settei-example-deployment-tests --test-show-details=direct` passes.
-- [ ] Milestone 4 — Documentation, collateral, and request lifecycle (AC-3 author
+- [x] Milestone 4 — Documentation, collateral, and request lifecycle (AC-3 author
       contract, AC-5 versioning): a new ADR plus an ADR-3 amendment, a new capability
       record plus CAP-3 and CAP-7 updates, guide sections, security and compatibility
       updates, changelogs with the PVP consequences, and IR-4 still `in-progress`;
       every OKF bundle passes its prescribed profile-enforced validation.
 - [ ] Milestone 5 — Full validation and closure: `cabal build all`, `cabal test all`,
-      `treefmt`, the four `okf validate` commands, and `nix flake check` pass; evidence
+      `nix fmt`, the four `okf validate` commands, and `nix flake check` pass; evidence
       recorded here; Outcomes & Retrospective written; ADR distillation done; IR-4
       moved to `completed` only after those gates pass and its bundle revalidated.
 
 
+Milestones 1–4 verified on 2026-10-21: core 142 tests (122 baseline plus 20
+validation cases), optparse 17, deployment 54; all pass. Existing core goldens remain
+unchanged. Worker process acceptance: text explain exits 4 with 35 stderr lines;
+JSON explain exits 4 with exactly two parseable JSON documents; check exits 4 with one
+error line; stdout is empty in every rejection. ADR-14, its ADR-3 amendment, CAP-16, migration guides, security and compatibility
+notes are written; all four OKF checks pass (14 ADRs, 12 guides, 16 capabilities,
+4 requests). IR-4 remains in progress. Full-workspace gates remain for
+Milestone 5.
+
 ## Surprises & Discoveries
 
+- Implementation evidence (2026-10-21): plan 28 and its deployment preflight tests
+  landed before this session. One test asserted the old worker rejection sentence;
+  updated only its expected diagnostic, preserving harness behavior and exit category.
+  The complete deployment suite now has 54 tests, including this existing coverage.
+- Implementation evidence (2026-10-21): `nix develop -c treefmt` fails because no
+  standalone TOML config exists. `nix/treefmt.nix` defines the repository formatter;
+  use `nix fmt`, which runs treefmt with the configured Fourmolu, cabal-gild, and Nix
+  formatters. This is the formatting acceptance command below.
 
 - Validation evidence (2026-10-21): ADR-10 deliberately omits `Generic` from an
   opaque validated collection because generic conversion bypasses its smart constructor.
@@ -936,7 +958,7 @@ Milestone 5:
 ```bash
 nix develop -c cabal build all
 nix develop -c cabal test all --test-show-details=direct
-nix develop -c treefmt
+nix fmt
 nix flake check
 git status --short
 ```

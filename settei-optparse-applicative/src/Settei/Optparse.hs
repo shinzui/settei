@@ -1,9 +1,15 @@
 -- |
 -- Module: Settei.Optparse
 -- Description: optparse-applicative parsers that produce ordered Settei sources.
+--
+-- Applications with validators must consume 'validatedDiagnostic' after 'validate',
+-- rather than calling 'resolutionDiagnostic' on the pre-validation result. Static
+-- schema and contract dispatch still precedes source acquisition.
 module Settei.Optparse
   ( CliOverride,
     DiagnosticMode (..),
+    ValidatedDiagnostic (..),
+    validatedDiagnostic,
     SetteiOptions (..),
     cliOverride,
     cliOverrideKey,
@@ -236,3 +242,34 @@ contractDiagnostic mode contract = case mode of
   DeploymentContractText -> Just (renderContractText <$> contract)
   DeploymentContractJson -> Just ((<> "\n") . renderContractJson <$> contract)
   _ -> Nothing
+
+-- | A complete post-validation dispatch decision. No Show or Eq instance because
+-- the continue case carries a typed value that may contain secrets.
+data ValidatedDiagnostic a
+  = DiagnosticFailure !Text
+  | DiagnosticOutput !Text
+  | DiagnosticContinue a
+  deriving stock (Generic)
+
+-- | Share rejection, provenance, and validation outcomes across startup and modes.
+-- Failures go to stderr with the application's resolution exit code; output goes to
+-- stdout with exit zero. Continue starts the application with the validated value.
+validatedDiagnostic :: DiagnosticMode -> ValidatedResult a -> ValidatedDiagnostic a
+validatedDiagnostic mode result =
+  case result ^. #answer of
+    Left errors -> DiagnosticFailure $ case mode of
+      ExplainText -> renderErrorsText errors <> explanationText
+      ExplainJson -> renderErrorsJson errors <> "\n" <> explanationJson
+      _ -> renderErrorsText errors
+    Right value -> case mode of
+      ExplainText -> DiagnosticOutput explanationText
+      ExplainJson -> DiagnosticOutput explanationJson
+      CheckConfig -> DiagnosticOutput "configuration valid\n"
+      NoDiagnostic -> DiagnosticContinue value
+      DescribeConfigText -> DiagnosticContinue value
+      DescribeConfigJson -> DiagnosticContinue value
+      DeploymentContractText -> DiagnosticContinue value
+      DeploymentContractJson -> DiagnosticContinue value
+  where
+    explanationText = renderResolutionText (result ^. #report) <> renderValidationText (result ^. #validation)
+    explanationJson = renderValidatedResolutionJson (result ^. #report) (result ^. #validation) <> "\n"

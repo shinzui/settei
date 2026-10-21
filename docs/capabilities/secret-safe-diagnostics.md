@@ -4,7 +4,7 @@ type: Capability
 description: "Render schemas, successful or failed resolutions, errors, and warnings as deterministic text or versioned JSON without retaining declared secret values."
 generated:
   by: openai/codex
-  at: "2026-09-21T03:07:17Z"
+  at: "2026-10-21T16:45:00Z"
 capabilityId: CAP-3
 provider: mori://shinzui/settei
 status: shipped
@@ -50,6 +50,12 @@ errorsText = either renderErrorsText (const "") (result ^. #answer)
 The public `ReportedValue` interface can render its safe display form but cannot recover
 an underlying secret.
 
+The next shared 0.3.0.0 release adds `invariant` errors with stable rules, keys,
+expectations, and optional public details. `renderValidationText` lists each rule's
+outcome; `renderValidatedResolutionJson` adds optional `invariants` to version-1
+resolution JSON. Bare resolution rendering remains unchanged. See
+[structured application validation (CAP-16)](structured-application-validation.md).
+
 ## Limits
 
 - Redaction depends on the declaration author choosing `secretSetting`. It cannot repair
@@ -61,3 +67,7 @@ an underlying secret.
   application from logging them or deriving revealing `Show` instances.
 - Paths, keys, source names, and trusted annotations remain visible and may themselves be
   operationally sensitive.
+
+- Invariant metadata is author text. Never embed secret setting values in expectations
+  or `violationWithDetail`; Settei cannot sanitise that channel. Validators receive the
+  typed record and must not log it.

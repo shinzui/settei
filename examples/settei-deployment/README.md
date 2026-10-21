@@ -63,3 +63,27 @@ name validation as a separate check. Configuration acceptance establishes neithe
 connectivity nor readiness. The startup action is instrumented to fail when
 `SETTEI_DEPLOYMENT_TEST_FAIL_ON_STARTUP=1`; both real role checks skip it, and non-check
 controls prove it is reached.
+
+
+## Rejection lines changed
+
+The next shared 0.3.0.0 release moves the existing checks to role-specific `Validators`.
+Valid inputs, typed values, and rejection exit 4 are unchanged. The old worker line was:
+
+```text
+workers.visibilityTimeoutSeconds: must be at least twice workers.concurrency
+```
+
+The structured replacement names the stable rule and both declared keys:
+
+```text
+workers.visibilityTimeoutSeconds, workers.concurrency: invariant worker-visibility-covers-concurrency failed: workers.visibilityTimeoutSeconds must be at least twice workers.concurrency
+```
+
+`--explain-config` retains the full report and appends ordered rule outcomes.
+`--explain-config-json` failures now emit two JSON documents on separate stderr lines
+(errors then resolution with `invariants`), including on base resolution failures;
+the previous path mixed text errors with a JSON report. Source-load failures stay text
+and exit 3. Static describe and contract modes still load no sources or validators.
+See [structured validation](../../docs/guides/cli-application.md#validate-cross-setting-invariants-after-resolution)
+for the author contract and migration dispatch.

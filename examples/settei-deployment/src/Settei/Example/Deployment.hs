@@ -13,8 +13,9 @@ module Settei.Example.Deployment
     runDeploymentWithSnapshot,
     runDeploymentWithStartup,
     runDeploymentWithEnvironment,
-    checkServer,
-    checkWorker,
+    serverValidators,
+    workerValidators,
+    roleValidators,
     usageExitCode,
     sourceExitCode,
     resolutionExitCode,
@@ -200,13 +201,37 @@ deploymentParserInfo role =
     (Options.fullDesc <> Options.progDesc ("Validate notification delivery " <> show role <> " configuration") <> Options.failureCode usageExitCode)
 
 -- | Application-owned validation; error strings never contain rejected values.
-checkServer :: DeploymentConfig -> [Text]
-checkServer config = ["server.webhookSecret: must be at least 16 characters" | Text.length (config ^. #webhookSecret) < 16]
+-- Each domain rule is declared once and shared by the relevant process roles.
+serverWebhookSecretLength, workerVisibility, productionWebhookSecret :: Validator DeploymentConfig
+serverWebhookSecretLength =
+  check
+    (InvariantRule "server-webhook-secret-length")
+    [validKey "server.webhookSecret"]
+    "must be at least 16 characters"
+    (\config -> Text.length (config ^. #webhookSecret) >= 16)
+workerVisibility =
+  check
+    (InvariantRule "worker-visibility-covers-concurrency")
+    (fmap validKey ["workers.visibilityTimeoutSeconds", "workers.concurrency"])
+    "workers.visibilityTimeoutSeconds must be at least twice workers.concurrency"
+    (\config -> toInteger (config ^. #visibilityTimeoutSeconds) >= 2 * toInteger (config ^. #concurrency))
+productionWebhookSecret =
+  check
+    (InvariantRule "production-webhook-secret")
+    (fmap validKey ["server.webhookSecret", "runtime.environment"])
+    "the development webhook secret must never reach production"
+    (\config -> config ^. #environment /= Production || config ^. #webhookSecret /= developmentWebhookSecret)
 
-checkWorker :: DeploymentConfig -> [Text]
-checkWorker config =
-  ["workers.visibilityTimeoutSeconds: must be at least twice workers.concurrency" | toInteger (config ^. #visibilityTimeoutSeconds) < 2 * toInteger (config ^. #concurrency)]
-    <> ["server.webhookSecret: development default is forbidden in production" | config ^. #environment == Production, config ^. #webhookSecret == developmentWebhookSecret]
+serverValidators, workerValidators :: Validators DeploymentConfig
+serverValidators = checkedValidators [serverWebhookSecretLength]
+workerValidators = checkedValidators [workerVisibility, productionWebhookSecret]
+
+checkedValidators :: [Validator DeploymentConfig] -> Validators DeploymentConfig
+checkedValidators = either (error . Text.unpack . renderValidatorErrorsText) id . validators deploymentConfig
+
+roleValidators :: Role -> Validators DeploymentConfig
+roleValidators Server = serverValidators
+roleValidators Worker = workerValidators
 
 -- | Static diagnostics precede every file read and resolution.
 runDeploymentWithSnapshot :: Role -> EnvSnapshot -> DeploymentOptions -> IO DeploymentRun
@@ -231,19 +256,15 @@ runDeploymentWithStartup startup role readEnvironment parsed =
                         defaultResolveOptions
                         ([builtInDefaultsSource] <> files <> [environmentSource environmentBindings snapshot] <> cliSources "arguments" (options ^. #overrides))
                         deploymentConfig
-                 in case result ^. #answer of
-                      Left problems -> failure resolutionExitCode (renderErrorsText problems <> explanation result)
-                      Right config -> case (case role of Server -> checkServer; Worker -> checkWorker) config of
-                        [] -> success (maybe ("notification delivery " <> Text.pack (show role) <> " configuration ready\n") id (resolutionDiagnostic mode result)) (renderWarningsText (result ^. #warnings))
-                        problems -> failure resolutionExitCode (Text.unlines problems)
+                    validated = validate (roleValidators role) result
+                 in case validatedDiagnostic mode validated of
+                      DiagnosticFailure problems -> failure resolutionExitCode problems
+                      DiagnosticOutput output -> success output (renderWarningsText (validated ^. #warnings))
+                      DiagnosticContinue _ -> success ("notification delivery " <> Text.pack (show role) <> " configuration ready\n") (renderWarningsText (validated ^. #warnings))
         if deploymentExitCode checked == 0 && mode == NoDiagnostic then startup >> pure checked else pure checked
   where
     options = parsed ^. #options
     mode = options ^. #diagnosticMode
-    explanation result = case mode of
-      ExplainText -> renderResolutionText (result ^. #report)
-      ExplainJson -> renderResolutionJson (result ^. #report) <> "\n"
-      _ -> ""
     success output warnings = DeploymentRun 0 output warnings
     failure code message = DeploymentRun code "" message
 

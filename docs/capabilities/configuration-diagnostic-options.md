@@ -4,7 +4,7 @@ type: Capability
 description: "Add mutually exclusive describe, check, and explain modes to an optparse-applicative program and render the matching source-free or post-resolution output."
 generated:
   by: openai/codex
-  at: "2026-09-21T03:07:17Z"
+  at: "2026-10-21T16:45:00Z"
 capabilityId: CAP-7
 provider: mori://shinzui/settei
 status: shipped
@@ -51,12 +51,19 @@ case schemaDiagnostic mode (describe serviceConfig) of
 `setteiOptions` packages the conventional configuration and diagnostics option groups;
 the lower-level parsers remain available for customized applications.
 
+For applications with [validators (CAP-16)](structured-application-validation.md),
+call `validate` and then `validatedDiagnostic`. Its `DiagnosticFailure`,
+`DiagnosticOutput`, and `DiagnosticContinue` decisions share rejection across all modes
+and keep check success after validation. JSON explain failures produce two versioned
+JSON documents on stderr; successful JSON explanation produces one on stdout.
+
 ## Limits
 
 - The helpers return output text; the application still owns source loading, error
   routing, stdout/stderr selection, and exit codes.
-- `CheckConfig` can only confirm the `ResolveResult` supplied by the caller. It does not
-  independently reload or watch configuration.
+- `resolutionDiagnostic CheckConfig` assumes success was checked by the caller. With
+  validators use `validatedDiagnostic` on the validated result. Neither helper reloads
+  or watches configuration.
 - Describe and contract modes are source-free only when the application dispatches them before its
   own loading code, as the reference applications do.
 - The option vocabulary is experimental and the 0.2.0.0 release already replaced the

@@ -2,7 +2,7 @@
 type: Architecture Decision Record
 title: Define leaf-wise resolution, provenance, and default semantics
 description: Define shared leaf-wise resolution, provenance, and default semantics across all Settei sources.
-timestamp: 2026-07-20T00:00:00Z
+timestamp: 2026-10-21T16:45:00Z
 docId: ADR-3
 status: Accepted
 date: 2026-07-17
@@ -274,3 +274,16 @@ recognizes only `kubernetes.file-modified` and appends it to a complete Kubernet
 suffix; origins without that annotation retain byte-for-byte equivalent text. JSON needs
 no per-name branch because the existing ordered annotation object carries all adapter
 metadata. The capture and clock-trust semantics live in ADR 0011.
+
+
+## Amendment 2026-10-21: invariant failures and additive diagnostics
+
+`ConfigError` may gain one constructor per configuration-failure family under a PVP
+major bump. The next shared 0.3.0.0 release adds `InvariantError` for application rules.
+Version-1 `settei.errors` gains the `invariant` kind with rule, keys, fixed expectation,
+and optional public detail. Version-1 `settei.resolution` gains an optional `invariants`
+array emitted only by `renderValidatedResolutionJson`; `renderResolutionJson` stays
+byte-identical. Each outcome records prerequisites, status, violation count, and blocked
+prerequisites. No typed application value enters these structures. Author-supplied text
+must be safe to publish; details cannot be automatically sanitised. The full execution
+and author contract is [ADR-14](0014-application-invariant-validation.md).

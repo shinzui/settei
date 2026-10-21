@@ -57,6 +57,7 @@ library
     Settei.Schema
     Settei.Setting
     Settei.Source
+    Settei.Validate
     Settei.Value
 
   other-modules:
@@ -107,6 +108,8 @@ test-suite settei-tests
     Settei.Setting
     Settei.Source
     Settei.SourceTest
+    Settei.Validate
+    Settei.ValidateTest
     Settei.Value
     Settei.ValueTest
 

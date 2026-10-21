@@ -10,6 +10,8 @@ module Settei.Render
     renderErrorsText,
     renderResolutionJson,
     renderResolutionText,
+    renderValidationText,
+    renderValidatedResolutionJson,
     renderSchemaJson,
     renderSchemaText,
     renderWarningsJson,
@@ -209,6 +211,13 @@ renderErrorText = \case
   SensitivityConflict problem ->
     renderKey (problem ^. #key)
       <> ": declared with both public and secret sensitivity; treated as secret"
+  InvariantError problem ->
+    commaKeys (problem ^. #keys)
+      <> ": invariant "
+      <> renderInvariantRule (problem ^. #rule)
+      <> " failed: "
+      <> problem ^. #expectation
+      <> maybe "" (\detail -> " (" <> detail <> ")") (problem ^. #detail)
 
 -- | Render non-fatal diagnostics in deterministic source and key order.
 renderWarningsText :: [ConfigWarning] -> Text
@@ -355,6 +364,14 @@ errorJson = \case
     jsonObject
       [ ("kind", jsonString "sensitivity-conflict"),
         ("key", jsonString (renderKey (problem ^. #key)))
+      ]
+  InvariantError problem ->
+    jsonObject
+      [ ("kind", jsonString "invariant"),
+        ("rule", jsonString (renderInvariantRule (problem ^. #rule))),
+        ("keys", jsonKeyArray (problem ^. #keys)),
+        ("expectation", jsonString (problem ^. #expectation)),
+        ("detail", maybe "null" jsonString (problem ^. #detail))
       ]
 
 -- | Render warnings as a versioned deterministic JSON document.
@@ -639,3 +656,57 @@ contractDiagnosticJson diagnostic = jsonObject $ case diagnostic of
   UndeclaredDefaultLeaf problem -> [("kind", jsonString "undeclared-default-leaf"), ("key", jsonString (renderKey (problem ^. #key))), ("origin", originJson (problem ^. #origin))]
   UndeclaredBindingKey binding -> [("kind", jsonString "undeclared-binding-key"), ("key", jsonString (renderKey (inputBindingKey binding))), ("binding", inputBindingJson binding)]
   UndeclaredProfileKey key -> [("kind", jsonString "undeclared-profile-key"), ("key", jsonString (renderKey key))]
+
+-- | Render every invariant outcome in declaration order.
+renderValidationText :: ValidationReport -> Text
+renderValidationText = Text.concat . fmap renderOutcome . validationOutcomes
+  where
+    renderOutcome entry =
+      "invariant "
+        <> renderInvariantRule (entry ^. #rule)
+        <> " ["
+        <> statusText (entry ^. #status)
+        <> "]: "
+        <> commaKeys (entry ^. #keys)
+        <> "\n  expects "
+        <> entry ^. #expectation
+        <> "\n"
+        <> (if null (entry ^. #prerequisites) then "" else "  after " <> commaRules (entry ^. #prerequisites) <> "\n")
+    statusText = \case
+      InvariantPassed -> "passed"
+      InvariantFailed n -> "failed (" <> Text.pack (show n) <> (if n == 1 then " violation)" else " violations)")
+      InvariantSkipped unmet -> "skipped after " <> commaRules (NonEmpty.toList unmet)
+      InvariantNotRun -> "not run"
+
+commaRules :: [InvariantRule] -> Text
+commaRules = Text.intercalate ", " . fmap renderInvariantRule
+
+-- | Version-1 resolution document extended with an optional invariant trace.
+-- 'renderResolutionJson' retains its original representation.
+renderValidatedResolutionJson :: ResolutionReport -> ValidationReport -> Text
+renderValidatedResolutionJson report validation =
+  versionedJson
+    "settei.resolution"
+    [ ("nodes", jsonArray (fmap resolutionNodeJson (reportNodes report))),
+      ("branches", jsonArray (fmap branchJson (reportBranches report))),
+      ("invariants", jsonArray (fmap invariantOutcomeJson (validationOutcomes validation)))
+    ]
+
+invariantOutcomeJson :: InvariantOutcome -> Text
+invariantOutcomeJson entry =
+  let (tag, count, blocked) = case entry ^. #status of
+        InvariantPassed -> ("passed", 0, [])
+        InvariantFailed n -> ("failed", n, [])
+        InvariantSkipped unmet -> ("skipped", 0, NonEmpty.toList unmet)
+        InvariantNotRun -> ("not-run", 0, [])
+   in jsonObject
+        [ ("rule", jsonString (renderInvariantRule (entry ^. #rule))),
+          ("keys", jsonKeyArray (entry ^. #keys)),
+          ("expectation", jsonString (entry ^. #expectation)),
+          ("prerequisites", ruleArray (entry ^. #prerequisites)),
+          ("status", jsonString tag),
+          ("violations", jsonInt count),
+          ("blockedBy", ruleArray blocked)
+        ]
+  where
+    ruleArray = jsonArray . fmap (jsonString . renderInvariantRule)

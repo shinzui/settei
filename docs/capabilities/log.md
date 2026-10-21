@@ -1,6 +1,7 @@
 # Capability catalog log
 
 ## 2026-10-21
+* **Update**: Document structured application validation and diagnostic integration
 * **Update**: CAP-5 records supplied-name validation with allowances and its evidence.
 * **Add**: CAP-15 records the reusable deployment preflight harness and limits.
 * **Add**: CAP-14 deployment configuration contract; CAP-7 lists the contract diagnostic flags.

@@ -8,6 +8,9 @@ module Settei.Error
     DefaultProblem (..),
     DecodeProblem (..),
     MissingProblem (..),
+    InvariantRule (..),
+    renderInvariantRule,
+    InvariantProblem (..),
     RawShape (..),
     SensitivityConflictProblem (..),
     StructuralError (..),
@@ -76,7 +79,23 @@ data SensitivityConflictProblem = SensitivityConflictProblem
   }
   deriving stock (Generic, Eq, Show)
 
--- | A fatal resolver error. Every constructor is safe to render or show.
+-- | A stable application-owned rule identifier; validators checks its spelling.
+newtype InvariantRule = InvariantRule Text
+  deriving stock (Generic, Eq, Ord, Show)
+
+renderInvariantRule :: InvariantRule -> Text
+renderInvariantRule (InvariantRule name) = name
+
+-- | Metadata only: authors must ensure every field is safe to publish.
+data InvariantProblem = InvariantProblem
+  { rule :: !InvariantRule,
+    keys :: ![Key],
+    expectation :: !Text,
+    detail :: !(Maybe Text)
+  }
+  deriving stock (Generic, Eq, Show)
+
+-- | A configuration failure. Author-supplied invariant metadata must be safe to publish.
 data ConfigError
   = MissingRequired !MissingProblem
   | DecodeError !DecodeProblem
@@ -85,6 +104,7 @@ data ConfigError
   | DefaultError !DefaultProblem
   | DefaultCycle !DefaultCycleProblem
   | SensitivityConflict !SensitivityConflictProblem
+  | InvariantError !InvariantProblem
   deriving stock (Generic, Eq, Show)
 
 -- | A non-fatal resolver diagnostic.

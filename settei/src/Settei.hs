@@ -14,6 +14,7 @@ module Settei
     module Settei.Setting,
     module Settei.Source,
     module Settei.Value,
+    module Settei.Validate,
   )
 where
 
@@ -30,4 +31,5 @@ import Settei.Resolve
 import Settei.Schema
 import Settei.Setting
 import Settei.Source
+import Settei.Validate
 import Settei.Value

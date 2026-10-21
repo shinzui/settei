@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Breaking (next shared PVP major 0.3.0.0): add `InvariantError` to `ConfigError`;
+  update exhaustive matches. Family versions and exact pins change together at release.
+- Add `Settei.Validate`: checked opaque rule collections, ordered accumulation,
+  prerequisite skipping, role composition, and `ValidatedResult` preserving provenance.
+  Validator metadata must be safe to publish; details are not automatically sanitised.
+- Add validation report types, `renderValidationText`, and
+  `renderValidatedResolutionJson`. Version-1 errors gain kind `invariant`; validated
+  resolution JSON gains optional `invariants`. Existing bare report output is unchanged.
+
 - Add public `Settei.Contract` and re-export it from `Settei`: adapter-neutral input
   bindings, explicit default sources, deployment profiles, occurrence-aware input
   verdicts, and safe default availability/provenance metadata.
