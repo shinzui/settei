@@ -3,7 +3,8 @@ type: Improvement Request
 title: Prevent diagnostic modes from falling through to application startup
 description: Make complete diagnostic dispatch explicit so an unhandled schema or deployment-contract request fails safely instead of loading runtime inputs or continuing toward application startup.
 requestId: IR-5
-status: proposed
+status: accepted
+targetPlan: docs/plans/30-require-complete-diagnostic-dispatch-before-application-startup.md
 origin: mori://tan/notification-hub
 generated:
   by: process:codex
@@ -41,6 +42,16 @@ acceptanceCriteria:
 ---
 
 # Prevent diagnostic modes from falling through to application startup
+
+## Planned implementation
+
+[ExecPlan 30](../plans/30-require-complete-diagnostic-dispatch-before-application-startup.md)
+accepts this request after inspection confirmed both the static-mode continuation in
+`validatedDiagnostic` and the unchecked `Maybe Text` fallback in `resolutionDiagnostic`.
+The plan requires complete static preparation before runtime input acquisition and a
+checked runtime-mode token for both post-resolution helpers, with explicit migration
+and consumer-shaped regression evidence. The request is accepted for implementation;
+none of AC-1 through AC-6 is claimed complete by creating the plan.
 
 ## Problem and observed consumer behavior
 

@@ -1,6 +1,7 @@
 # Bundle Update Log
 
 ## 2026-10-21
+* **Update**: IR-5 accepted after checking current diagnostic fall-through paths; targetPlan links docs/plans/30-require-complete-diagnostic-dispatch-before-application-startup.md. Checked dispatch and migration are planned, not implemented.
 * **Add**: IR-5 requests explicit diagnostic dispatch that permits startup only for
   NoDiagnostic, handles static modes before input acquisition, and rejects an omitted
   contract handler instead of falling through toward application startup. The request
