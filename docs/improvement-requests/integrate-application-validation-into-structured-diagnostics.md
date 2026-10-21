@@ -3,7 +3,8 @@ type: Improvement Request
 title: Integrate application validation into structured configuration diagnostics
 description: Represent post-resolution application invariants as safe structured failures shared by startup, check mode, and text or JSON explanations.
 requestId: IR-4
-status: proposed
+status: accepted
+targetPlan: docs/plans/29-integrate-application-validation-into-structured-configuration-diagnostics.md
 origin: mori://tan/notification-hub
 generated:
   by: process:codex
