@@ -145,6 +145,7 @@ not receive a recoverable secret value.
 - [Building a Kubernetes-shaped service](docs/guides/kubernetes-service.md)
 - [Deploying one image across Kubernetes namespaces](docs/guides/kubernetes-cookbook.md)
 - [Capability catalog](docs/capabilities/index.md)
+- [Improvement requests](docs/improvement-requests/index.md)
 - [Security model](docs/security.md)
 - [Compatibility matrix](docs/compatibility.md)
 - [Release checklist](docs/release-checklist.md)

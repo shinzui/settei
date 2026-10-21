@@ -149,10 +149,11 @@
       packages.settei-yaml = setteiYamlPackage;
 
       # Keep every profile-governed documentation bundle validated and verify that
-      # its Markdown link graph remains readable. ADRs and guides are human-authored
-      # and use strict recommendations; the machine-authored capability catalog does
-      # not claim the profile's recommended review provenance. `okf` is not in nixpkgs,
-      # so this system hook uses the copy already available on PATH.
+      # its Markdown link graph remains readable. ADRs, guides, and improvement
+      # requests are human-authored and use strict recommendations; the
+      # machine-authored capability catalog does not claim the profile's recommended
+      # review provenance. `okf` is not in nixpkgs, so this system hook uses the copy
+      # already available on PATH.
       pre-commit.settings.hooks.okf-documentation-check = {
         enable = true;
         name = "okf-documentation-check";
@@ -165,10 +166,12 @@
           okf graph docs/guides --json >/dev/null
           okf validate docs/capabilities --profile docs/capabilities/profile.dhall --profile-enforce --log-enforce
           okf graph docs/capabilities --json >/dev/null
+          okf validate docs/improvement-requests --strict --profile docs/improvement-requests/profile.dhall --profile-enforce --log-enforce
+          okf graph docs/improvement-requests --json >/dev/null
         ''}";
         language = "system";
         pass_filenames = false;
-        files = "^(docs/(adr|capabilities|guides)/|mori/user-documentation-profile\\.dhall$|mori\\.dhall$)";
+        files = "^(docs/(adr|capabilities|guides|improvement-requests)/|mori/user-documentation-profile\\.dhall$|mori\\.dhall$)";
       };
     };
 }

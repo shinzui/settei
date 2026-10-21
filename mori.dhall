@@ -162,5 +162,13 @@ in  Schema.Project::{
         , description = Some
             "What Settei provides today, one concept per capability, with evidence"
         }
+      , Schema.OkfBundle::{
+        , name = "improvement-requests"
+        , path = "docs/improvement-requests"
+        , profile = Some "docs/improvement-requests/profile.dhall"
+        , okfVersion = "0.2"
+        , description = Some
+            "Cross-repository improvement requests owned by Settei, with stable IR-N handles"
+        }
       ]
     }
