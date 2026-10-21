@@ -1,6 +1,7 @@
 # Bundle Update Log
 
 ## 2026-10-21
+* **Update**: ADR-7 and ADR-14 require complete diagnostic preparation, runtime-only tokens and startup solely on successful continue; breaking releases ship a validated upgrade edge.
 * **Update**: Record invariant validation semantics and additive diagnostics
 * **Update**: ADR-10 amended for supplied-name validation; ADR-9 admits the settei.supplied-names JSON document.
 * **Update**: ADR-13 records opaque report access without a lens dependency after final acceptance.

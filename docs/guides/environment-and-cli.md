@@ -6,7 +6,7 @@ docId: DOC-4
 tags: [settei, environment, cli]
 generated:
   by: human:nadeem
-  at: 2026-07-19T23:44:23Z
+  at: 2026-10-21T20:02:35Z
 ---
 
 # Environment and command-line configuration
@@ -399,18 +399,20 @@ malformed final occurrence is an error and never falls back to an earlier valid 
 
 ## Render diagnostics
 
-Select a report renderer from the total result:
+Call `prepareDiagnostic mode (describe appConfig) contractSupport` before executing the
+environment reader or opening files. Match `DiagnosticRejected` and `DiagnosticRendered`
+immediately; only `DiagnosticNeedsRuntime runtimeMode` acquires inputs. Pass that token
+to `resolutionDiagnostic runtimeMode result`, or, with invariants, to
+`validatedDiagnostic runtimeMode (validate rules result)`. Exhaustively handle
+`DiagnosticFailure`, `DiagnosticOutput`, and `DiagnosticContinue`; only the last starts
+the application. The [complete compiling example](cli-application.md#add-diagnostics-that-match-user-intent)
+shows the migration and public imports.
 
-```haskell
-renderRequestedExplanation :: SetteiOptions -> ResolveResult a -> Maybe Text
-renderRequestedExplanation SetteiOptions {diagnosticMode = mode} result =
-  resolutionDiagnostic mode result
-```
-
-Render errors from the result's `answer` field with `renderErrorsText` or `renderErrorsJson`, and
-warnings with `renderWarningsText` or `renderWarningsJson`. The report and warnings remain
-available when the answer is an error. Send human-readable diagnostics to stderr; reserve
-stdout for requested machine-readable JSON on success or the application's normal output.
+The result's report and warnings remain available on failure. Route failures to stderr
+and successful output to stdout, rendering warnings on successful runs. Both helpers
+check their answer before printing check success. The bare resolution helper preserves
+text errors followed by resolution JSON on JSON explain failure; the validated helper
+emits two JSON documents. Neither helper exits the process.
 
 The reports may include variable names, option names, keys, and trusted Kubernetes
 metadata. Secret setting values remain `<redacted>`. Do not append raw environment values
@@ -438,8 +440,9 @@ bindings.
 
 Use `deploymentContract (ContractInputs (inputBindings environmentBindings)
 [builtInDefaultsSource] Nothing) appConfig` to join the existing declaration, bindings,
-and explicit default sources. Dispatch `contractDiagnostic` after `schemaDiagnostic`
-and before running the environment reader or opening files. Its two modes are
+and explicit default sources. Pass `Just` that lazy result to `prepareDiagnostic`
+before running the environment reader or opening files. `Nothing` explicitly declares
+unavailable support and rejects contract requests before any runtime work. Its two modes are
 `--deployment-contract` and `--deployment-contract-json`; a cyclic declaration returns
 core errors. The [first-deployment guide](deployment-contract.md) explains profile
 requirements, deferred defaults, and the runtime check workflow.

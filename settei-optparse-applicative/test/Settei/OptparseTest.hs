@@ -1,6 +1,7 @@
 module Settei.OptparseTest (tests) where
 
 import Data.Generics.Labels ()
+import Data.IORef (modifyIORef', newIORef, readIORef)
 import Data.List.NonEmpty qualified as NonEmpty
 import Data.Map.Strict qualified as Map
 import Data.Text qualified as Text
@@ -16,7 +17,8 @@ tests :: TestTree
 tests =
   testGroup
     "Settei.Optparse"
-    [ validationTests,
+    [ preparationTests,
+      validationTests,
       testCase "deployment contract modes parse and reject combinations" $ do
         mapM_
           ( \(flag, mode) -> do
@@ -112,8 +114,12 @@ tests =
             result = resolve defaultResolveOptions [portSource "test" BuiltInSource 8080] (required portSetting)
         assertBool "text schema diagnostic missing" (schemaDiagnostic DescribeConfigText schema /= Nothing)
         assertBool "JSON schema diagnostic missing" (schemaDiagnostic DescribeConfigJson schema /= Nothing)
-        resolutionDiagnostic CheckConfig result @?= Just "configuration valid\n"
-        resolutionDiagnostic NoDiagnostic result @?= Nothing,
+        case resolutionDiagnostic (runtime CheckConfig) result of
+          DiagnosticOutput output -> output @?= "configuration valid\n"
+          _ -> fail "expected successful check"
+        case resolutionDiagnostic (runtime NoDiagnostic) result of
+          DiagnosticContinue value -> value @?= 8080
+          _ -> fail "expected startup permission",
       testCase "help groups configuration and diagnostics by intent" $ do
         let parserInfo = Options.info (setteiOptions Options.<**> Options.helper) Options.fullDesc
         case Options.execParserPure Options.defaultPrefs parserInfo ["--help"] of
@@ -185,15 +191,15 @@ validationTests =
   testGroup
     "validated diagnostics"
     [ testCase "check succeeds only after validation and startup gets the same value" $ do
-        case validatedDiagnostic CheckConfig passingResult of
+        case validatedDiagnostic (runtime CheckConfig) passingResult of
           DiagnosticOutput output -> output @?= "configuration valid\n"
           _ -> fail "check did not succeed"
-        case validatedDiagnostic NoDiagnostic passingResult of
+        case validatedDiagnostic (runtime NoDiagnostic) passingResult of
           DiagnosticContinue value -> assertBool "typed value changed" (Right value == validationBase [] ^. #answer)
           _ -> fail "startup did not continue",
-      testCase "all eight modes reject one failingResult validated result" $
+      testCase "all runtime modes reject a failing validated result" $
         mapM_
-          ( \mode -> case validatedDiagnostic mode failingResult of
+          ( \mode -> case validatedDiagnostic (runtime mode) failingResult of
               DiagnosticFailure output -> do
                 assertBool "rule missing" ("pool-covers-workers" `Text.isInfixOf` output)
                 assertBool "key missing" ("service.poolSize" `Text.isInfixOf` output)
@@ -203,27 +209,27 @@ validationTests =
           )
           modes,
       testCase "text success and failure include provenance and outcomes" $ do
-        case validatedDiagnostic ExplainText passingResult of
+        case validatedDiagnostic (runtime ExplainText) passingResult of
           DiagnosticOutput output -> do
             assertBool "setting missing" ("service.workers = \"4\"" `Text.isInfixOf` output)
             assertBool "outcome missing" ("invariant pool-covers-workers [passed]" `Text.isInfixOf` output)
             safe output
           _ -> fail "explain did not succeed"
-        case validatedDiagnostic ExplainText failingResult of
+        case validatedDiagnostic (runtime ExplainText) failingResult of
           DiagnosticFailure output -> do
             assertBool "origin missing" ("from environment source validation fixture" `Text.isInfixOf` output)
             assertBool "failed trace missing" ("[failed (1 violation)]" `Text.isInfixOf` output)
             safe output
           _ -> fail "explain did not fail",
       testCase "JSON success is one line and failure is two versioned documents" $ do
-        case validatedDiagnostic ExplainJson passingResult of
+        case validatedDiagnostic (runtime ExplainJson) passingResult of
           DiagnosticOutput output -> do
             length (Text.lines output) @?= 1
             assertBool "resolution type missing" ("{\"schemaVersion\":1,\"type\":\"settei.resolution\"" `Text.isPrefixOf` output)
             assertBool "invariant array missing" ("\"invariants\":[{\"rule\":\"pool-covers-workers\"" `Text.isInfixOf` output)
             safe output
           _ -> fail "explain did not succeed"
-        case validatedDiagnostic ExplainJson failingResult of
+        case validatedDiagnostic (runtime ExplainJson) failingResult of
           DiagnosticFailure output -> case Text.lines output of
             [errors, report] -> do
               assertBool "error document missing" ("{\"schemaVersion\":1,\"type\":\"settei.errors\"" `Text.isPrefixOf` errors)
@@ -241,35 +247,36 @@ validationTests =
               result ^. #report @?= base ^. #report
               result ^. #warnings @?= base ^. #warnings
               fmap (^. #status) (validationOutcomes (result ^. #validation)) @?= [InvariantNotRun]
-              case validatedDiagnostic ExplainText result of
+              case validatedDiagnostic (runtime ExplainText) result of
                 DiagnosticFailure output -> do
                   assertBool "not-run trace missing" ("[not run]" `Text.isInfixOf` output)
                   safe output
                 _ -> fail "base error accepted"
-              case validatedDiagnostic ExplainJson result of
+              case validatedDiagnostic (runtime ExplainJson) result of
                 DiagnosticFailure output -> length (Text.lines output) @?= 2
                 _ -> fail "base JSON error accepted"
           )
           [ resolve defaultResolveOptions [] validationConfig,
             validationBase [("service.workers", RawText "broken")]
           ],
-      testCase "nonempty warnings and static-mode success fallbacks survive validation" $ do
+      testCase "nonempty warnings and provenance survive runtime dispatch" $ do
         let base = validationBase [("unknown.setting", RawText "public")]
             result = validate validationRules base
         assertBool "warning fixture empty" (not (null (base ^. #warnings)))
         result ^. #warnings @?= base ^. #warnings
         result ^. #report @?= base ^. #report
         mapM_
-          ( \mode -> case validatedDiagnostic mode result of
+          ( \mode -> case validatedDiagnostic (runtime mode) result of
               DiagnosticContinue value -> assertBool "value changed" (Right value == base ^. #answer)
-              _ -> fail "static fallback changed"
+              DiagnosticOutput output -> safe output
+              DiagnosticFailure _ -> fail "valid result rejected"
           )
-          [DescribeConfigText, DescribeConfigJson, DeploymentContractText, DeploymentContractJson]
+          [NoDiagnostic, CheckConfig, ExplainText, ExplainJson]
     ]
   where
     passingResult = validate validationRules (validationBase [])
     failingResult = validate validationRules (validationBase [("service.poolSize", RawText "1")])
-    modes = [NoDiagnostic, ExplainText, ExplainJson, CheckConfig, DescribeConfigText, DescribeConfigJson, DeploymentContractText, DeploymentContractJson]
+    modes = [NoDiagnostic, ExplainText, ExplainJson, CheckConfig]
     safe output = assertBool "secret escaped into diagnostic" (not (any (`Text.isInfixOf` output) [validationSentinel, "SETTEI_VALIDATION_SECRET_29"]))
 
 validationSentinel :: Text
@@ -292,3 +299,133 @@ validationBase changes = resolve defaultResolveOptions [input] validationConfig
   where
     pairs = [("service.workers", RawText "4"), ("service.poolSize", RawText "8"), ("service.token", RawText validationSentinel)]
     input = either (const (error "invalid fixture")) id (sourceFromPairs "validation fixture" EnvironmentSource [(validKey name, value) | (name, value) <- changes <> filter (\(name, _) -> name `notElem` fmap fst changes) pairs])
+
+-- Test-only extraction; production consumers must handle all preparation decisions.
+runtime :: DiagnosticMode -> RuntimeDiagnosticMode
+runtime mode = case prepareDiagnostic mode (error "schema forced") (error "contract forced") of
+  DiagnosticNeedsRuntime token -> token
+  DiagnosticRendered _ -> error "expected runtime mode"
+  DiagnosticRejected _ -> error "expected runtime mode"
+
+allModes :: [DiagnosticMode]
+allModes = [NoDiagnostic, CheckConfig, ExplainText, ExplainJson, DescribeConfigText, DescribeConfigJson, DeploymentContractText, DeploymentContractJson]
+
+-- An exhaustive, independent expectation ensures newly added constructors need tests.
+isRuntime :: DiagnosticMode -> Bool
+isRuntime = \case
+  NoDiagnostic -> True
+  CheckConfig -> True
+  ExplainText -> True
+  ExplainJson -> True
+  DescribeConfigText -> False
+  DescribeConfigJson -> False
+  DeploymentContractText -> False
+  DeploymentContractJson -> False
+
+-- Consumer-shaped public API boundary: input acquisition and startup are separate.
+consumer :: DiagnosticMode -> Maybe (Either (NonEmpty ConfigError) DeploymentContract) -> IO (ResolveResult Int) -> IO () -> IO (Int, Text, Text)
+consumer mode contract acquire startup =
+  case prepareDiagnostic mode (describe (required portSetting)) contract of
+    DiagnosticRejected message -> pure (4, "", message)
+    DiagnosticRendered output -> pure (0, output, "")
+    DiagnosticNeedsRuntime token -> do
+      result <- acquire
+      case resolutionDiagnostic token result of
+        DiagnosticFailure message -> pure (4, "", message)
+        DiagnosticOutput output -> pure (0, output, renderWarningsText (result ^. #warnings))
+        DiagnosticContinue _ -> startup >> pure (0, "started\n", renderWarningsText (result ^. #warnings))
+
+preparationTests :: TestTree
+preparationTests =
+  testGroup
+    "complete dispatch"
+    [ testCase "all eight modes acquire once and start only successful normal execution" $
+        mapM_
+          ( \mode -> do
+              acquisitions <- newIORef (0 :: Int)
+              starts <- newIORef (0 :: Int)
+              let result = resolve defaultResolveOptions [portSource "fixture" BuiltInSource 8080] (required portSetting)
+              (code, output, errors) <- consumer mode supported (modifyIORef' acquisitions (+ 1) >> pure result) (modifyIORef' starts (+ 1))
+              code @?= 0
+              errors @?= ""
+              assertBool "empty output" (not (Text.null output))
+              readIORef acquisitions >>= (@?= if isRuntime mode then 1 else 0)
+              readIORef starts >>= (@?= if mode == NoDiagnostic then 1 else 0)
+          )
+          allModes,
+      testCase "parsed contract flags reject omitted support before acquisition or startup" $
+        mapM_
+          ( \flag -> do
+              mode <- expectParse diagnosticModeOptions [flag]
+              result <- consumer mode Nothing poison poison
+              result @?= (4, "", "deployment contract diagnostic is unavailable\n")
+              (code, output, errors) <- consumer mode supported poison poison
+              code @?= 0
+              errors @?= ""
+              assertBool "contract missing" ("service.port" `Text.isInfixOf` output)
+          )
+          ["--deployment-contract", "--deployment-contract-json"],
+      testCase "mode selection leaves unrelated schema and contract unevaluated" $ do
+        mapM_
+          ( \mode -> case prepareDiagnostic mode poisonValue poisonValue of
+              DiagnosticNeedsRuntime _ -> pure ()
+              _ -> fail "expected runtime permission"
+          )
+          [NoDiagnostic, CheckConfig, ExplainText, ExplainJson]
+        mapM_
+          ( \mode -> case prepareDiagnostic mode (describe (required portSetting)) poisonValue of
+              DiagnosticRendered output -> assertBool "schema missing" ("service.port" `Text.isInfixOf` output)
+              _ -> fail "expected schema"
+          )
+          [DescribeConfigText, DescribeConfigJson]
+        mapM_
+          ( \mode -> case prepareDiagnostic mode poisonValue supported of
+              DiagnosticRendered output -> assertBool "contract missing" ("service.port" `Text.isInfixOf` output)
+              _ -> fail "expected contract"
+          )
+          [DeploymentContractText, DeploymentContractJson],
+      testCase "contract construction errors reject safely before runtime" $
+        mapM_
+          ( \mode -> do
+              let problems = DefaultCycle (DefaultCycleProblem (RuleName "loop" :| [])) :| []
+              consumer mode (Just (Left problems)) poison poison >>= (@?= (4, "", renderErrorsText problems))
+          )
+          [DeploymentContractText, DeploymentContractJson],
+      testCase "bare runtime dispatch preserves errors, provenance, JSON, warnings and secrets" $
+        mapM_
+          ( \mode ->
+              mapM_
+                ( \base -> do
+                    let result = resolutionDiagnostic (runtime mode) base
+                    case base ^. #answer of
+                      Left problems -> case result of
+                        DiagnosticFailure output -> do
+                          let suffix = case mode of
+                                ExplainText -> renderResolutionText (base ^. #report)
+                                ExplainJson -> renderResolutionJson (base ^. #report) <> "\n"
+                                _ -> ""
+                          output @?= renderErrorsText problems <> suffix
+                          assertBool "false success" (not ("configuration valid" `Text.isInfixOf` output))
+                          safe output
+                        _ -> fail "resolution failure accepted"
+                      Right _ -> case result of
+                        DiagnosticContinue _ -> mode @?= NoDiagnostic
+                        DiagnosticOutput output -> do
+                          assertBool "bare JSON gained invariants" (not ("invariants" `Text.isInfixOf` output))
+                          safe output
+                        DiagnosticFailure _ -> fail "resolution success rejected"
+                )
+                [validationBase [], resolve defaultResolveOptions [] validationConfig, validationBase [("service.workers", RawText "broken")], validationBase [("unknown.setting", RawText "public")]]
+          )
+          [NoDiagnostic, CheckConfig, ExplainText, ExplainJson],
+      testCase "normal failure never starts" $ do
+        let missing = resolve defaultResolveOptions [] (required portSetting)
+        (code, output, _) <- consumer NoDiagnostic supported (pure missing) poison
+        code @?= 4
+        output @?= ""
+    ]
+  where
+    supported = Just (deploymentContract emptyContractInputs (required portSetting))
+    poison = fail "runtime effect invoked"
+    poisonValue = error "unused static input forced"
+    safe output = assertBool "secret leaked" (not (any (`Text.isInfixOf` output) [validationSentinel, "SETTEI_VALIDATION_SECRET_29"]))

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Prepare diagnostics before input acquisition and pass the checked token through
+  validation. Start resources directly inside successful `DiagnosticContinue`; static
+  requests and every rejected configuration skip startup for both roles.
+
 - Replace application-local text checks with shared rule declarations and role-specific
   `Validators`; consume `validatedDiagnostic` in every dynamic mode. Successful values,
   acceptance outcomes, source exit 3, and configuration exit 4 are unchanged.

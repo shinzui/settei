@@ -2,7 +2,18 @@
 
 ## Unreleased
 
-- Add `ValidatedDiagnostic` and `validatedDiagnostic` for the next shared 0.3.0.0
+- Require `prepareDiagnostic` before runtime acquisition. Export `DiagnosticPreparation`
+  with rejected, rendered, and runtime-token decisions; `RuntimeDiagnosticMode` stays abstract.
+- Breaking in shared 0.3.0.0: both runtime helpers consume the checked token and return
+  `DiagnosticDecision` (renamed from unreleased `ValidatedDiagnostic`, same constructors).
+  Only successful normal execution continues; check success now checks resolution itself.
+- Missing contract support (`Nothing`) rejects both contract modes with fixed plain text
+  `deployment contract diagnostic is unavailable\n` before any runtime work. Partial
+  schema/contract selectors remain rendering utilities, never startup permission.
+- Preserve version-1 successful JSON, bare text-plus-JSON and validated two-JSON failure
+  formats, and application-owned warning, stream, and exit policy.
+
+- Add `DiagnosticDecision` and `validatedDiagnostic` for the next shared 0.3.0.0
   release: startup and all diagnostic modes consume one validated answer. Check success
   follows application validation. JSON explain failure emits error and resolution
   documents on separate stderr lines, including on base resolution failures.

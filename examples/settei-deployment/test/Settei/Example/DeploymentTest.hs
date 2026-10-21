@@ -2,6 +2,7 @@ module Settei.Example.DeploymentTest (tests) where
 
 import Control.Exception (IOException, try)
 import Data.Generics.Labels ()
+import Data.IORef (modifyIORef', newIORef, readIORef)
 import Data.Text qualified as Text
 import Options.Applicative qualified as Options
 import Paths_settei_example_deployment qualified as Paths
@@ -16,7 +17,44 @@ tests :: TestTree
 tests =
   testGroup
     "Settei.Example.Deployment"
-    [ validationTests,
+    [ testCase "static preparation never selects or runs role validators" $
+        mapM_
+          ( \flag -> do
+              options <- expectOptions Server [flag]
+              result <- runDeploymentWithStartup (fail "startup invoked") (error "validator role forced") (fail "environment reader invoked") options
+              deploymentExitCode result @?= 0
+          )
+          ["--describe-config", "--describe-config-json", "--deployment-contract", "--deployment-contract-json"],
+      testCase "both roles start exactly once only on normal valid runs" $
+        mapM_
+          ( \role ->
+              mapM_
+                ( \args -> do
+                    options <- expectOptions role args
+                    acquisitions <- newIORef (0 :: Int)
+                    starts <- newIORef (0 :: Int)
+                    result <- runDeploymentWithStartup (modifyIORef' starts (+ 1)) role (modifyIORef' acquisitions (+ 1) >> pure (envSnapshot productionInputs)) options
+                    deploymentExitCode result @?= 0
+                    readIORef acquisitions >>= (@?= 1)
+                    readIORef starts >>= (@?= if null args then 1 else 0)
+                )
+                [[], ["--check-config"], ["--explain-config"], ["--explain-config-json"]]
+          )
+          [Server, Worker],
+      testCase "invariant and resolution failures never start either role" $
+        mapM_
+          ( \(role, inputs) ->
+              mapM_
+                ( \args -> do
+                    options <- expectOptions role args
+                    result <- runDeploymentWithStartup (fail "startup invoked") role (pure (envSnapshot inputs)) options
+                    deploymentExitCode result @?= 4
+                    deploymentStandardOutput result @?= ""
+                )
+                [[], ["--check-config"], ["--explain-config"], ["--explain-config-json"]]
+          )
+          [(Server, replace "WEBHOOK_SECRET" "short" productionInputs), (Worker, replace "WORKER_VISIBILITY_TIMEOUT_SECONDS" "1" productionInputs), (Server, []), (Worker, [])],
+      validationTests,
       testCase "environment bindings validate at construction" $
         length (bindingsList environmentBindings) @?= 11,
       testCase "all four static modes skip environment and missing files for both roles" $
@@ -25,7 +63,8 @@ tests =
               mapM_
                 ( \flag -> do
                     options <- expectOptions role ["--config", "/definitely/missing.yaml", flag]
-                    result <- runDeploymentWithEnvironment role (ioError (userError "environment reader invoked")) options
+                    result <- runDeploymentWithStartup (fail "startup invoked") role (ioError (userError "environment reader invoked")) options
+                    deploymentStandardError result @?= ""
                     deploymentExitCode result @?= 0
                 )
                 ["--describe-config", "--describe-config-json", "--deployment-contract", "--deployment-contract-json"]
@@ -39,7 +78,7 @@ tests =
               case result of Left _ -> pure (); Right _ -> fail "reader was skipped"
           )
           [Server, Worker],
-      testCase "check mode reads files that static modes ignore" $
+      testCase "check mode acquisitions files that static modes ignore" $
         mapM_
           ( \role -> do
               result <- run role [] ["--config", "/definitely/missing.yaml", "--check-config"]

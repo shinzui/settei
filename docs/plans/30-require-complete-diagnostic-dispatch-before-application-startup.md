@@ -22,6 +22,11 @@ provenance:
       at: 2026-10-21T19:03:55Z
       mode: "update"
       note: "Apply review findings: widen documentation scope, use the startup-failure switch in executable probes, record cabal exec and formatter facts, require exporting preparation constructors."
+    - model: "gpt-6.1-sol"
+      harness: "codex-cli"
+      at: 2026-10-21T19:58:27Z
+      mode: "implement"
+      note: "Implement checked dispatch, reference applications, migration guidance and upgrade blueprint"
 ---
 
 
@@ -48,24 +53,31 @@ This plan addresses [IR-5](../improvement-requests/prevent-diagnostic-modes-from
 It is a focused library improvement: the parser already recognizes contract flags, but
 older helper composition silently treats them as normal startup. Acceptance includes a
 consumer-shaped regression with contract support deliberately omitted, plus migration of
-all three reference applications. This document plans the work; implementation, release,
-and downstream deployment have not occurred under this plan.
+all three reference applications. Implementation evidence is recorded below; release
+and downstream deployment remain outside this plan.
 
 
 ## Progress
 
 
-- [ ] Milestone 1: checked preparation and runtime dispatch reject incomplete composition, with exhaustive mode, laziness, failure, and API migration tests (AC-1 through AC-5).
-- [ ] Milestone 2: CLI, service, and deployment runners use the boundary before effects; executable and omitted-contract consumer regressions prove diagnostics never start the application (AC-1 through AC-6).
-- [ ] Milestone 3: adoption guidance, architecture records, and compatibility notes describe the checked API and preserve diagnostic formats and application-owned exit policy (AC-4 through AC-6).
-- [ ] Milestone 4: the `settei-upgrade` Seihou blueprint, its registry entry, the 0.2.0.0 to 0.3.0.0 edge, the version probe, and the release-collateral gate validate and preview as one step (AC-6).
-- [ ] Milestone 5: workspace tests, public API checks, blueprint validation, documentation validation, and executable acceptance pass; IR-5 closes with evidence (AC-1 through AC-6).
+- [x] (2026-10-21) Milestone 1: checked preparation and runtime dispatch reject incomplete composition, with 23 passing adapter tests and public compile checks rejecting both unchecked calls by token type (AC-1 through AC-5).
+- [x] (2026-10-21) Milestone 2: CLI, service, and deployment runners use the boundary before effects; executable and omitted-contract consumer regressions prove diagnostics never start the application; all four application/conformance suites and 20 executable probes pass (AC-1 through AC-6).
+- [x] (2026-10-21) Milestone 3: adoption guidance, architecture records, and compatibility notes describe the checked API and preserve diagnostic formats and application-owned exit policy; all four OKF bundle validators pass (AC-4 through AC-6).
+- [x] (2026-10-21) Milestone 4: the `settei-upgrade` Seihou blueprint, its registry entry, the 0.2.0.0 to 0.3.0.0 edge, the version probe, and the release-collateral gate validate and preview as exactly one step, with shared/edge instructions and mounted reference file (AC-6).
+- [x] (2026-10-21) Milestone 5: full build, 570 tests in 14 suites, API compiler checks, 100% adapter Haddock coverage, blueprint validation/preview, four OKF validators, formatting, 20 executable probes, and host flake check pass; IR-5 completed with evidence (AC-1 through AC-6).
 
 
 ## Surprises & Discoveries
 
 
-(None yet.)
+2026-10-21: The explicit-window Seihou debug preview selects exactly one edge but
+prints no probe provenance. A second debug invocation omitting `--to` verifies the
+read-only probe against this workspace's resolved 0.2.0.0 plan. Explicit flags remain
+the authoritative way to preview the upcoming edge before the release bump.
+
+2026-10-21: A duplicate local Cabal build invocation initially collided while renaming
+an object file. A single build process succeeded; subsequent build/test/API checks run
+without concurrent Cabal writers.
 
 
 ## Decision Log
@@ -115,11 +127,53 @@ its edge in the same change that cuts the release.
 ## Outcomes & Retrospective
 
 
-(To be filled during implementation.)
+Completed on 2026-10-21. All eight diagnostic modes now cross one pure preparation
+boundary; omitted contract support fails before runtime input acquisition, and only
+successful normal execution can return startup permission. The token has private
+runtime-only constructors with no construction bypass instances. Both runtime helpers
+check their answer, retain existing bare versus validated failure formats, and leave
+warning, stream, and exit policy in applications. All three examples use the boundary;
+deployment starts resources directly inside `DiagnosticContinue`.
+
+Acceptance passed on GHC 9.12.4, aarch64-darwin: full workspace build and 570 tests in
+14 suites, including 23 adapter tests and 57 deployment/preflight tests. The compiler
+script accepts the public prepared consumer and rejects both old static helper calls
+for `DiagnosticMode` versus `RuntimeDiagnosticMode`. Adapter Haddock reports 100%
+(24/24) declaration coverage; generated-instance link warnings remain non-failing.
+Core renderer goldens are unchanged. All four profile/log-enforced OKF validators,
+configured formatting, host flake check, and whitespace checks pass. Other flake
+systems remain unvalidated.
+
+Twenty executable probes exercised four static flags plus missing-file check mode
+across CLI, service, deployment server, and worker, with absent credentials and the
+deployment startup-failure switch. Static requests exited 0 without stderr or startup;
+check exited 3 without false success. Injected tests additionally prove no reader,
+role-validator selection, or startup occurs on static paths; counters prove normal
+acquisition/startup once and dynamic diagnostics without startup.
+
+The blueprint passes lint validation and discovery reports `user [blueprint]`. Its
+preview includes shared guidance, edge instructions, and the mounted reference file:
+
+```text
+Blueprint migrations for settei-upgrade: 0.2.0.0 -> 0.3.0.0
+===== [1/1] settei-upgrade 0.2.0.0 -> 0.3.0.0 =====
+```
+
+With `--to` omitted its read-only probe reports 0.2.0.0 and correctly selects no edge
+for an equal-version window. The task-owned preview symlink was removed afterwards.
+The guide, edge prompt, and reference file share the compiled fixture's exact after
+example. ADR-7 and ADR-14 retain the checked-boundary and release-edge decisions;
+IR-5 is completed with its target plan retained. No release, version/pin bump, tag,
+push, downstream migration, or deployment was performed. The release workflow now
+requires each breaking release's migration edge to be available from git before tagging.
 
 
 ## Context and Orientation
 
+
+The original-behavior descriptions in this section capture the pre-implementation
+baseline. Completed behavior and acceptance are recorded above; the checked public
+interfaces remain specified under Interfaces and Dependencies.
 
 The repository contains the pure configuration library in settei/ and its CLI adapter in
 settei-optparse-applicative/. The latter's public module,
@@ -570,9 +624,10 @@ absent installed copy; the listing must show `settei-upgrade` with a `user [blue
 source. The preview prints `Blueprint migrations for settei-upgrade: 0.2.0.0 -> 0.3.0.0`
 and exactly one `[1/1] settei-upgrade 0.2.0.0 -> 0.3.0.0` section containing the shared
 guidance, the edge instructions, and the mounted files path. It contacts no provider and
-writes nothing, but it does run the version probe in the current directory and reports
-it with its source; in this repository the probe reads 0.2.0.0 from the Cabal plan, and
-the explicit flags win. Remove the symlink afterwards with
+writes nothing. Explicit flags provide both window ends; to exercise inferred `--to`
+separately, run `seihou agent --debug migrate settei-upgrade --from 0.2.0.0`. In this
+repository the probe reads 0.2.0.0 from the Cabal plan and selects no migration until
+the coordinated version bump. Remove the symlink afterwards with
 `rm ~/.config/seihou/modules/settei-upgrade` unless you want the working tree to keep
 shadowing a later git install. Consumers install the published blueprint with
 `seihou install https://github.com/shinzui/settei.git --module settei-upgrade`.

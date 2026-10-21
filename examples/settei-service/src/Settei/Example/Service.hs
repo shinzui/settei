@@ -252,27 +252,26 @@ environmentBindings =
 
 -- | Load, resolve, and render one capturable run against an injected snapshot.
 runServiceWithSnapshot :: EnvSnapshot -> ServiceOptions -> IO ServiceRun
-runServiceWithSnapshot snapshot options = do
-  case schemaDiagnostic (options ^. #diagnosticMode) (describe serviceConfig) of
-    Just output -> pure (successfulRun output "")
-    Nothing -> case contractDiagnostic
-      (options ^. #diagnosticMode)
-      (deploymentContract (ContractInputs (inputBindings environmentBindings) [] Nothing) serviceConfig) of
-      Just (Left problems) -> pure (failedRun resolutionExitCode (renderErrorsText problems))
-      Just (Right output) -> pure (successfulRun output "")
-      Nothing -> do
-        resolved <- resolveServiceOptions snapshot options
-        pure $ case resolved of
-          Left (InputFailure message) -> failedRun sourceExitCode message
-          Right result -> case result ^. #answer of
-            Left problems ->
-              failedRun
-                resolutionExitCode
-                (renderErrorsText problems <> failureReport options result)
-            Right config ->
-              successfulRun
-                (maybe (safeStartupSummary config) id (resolutionDiagnostic (options ^. #diagnosticMode) result))
-                (renderWarningsText (result ^. #warnings))
+runServiceWithSnapshot snapshot = runServiceWithEnvironment (pure snapshot)
+
+-- | Prepare diagnostics before reading environment, files, or supplied names.
+runServiceWithEnvironment :: IO EnvSnapshot -> ServiceOptions -> IO ServiceRun
+runServiceWithEnvironment readEnvironment options =
+  case prepareDiagnostic
+    (options ^. #diagnosticMode)
+    (describe serviceConfig)
+    (Just (deploymentContract (ContractInputs (inputBindings environmentBindings) [] Nothing) serviceConfig)) of
+    DiagnosticRendered output -> pure (successfulRun output "")
+    DiagnosticRejected problems -> pure (failedRun resolutionExitCode problems)
+    DiagnosticNeedsRuntime runtimeMode -> do
+      snapshot <- readEnvironment
+      resolved <- resolveServiceOptions snapshot options
+      pure $ case resolved of
+        Left (InputFailure message) -> failedRun sourceExitCode message
+        Right result -> case resolutionDiagnostic runtimeMode result of
+          DiagnosticFailure problems -> failedRun resolutionExitCode problems
+          DiagnosticOutput output -> successfulRun output (renderWarningsText (result ^. #warnings))
+          DiagnosticContinue config -> successfulRun (safeStartupSummary config) (renderWarningsText (result ^. #warnings))
 
 -- | Resolve the parsed mounted-file option followed by the environment source.
 resolveServiceOptions :: EnvSnapshot -> ServiceOptions -> IO (Either ServiceFailure (ResolveResult ServiceConfig))
@@ -345,14 +344,6 @@ safeStartupSummary config =
       "database pool size: " <> renderInt (config ^. #database . #poolSize)
     ]
 
--- | Append provenance to a resolution failure only in an explicit explain mode.
-failureReport :: ServiceOptions -> ResolveResult ServiceConfig -> Text
-failureReport options result =
-  case options ^. #diagnosticMode of
-    ExplainText -> renderResolutionText (result ^. #report)
-    ExplainJson -> renderResolutionJson (result ^. #report) <> "\n"
-    _ -> ""
-
 successfulRun :: Text -> Text -> ServiceRun
 successfulRun output warnings = ServiceRun {exitCode = 0, standardOutput = output, standardError = warnings}
 
@@ -416,15 +407,3 @@ serviceTagsKey = validKey "service.tags"
 
 validKey :: Text -> Key
 validKey value = either (error . show) id (parseKey value)
-
--- | Select static diagnostics before running the process environment reader.
-runServiceWithEnvironment :: IO EnvSnapshot -> ServiceOptions -> IO ServiceRun
-runServiceWithEnvironment readEnvironment options =
-  case options ^. #diagnosticMode of
-    DescribeConfigText -> staticRun
-    DescribeConfigJson -> staticRun
-    DeploymentContractText -> staticRun
-    DeploymentContractJson -> staticRun
-    _ -> readEnvironment >>= \snapshot -> runServiceWithSnapshot snapshot options
-  where
-    staticRun = runServiceWithSnapshot (envSnapshot []) options

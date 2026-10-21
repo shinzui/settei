@@ -35,6 +35,7 @@ See the repository's [release workflow](../agents/skills/release/SKILL.md).
 | [27: supplied environment names](plans/27-validate-supplied-environment-variable-names-against-declared-bindings.md) | [Bindings and allowances](guides/environment-and-cli.md#validate-the-names-a-deployment-supplies) | [CAP-5](capabilities/explicit-environment-sources.md), [compatibility](compatibility.md#unreleased-supplied-name-validation) | [Environment](../settei-env/CHANGELOG.md) |
 | [28: preflight harness](plans/28-provide-a-reusable-deployment-preflight-harness-around-application-check-mode.md) | [Proposed-input checks](guides/deployment-preflight.md) | [ADR-13](adr/0013-deployment-preflight-harness-semantics.md), [CAP-15](capabilities/deployment-preflight-harness.md), [compatibility](compatibility.md#unreleased-deployment-preflight) | [Preflight](../settei-preflight/CHANGELOG.md) |
 | [29: application invariants](plans/29-integrate-application-validation-into-structured-configuration-diagnostics.md) | [Validation and dispatch](guides/cli-application.md#validate-cross-setting-invariants-after-resolution) | [ADR-14](adr/0014-application-invariant-validation.md), [CAP-16](capabilities/structured-application-validation.md), [compatibility](compatibility.md#unreleased-application-validation) | [Core](../settei/CHANGELOG.md), [CLI](../settei-optparse-applicative/CHANGELOG.md) |
+| [30: checked dispatch](plans/30-require-complete-diagnostic-dispatch-before-application-startup.md) | [Complete dispatch](guides/cli-application.md#add-diagnostics-that-match-user-intent) | [ADR-7](adr/0007-reference-applications-are-the-public-api-conformance-boundary.md), [ADR-14](adr/0014-application-invariant-validation.md), [compatibility](compatibility.md#unreleased-checked-diagnostic-dispatch), [upgrade blueprint](../blueprints/settei-upgrade/README.md) | [CLI adapter](../settei-optparse-applicative/CHANGELOG.md), [deployment example](../examples/settei-deployment/CHANGELOG.md) |
 
 - [x] Root README, guide navigation, package READMEs, security guidance, and compatibility
   notes distinguish the released 0.2.0.0 API from the upcoming features.
@@ -66,6 +67,14 @@ See the repository's [release workflow](../agents/skills/release/SKILL.md).
 
 ## Final-candidate metadata and packaging
 
+- [ ] Seihou upgrade blueprint: decide whether this release window needs an edge and
+  record the decision either way. For a breaking release append the edge, bump
+  `blueprints/settei-upgrade/blueprint.dhall` and `seihou-registry.dhall` versions,
+  update the blueprint README edge table, pass `seihou validate-blueprint
+  blueprints/settei-upgrade --lint`, and retain a debug preview transcript showing
+  exactly the intended steps. The 0.3.0.0 edge is 0.2.0.0 to 0.3.0.0.
+  Verify the blueprint commit is on the pushed remote before tagging.
+
 - [ ] All nine public versions, internal example versions, and every exact family pin
   move together to `0.3.0.0`.
 - [ ] Every public changelog has a dated `0.3.0.0` entry; move existing Unreleased notes
@@ -81,6 +90,14 @@ See the repository's [release workflow](../agents/skills/release/SKILL.md).
 - [ ] Recheck current Hackage releases and upstream tags before changing dependency
   bounds, pins, or compatibility workarounds; inspect dependency APIs through Mori.
 - [ ] Mori registration reflects the final package inventory and current documentation.
+
+## Checked dispatch implementation evidence — 2026-10-21
+
+Plan 30 adds checked preparation before runtime work and startup only on successful
+continue in all reference applications. Its API migration fixtures reject old helper
+calls by token type; executable probes and automated tests cover source-free diagnostics
+and omitted contract support. This implementation evidence is separate from the
+version-bumped final-candidate gates below.
 
 ## Final-candidate automated validation
 

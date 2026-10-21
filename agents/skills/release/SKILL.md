@@ -180,6 +180,23 @@ features and the error/diagnostic constructor and JSON migration details.
 Show the user ALL changes (version bumps, internal bounds, changelog entries, release docs)
 for review before committing.
 
+#### Blueprint migration edge
+
+At every release decide whether the version window needs a `settei-upgrade` edge;
+record the decision either way in the release notes. Every breaking release adds its
+edge in the same change that cuts the release. Write an agent prompt describing real
+consumer source changes, append its `S.BlueprintMigration` entry in
+`blueprints/settei-upgrade/blueprint.dhall`, bump both blueprint and root
+`seihou-registry.dhall` versions, and update the blueprint README edge table. Keep the
+reference dispatch example synchronized with the compiling fixture and CLI guide.
+
+Run `seihou validate-blueprint blueprints/settei-upgrade --lint` and debug-preview the
+exact release window with `seihou agent --debug migrate settei-upgrade --from OLD --to NEW`;
+retain the transcript. Ensure discovery resolves the candidate blueprint, using a
+working-tree symlink only temporarily. Before tagging, verify that the blueprint commit
+is on the pushed remote: consumers install the upgrade guidance from git. Push the
+release commit before creating and pushing its tag so this check can pass.
+
 ### 4. Verify (format, build, test, check gates)
 
 Run this project's gates — mirrors `docs/release-checklist.md`. Stop and fix on
@@ -209,9 +226,10 @@ any failure before proceeding.
 - Create a single commit using a Conventional Commits message:
   `chore(release): <new-version>`. The body should summarize what's in the
   release and why this bump level was chosen.
+- Push the release commit and verify the remote contains its blueprint changes.
 - Create a single **signed** annotated git tag:
   `git tag -s v<version> -m "Release <version>"`.
-- Push the commit and tag: `git push && git push --tags`.
+- Push the commit and tag: `git push --tags` (the release commit was pushed before tagging).
 
 ### 6. Publish to Hackage (in dependency order)
 

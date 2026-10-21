@@ -87,3 +87,10 @@ the previous path mixed text errors with a JSON report. Source-load failures sta
 and exit 3. Static describe and contract modes still load no sources or validators.
 See [structured validation](../../docs/guides/cli-application.md#validate-cross-setting-invariants-after-resolution)
 for the author contract and migration dispatch.
+
+
+The runner uses `prepareDiagnostic` before environment or file acquisition and passes
+its checked `RuntimeDiagnosticMode` to the runtime helper. Only successful
+`DiagnosticContinue` starts normal work. Schema and contract requests finish before
+runtime effects; diagnostic output, warning routing, and exit codes remain application
+policy. See the [migration example](../../docs/guides/cli-application.md#add-diagnostics-that-match-user-intent).

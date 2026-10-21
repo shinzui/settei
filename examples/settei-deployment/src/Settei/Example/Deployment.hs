@@ -240,28 +240,27 @@ runDeploymentWithSnapshot role snapshot = runDeploymentWithStartup (pure ()) rol
 -- | Inject resource acquisition after every diagnostic path has declined.
 runDeploymentWithStartup :: IO () -> Role -> IO EnvSnapshot -> DeploymentOptions -> IO DeploymentRun
 runDeploymentWithStartup startup role readEnvironment parsed =
-  case schemaDiagnostic mode (describe deploymentConfig) of
-    Just output -> pure (success output "")
-    Nothing -> case contractDiagnostic mode (deploymentContract deploymentContractInputs deploymentConfig) of
-      Just (Left problems) -> pure (failure resolutionExitCode (renderErrorsText problems))
-      Just (Right output) -> pure (success output "")
-      Nothing -> do
-        snapshot <- readEnvironment
-        loaded <- traverse (Yaml.readYamlSource (Yaml.yamlSourceOptions "configuration file")) (options ^. #configPaths)
-        let checked = case traverse (either (Left . Yaml.renderYamlErrorsText) Right) loaded of
-              Left problems -> failure sourceExitCode problems
-              Right files ->
-                let result =
-                      resolve
-                        defaultResolveOptions
-                        ([builtInDefaultsSource] <> files <> [environmentSource environmentBindings snapshot] <> cliSources "arguments" (options ^. #overrides))
-                        deploymentConfig
-                    validated = validate (roleValidators role) result
-                 in case validatedDiagnostic mode validated of
-                      DiagnosticFailure problems -> failure resolutionExitCode problems
-                      DiagnosticOutput output -> success output (renderWarningsText (validated ^. #warnings))
-                      DiagnosticContinue _ -> success ("notification delivery " <> Text.pack (show role) <> " configuration ready\n") (renderWarningsText (validated ^. #warnings))
-        if deploymentExitCode checked == 0 && mode == NoDiagnostic then startup >> pure checked else pure checked
+  case prepareDiagnostic mode (describe deploymentConfig) (Just (deploymentContract deploymentContractInputs deploymentConfig)) of
+    DiagnosticRendered output -> pure (success output "")
+    DiagnosticRejected problems -> pure (failure resolutionExitCode problems)
+    DiagnosticNeedsRuntime runtimeMode -> do
+      snapshot <- readEnvironment
+      loaded <- traverse (Yaml.readYamlSource (Yaml.yamlSourceOptions "configuration file")) (options ^. #configPaths)
+      case traverse (either (Left . Yaml.renderYamlErrorsText) Right) loaded of
+        Left problems -> pure (failure sourceExitCode problems)
+        Right files -> do
+          let result =
+                resolve
+                  defaultResolveOptions
+                  ([builtInDefaultsSource] <> files <> [environmentSource environmentBindings snapshot] <> cliSources "arguments" (options ^. #overrides))
+                  deploymentConfig
+              validated = validate (roleValidators role) result
+          case validatedDiagnostic runtimeMode validated of
+            DiagnosticFailure problems -> pure (failure resolutionExitCode problems)
+            DiagnosticOutput output -> pure (success output (renderWarningsText (validated ^. #warnings)))
+            DiagnosticContinue _ -> do
+              startup
+              pure (success ("notification delivery " <> Text.pack (show role) <> " configuration ready\n") (renderWarningsText (validated ^. #warnings)))
   where
     options = parsed ^. #options
     mode = options ^. #diagnosticMode

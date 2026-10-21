@@ -6,7 +6,7 @@ docId: DOC-11
 tags: [settei, deployment, configuration]
 generated:
   by: process:codex
-  at: 2026-10-21T16:36:34Z
+  at: 2026-10-21T20:02:35Z
 ---
 
 # Authoring a first deployment from the configuration contract
@@ -138,14 +138,26 @@ contract = deploymentContract contractInputs appConfig
 ```
 
 Import `Settei`, `Settei.Env`, and `Settei.Optparse`. `setteiOptions` provides the two
-mutually exclusive flags; custom parsers can use `diagnosticModeOptions`. Dispatch
-`schemaDiagnostic` first, then `contractDiagnostic mode contract`, before running any
-environment-reader action or loading files. `contractDiagnostic` returns `Nothing` for
-other modes without inspecting the contract, `Just (Left errors)` for a cycle, or
-`Just (Right output)` for the requested text/JSON. Send cycle errors through
-`renderErrorsText`. See the reference application's
+mutually exclusive flags; custom parsers can use `diagnosticModeOptions`. Call
+`prepareDiagnostic mode (describe appConfig) (Just contract)` before any environment
+reader or file loading. Exhaustively match `DiagnosticRendered output` for success,
+`DiagnosticRejected errors` for failure, and `DiagnosticNeedsRuntime runtimeMode` to
+acquire inputs. Supply `Nothing` if contract support is unavailable: either contract
+mode rejects with fixed plain text `deployment contract diagnostic is unavailable\n`.
+The optional contract is lazy; unrelated modes do not inspect it, and contract modes
+do not inspect the schema argument. Construction errors use the existing safe text
+renderer. `schemaDiagnostic` and `contractDiagnostic` are partial rendering selectors;
+their `Nothing` never grants runtime or startup permission.
+
+After acquisition, pass the exact token to `resolutionDiagnostic`, or to
+`validatedDiagnostic` after `validate`. Handle `DiagnosticFailure`, `DiagnosticOutput`,
+and `DiagnosticContinue` exhaustively; only continue starts resources. See the
+[compiling dispatch example](cli-application.md#add-diagnostics-that-match-user-intent)
+and the reference application's
 [runner](../../examples/settei-deployment/src/Settei/Example/Deployment.hs) for executable
 wiring and exit codes (usage 2, source 3, resolution or application check 4).
+Unsupported JSON contract requests also use plain-text stderr and exit 4. Successful
+schema and contract JSON retain their version-1 formats.
 
 ## Interpret uncertainty and diagnostics
 

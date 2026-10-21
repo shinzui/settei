@@ -24,6 +24,7 @@ tests =
               options <- expectOptions (["--config", "yaml:/definitely/missing.yaml"] <> [flag])
               result <- runCliWithEnvironment (ioError (userError "environment reader invoked")) options
               cliExitCode result @?= 0
+              cliStandardError result @?= ""
           )
           ["--describe-config", "--describe-config-json", "--deployment-contract", "--deployment-contract-json"],
       testCase "check mode invokes the executable environment reader" $ do

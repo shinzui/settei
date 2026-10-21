@@ -14,7 +14,7 @@ It contains nine publishable packages and four internal example packages. Cabal 
 and exact intra-family pins still read `0.2.0.0` until the coordinated release bump;
 the features below are unreleased.
 
-Four completed ExecPlans add a deployment workflow:
+Five completed ExecPlans add a deployment workflow and checked startup boundary:
 
 | Feature | What it provides | Guide |
 | --- | --- | --- |
@@ -22,6 +22,7 @@ Four completed ExecPlans add a deployment workflow:
 | [Supplied environment names (plan 27)](docs/plans/27-validate-supplied-environment-variable-names-against-declared-bindings.md) | Reject unsupported or duplicate supplied names against explicit bindings and external-consumer allowances. | [Check supplied names](docs/guides/environment-and-cli.md#validate-the-names-a-deployment-supplies) |
 | [Deployment preflight (plan 28)](docs/plans/28-provide-a-reusable-deployment-preflight-harness-around-application-check-mode.md) | Run application check mode against proposed inputs with controlled secret channels and explicit coverage. | [Run preflight checks](docs/guides/deployment-preflight.md) |
 | [Application validation (plan 29)](docs/plans/29-integrate-application-validation-into-structured-configuration-diagnostics.md) | Apply pure cross-setting rules to one resolved value for startup, check, and explanation modes. | [Declare invariants](docs/guides/cli-application.md#validate-cross-setting-invariants-after-resolution) |
+| [Checked dispatch (plan 30)](docs/plans/30-require-complete-diagnostic-dispatch-before-application-startup.md) | Complete diagnostics before runtime inputs; start only on successful normal continuation. | [Migrate diagnostic dispatch](docs/guides/cli-application.md#add-diagnostics-that-match-user-intent) |
 
 The 2026-10-21 implementation acceptance records GHC 9.12.4 on `aarch64-darwin`,
 workspace build and tests, formatting, the four documentation bundle validations, and
@@ -34,6 +35,19 @@ Version 0.3.0.0 requires updates to exhaustive matches on `ConfigError` and
 explanations can include an invariant trace. The family remains experimental. See the
 [compatibility and migration notes](docs/compatibility.md) for the supported modules,
 JSON contracts, toolchain, and dependency bounds.
+
+The upcoming shared 0.3.0.0 API requires `prepareDiagnostic` before input acquisition;
+only a successful `DiagnosticContinue` permits application startup. See the
+[checked dispatch migration](docs/compatibility.md#unreleased-checked-diagnostic-dispatch).
+After updating dependencies together and resolving the build plan, upgrade source with:
+
+```bash
+seihou install https://github.com/shinzui/settei.git --module settei-upgrade
+seihou agent migrate settei-upgrade
+```
+
+On a first migration, add `--from 0.2.0.0` if no receipt records the earlier version.
+The [blueprint](blueprints/settei-upgrade/README.md) ships the complete 0.3.0.0 edge.
 
 ## Package map
 

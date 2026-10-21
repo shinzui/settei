@@ -6,7 +6,7 @@ docId: DOC-2
 tags: [settei, cli, configuration]
 generated:
   by: human:nadeem
-  at: 2026-10-21T16:36:34Z
+  at: 2026-10-21T20:02:35Z
 ---
 
 # Building a CLI application
@@ -220,23 +220,63 @@ Useful diagnostic modes are:
 | `--explain-config` | Load and resolve, then render the redacted text report. |
 | `--explain-config-json` | Load and resolve, then render the versioned JSON report. |
 
-Make diagnostic modes mutually exclusive in the parser. A schema-only mode should branch
-before file and environment loading:
+Before (unsafe selector composition; shown only to identify code to replace):
 
 ```haskell
-case schemaDiagnostic diagnosticMode (describe appConfig) of
-  Just output -> TextIO.putStr output
-  Nothing -> loadResolveAndRun
+case schemaDiagnostic mode schema of
+  Just output -> emit output
+  Nothing -> do
+    result <- acquire
+    case resolutionDiagnostic mode result of
+      Just output -> emit output
+      Nothing -> startResolvedApplication result
 ```
 
-After checking the `answer` field of `ResolveResult` and obtaining a configuration:
+Make diagnostic modes mutually exclusive in the parser. Prepare the requested mode
+before reading the environment, validating supplied names, or opening files. This
+complete example imports only public modules and is compiled by the API check:
 
 ```haskell
-renderSuccess mode config result =
-  case resolutionDiagnostic mode result of
-    Just output -> TextIO.putStr output
-    Nothing -> runApplication config
+import Data.List.NonEmpty (NonEmpty)
+import Data.Text (Text)
+import Settei
+import Settei.Optparse
+
+-- The caller owns stream routing, exit policy, and warning reporting.
+dispatch :: DiagnosticMode -> Schema -> Maybe (Either (NonEmpty ConfigError) DeploymentContract) -> IO (ResolveResult a) -> (a -> IO ()) -> IO (Either Text Text)
+dispatch mode schema contract acquire startup =
+  case prepareDiagnostic mode schema contract of
+    DiagnosticRejected problems -> pure (Left problems)
+    DiagnosticRendered output -> pure (Right output)
+    DiagnosticNeedsRuntime runtimeMode -> do
+      result <- acquire
+      case resolutionDiagnostic runtimeMode result of
+        DiagnosticFailure problems -> pure (Left problems)
+        DiagnosticOutput output -> pure (Right output)
+        DiagnosticContinue config -> startup config >> pure (Right mempty)
 ```
+
+Supply `describe appConfig` as the schema and
+`Just (deploymentContract contractInputs appConfig)` for lazy static contract support.
+Use `Nothing` when this application supplies no deployment contract: either contract
+flag then rejects with `deployment contract diagnostic is unavailable\n`. Reference
+applications send that fixed plain text to stderr, including for JSON mode, and exit 4.
+A contract construction error also rejects before acquisition. Successful static JSON
+formats remain unchanged.
+
+`DiagnosticNeedsRuntime` permits input acquisition and resolution. Only a successful
+`DiagnosticContinue` permits startup. The token belongs to the invocation that
+produced it; never cache a `NoDiagnostic` token for reuse with another requested mode.
+This is an ordinary checked API: callers must honor its decisions and avoid unsafe
+Haskell operations. `schemaDiagnostic` and `contractDiagnostic` remain partial
+rendering selectors; their `Nothing` means unhandled and never authorizes startup.
+
+To migrate schema/load/`resolutionDiagnostic` or
+schema/contract/load/validate/`validatedDiagnostic`, replace both static selectors with
+this exhaustive preparation match, move acquisition inside `DiagnosticNeedsRuntime`,
+and pass its token to the appropriate runtime helper. Both helpers now return
+`DiagnosticDecision` (renamed from unreleased `ValidatedDiagnostic` with the same
+three constructors). Updating the dependency alone does not migrate an executable.
 
 Do not print the typed result after an explanation. The typed record contains real secret
 values, while report renderers receive only redacted representations. Normal application
@@ -300,14 +340,14 @@ and marks every outcome `not run`. Functions must be total and return finite lis
 > typed configuration. Settei cannot sanitise arbitrary text. Keep expectations and details
 > single-line for line-oriented output.
 
-After static schema and contract dispatch and source loading, replace the earlier
+Inside the `DiagnosticNeedsRuntime runtimeMode` branch after source loading, replace the earlier
 `resolutionDiagnostic` dispatch with:
 
 ```haskell
 let resolved = resolve defaultResolveOptions sources appConfig
     validated = validate workerValidators resolved
     ValidatedResult {warnings = validationWarnings} = validated
-case validatedDiagnostic mode validated of
+case validatedDiagnostic runtimeMode validated of
   DiagnosticFailure output -> do
     TextIO.hPutStr stderr output
     exitWith (ExitFailure 4)
@@ -423,8 +463,8 @@ The full composition is in
 
 ### Deployment contract
 
-For deployment authoring, dispatch `contractDiagnostic` after `schemaDiagnostic` and
-before source loading or executing an environment-reader action. Build its contract
+For deployment authoring, pass `Just contract` to `prepareDiagnostic` before source
+loading or executing an environment-reader action. Build its contract
 from `appConfig`, `inputBindings environmentBindings`, explicit built-in default
 sources, and an optional deployment profile. The [deployment guide](deployment-contract.md)
 shows the complete discovery-to-check workflow, and the reference CLI's

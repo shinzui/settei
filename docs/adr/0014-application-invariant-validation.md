@@ -2,13 +2,13 @@
 type: Architecture Decision Record
 title: Validate application invariants after typed resolution
 description: Check pure application rules against declared keys and share structured failures and provenance across startup and diagnostics.
-timestamp: 2026-10-21T16:36:34Z
+timestamp: 2026-10-21T20:02:35Z
 docId: ADR-14
 status: Accepted
 date: 2026-10-21
 generated:
   by: process:codex
-  at: 2026-10-21T16:36:34Z
+  at: 2026-10-21T20:02:35Z
 ---
 
 # ADR 0014: Validate application invariants after typed resolution
@@ -55,7 +55,7 @@ to publish. Authors must never interpolate secret values, log the typed record, 
 multiline text into line-oriented expectations or details. Settei cannot sanitise
 arbitrary author text.** Validators must be total and finite; pure evaluation cannot
 catch exceptions or terminate divergence. `Validator`, `Validators`, `ValidatedResult`,
-and `ValidatedDiagnostic` have no `Show` or `Eq` instances. Results and dispatch decisions
+and `DiagnosticDecision` have no `Show` or `Eq` instances. Results and dispatch decisions
 have `Generic` only, as they are data rather than checked declaration collections.
 
 The existing text and JSON error renderers gain the `invariant` kind. A separate
@@ -90,3 +90,28 @@ text reveals a secret. A standalone validation document and listing rules in the
 would widen the contract without helping this migration; validation remains a separate
 post-resolution stage. Connectivity and credential verification require operational IO
 and remain outside pure configuration acceptance.
+
+
+## Amendment 2026-10-21: checked diagnostic preparation
+
+`prepareDiagnostic` is the complete source-free dispatch boundary. Its exhaustive
+mode classification either renders static output, rejects a static failure, or returns
+`DiagnosticNeedsRuntime` with an abstract `RuntimeDiagnosticMode`. Static contract
+support is an optional lazy result; `Nothing` rejects both contract flags with fixed
+plain text before acquisition. Unused schema and contract inputs remain unforced.
+The token has four private runtime alternatives and no `Generic`, `Read`, writable
+optics, or unchecked conversion; a private constructor plus `Generic` would be bypassable.
+
+Both `resolutionDiagnostic` and `validatedDiagnostic` require that invocation's token
+and return `DiagnosticDecision`. The new name avoids claiming that the bare resolution
+path ran validators; the three decision constructors are unchanged. Only successful
+normal execution yields `DiagnosticContinue`. The preparation token permits acquisition
+and resolution, not startup. Partial `schemaDiagnostic` and `contractDiagnostic`
+selectors remain rendering utilities; `Nothing` never grants continuation. Applications
+must honor the decisions and must not cache a normal-mode token for another invocation.
+
+This changes helper signatures in the same unreleased 0.3.0.0 major break. JSON formats
+stay unchanged: bare JSON explain failures use text errors plus resolution JSON, while
+validated failures retain two JSON documents. Applications own exit codes, warnings,
+streams, and startup. The module rejects incomplete classifier/dispatcher matches at
+compile time so future diagnostic modes require explicit handling.

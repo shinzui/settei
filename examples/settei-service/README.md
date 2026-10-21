@@ -9,3 +9,10 @@ The executable prints only a safe startup summary or Settei's redacted explanati
 checked-in [namespace deployment manifests](deploy/) accompany the
 [Kubernetes cookbook](../../docs/guides/kubernetes-cookbook.md). They are rendered and
 validated client-side and require no Kubernetes SDK or live cluster.
+
+
+The runner uses `prepareDiagnostic` before environment or file acquisition and passes
+its checked `RuntimeDiagnosticMode` to the runtime helper. Only successful
+`DiagnosticContinue` starts normal work. Schema and contract requests finish before
+runtime effects; diagnostic output, warning routing, and exit codes remain application
+policy. See the [migration example](../../docs/guides/cli-application.md#add-diagnostics-that-match-user-intent).

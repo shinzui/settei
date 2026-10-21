@@ -1,14 +1,16 @@
 # Compatibility matrix
 
 This matrix describes the working tree for the unreleased shared 0.3.0.0 release,
-including all four deployment features implemented on 2026-10-21. The workspace still
+including the deployment features and checked diagnostic dispatch implemented on 2026-10-21. The workspace still
 uses version 0.2.0.0 until the coordinated bump; that released version does not include
 `Settei.Contract`, `Settei.Validate`, supplied-name validation, or `settei-preflight`.
 
 The 2026-10-21 documentation audit re-ran all 561 tests in 14 suites on the toolchain
 below. Dependency versions come from that Cabal solver plan; declared bounds describe
 the intended solver range, not a claim that every point in a range has been tested.
-See the [release checklist](release-checklist.md) for remaining final-candidate gates.
+Plan 30 subsequently revalidated 570 tests across the same 14 suites, adding checked
+dispatch and startup regressions. See the [release checklist](release-checklist.md)
+for remaining final-candidate gates.
 
 
 ## Toolchain
@@ -118,7 +120,8 @@ The next shared release targets 0.3.0.0. Core adds `Settei.Contract`,
 `renderContractText`, and `renderContractJson`; environment bindings gain an
 `inputBindings` conversion. `DiagnosticMode` gains `DeploymentContractText` and
 `DeploymentContractJson`, a major PVP change for exhaustive pattern matches.
-`contractDiagnostic` dispatches those modes without changing the existing helpers.
+`prepareDiagnostic` dispatches those modes before runtime input acquisition;
+`contractDiagnostic` remains a partial rendering selector.
 
 `settei.schema` and `settei.resolution` JSON are unchanged. `settei.contract` is a
 separate version 1 document, reusing setting metadata and origin encodings. Existing
@@ -169,3 +172,41 @@ unknown fields/forms, so adding a field/form or changing meaning requires a new 
 All notes in version 1 reduce coverage. These tooling formats use Aeson with fixed pair
 order and byte-identical goldens; existing core schema/resolution documents are unchanged.
 The standalone Aeson 2.3 suite excludes the Dhall adapter rather than widening its bounds.
+
+
+## Unreleased checked diagnostic dispatch
+
+The shared 0.3.0.0 release requires source migration for both runtime helpers:
+`resolutionDiagnostic :: RuntimeDiagnosticMode -> ResolveResult a -> DiagnosticDecision a`
+and `validatedDiagnostic :: RuntimeDiagnosticMode -> ValidatedResult a -> DiagnosticDecision a`.
+The unreleased `ValidatedDiagnostic` is renamed `DiagnosticDecision`, retaining
+`DiagnosticFailure`, `DiagnosticOutput`, and `DiagnosticContinue`. Decisions still have
+no `Show` or `Eq`. `RuntimeDiagnosticMode` is abstract, with no `Generic` or `Read`.
+
+Replace schema/load/resolution or schema/contract/load/validate dispatch with
+`prepareDiagnostic mode schema contractSupport`. Match all `DiagnosticPreparation`
+constructors: return rejection or rendered output immediately, and load inputs only
+under `DiagnosticNeedsRuntime token`. Pass that invocation's token to the runtime
+helper and start only on `DiagnosticContinue`. Both helpers check success themselves;
+applications with invariants must use `validate` and `validatedDiagnostic`.
+See the [complete public example](guides/cli-application.md#add-diagnostics-that-match-user-intent).
+
+`Just (deploymentContract inputs config)` supplies lazy static support; `Nothing`
+explicitly omits it. Both contract modes then reject before runtime work with exactly
+`deployment contract diagnostic is unavailable\n`. Reference applications return exit 4,
+empty stdout, and fixed plain-text stderr, even for JSON mode. Library decisions have
+no process-exit effects. Existing successful schema/contract/resolution JSON, warnings,
+and exit policy remain unchanged. Bare JSON explain failure keeps text errors followed
+by resolution JSON; validated JSON explain failure keeps its two JSON documents.
+
+After updating all Settei dependencies together and resolving the Cabal plan, use:
+
+```bash
+seihou install https://github.com/shinzui/settei.git --module settei-upgrade
+seihou agent migrate settei-upgrade
+```
+
+For the first run, supply `--from 0.2.0.0` if no migration receipt records the prior
+version. The [upgrade blueprint](../blueprints/settei-upgrade/README.md) covers the whole
+0.2.0.0 to 0.3.0.0 window, including error constructors and validated JSON changes.
+It ships with the release; a dependency update alone does not update application code.

@@ -4,7 +4,7 @@ type: Capability
 description: Export deterministic deployment input bindings, safe default metadata, and explicit profile requirements before reading runtime inputs.
 generated:
   by: process:codex
-  at: 2026-10-21T14:30:00Z
+  at: 2026-10-21T20:02:35Z
 capabilityId: CAP-14
 provider: mori://shinzui/settei
 status: shipped
@@ -44,8 +44,10 @@ inputs independently of merged schema requiredness and presence. Each key retain
 bindings, default origins and validity, deferred dependency information, and profile reason.
 
 `Settei.Env.inputBindings` exports validated binding metadata. `Settei.Optparse` provides
-`--deployment-contract`, `--deployment-contract-json`, and `contractDiagnostic` for early
-application dispatch. Existing schema and resolution JSON remain unchanged.
+`--deployment-contract` and `--deployment-contract-json`. Complete application dispatch
+uses `prepareDiagnostic mode schema (Just contract)` before all runtime acquisition;
+`Nothing` support explicitly rejects either mode. `contractDiagnostic` remains a partial
+rendering selector, whose `Nothing` never permits startup. Existing schema and resolution JSON remain unchanged.
 
 This capability is implemented in the working tree for the next shared 0.3.0.0 release;
 0.2.0.0 does not include it. Secret values are redacted before retention. Pure decoders

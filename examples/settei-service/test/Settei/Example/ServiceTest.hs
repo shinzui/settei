@@ -31,6 +31,7 @@ tests =
               options <- expectOptions (["--config", "yaml:/definitely/missing.yaml", "--secrets-dir", "/definitely/missing-secret"] <> [flag])
               result <- runServiceWithEnvironment (ioError (userError "environment reader invoked")) options
               serviceExitCode result @?= 0
+              serviceStandardError result @?= ""
           )
           ["--describe-config", "--describe-config-json", "--deployment-contract", "--deployment-contract-json"],
       testCase "check mode invokes the executable environment reader" $ do

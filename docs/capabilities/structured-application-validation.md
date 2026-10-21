@@ -4,7 +4,7 @@ type: Capability
 description: Apply pure application invariants to typed configuration with checked rule metadata, ordered outcomes, shared rejection paths, and retained provenance.
 generated:
   by: process:codex
-  at: 2026-10-21T16:36:34Z
+  at: 2026-10-21T20:02:35Z
 capabilityId: CAP-16
 provider: mori://shinzui/settei
 status: shipped
@@ -48,7 +48,8 @@ values in declaration order. Dependent rules skip after unmet prerequisites; bas
 resolution failure leaves all rules not run. Roles compose shared validators into separate
 collections. `describe` and deployment contracts stay source-free and unchanged.
 
-`validatedDiagnostic` supplies one decision for startup, check mode, and text or JSON
+`prepareDiagnostic` precedes input acquisition and returns a checked runtime token.
+`validatedDiagnostic` consumes that token and supplies `DiagnosticDecision` for startup, check mode, and text or JSON
 explanations. JSON errors carry kind `invariant`, rule, keys, expectation, and optional
 detail. The validated resolution renderer adds an optional ordered `invariants` trace
 to version 1. Bare report rendering is unchanged. JSON explain failures emit the error
@@ -66,6 +67,8 @@ and resolution documents on separate stderr lines. The next shared release is 0.
 - Use the collection with the same declaration used for resolution; matching result
   types cannot prove matching declarations. Conditional keys need total optional handling.
 - Applications own stream routing, warnings, and exit codes. Use `validatedDiagnostic`
-  after validation so check mode cannot announce success prematurely.
+  after validation so check mode cannot announce success prematurely. Only successful
+  `DiagnosticContinue` starts the application; the preparation token alone permits
+  resolution. `DiagnosticDecision` replaces the unreleased `ValidatedDiagnostic` name.
 
 See [ADR-14](../adr/0014-application-invariant-validation.md) for the durable contract.

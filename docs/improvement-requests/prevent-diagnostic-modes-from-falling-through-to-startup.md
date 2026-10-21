@@ -3,12 +3,14 @@ type: Improvement Request
 title: Prevent diagnostic modes from falling through to application startup
 description: Make complete diagnostic dispatch explicit so an unhandled schema or deployment-contract request fails safely instead of loading runtime inputs or continuing toward application startup.
 requestId: IR-5
-status: accepted
+status: completed
+completedAt: 2026-10-21T20:05:39Z
+resolution: "Implemented by plan 30; full build, 570 tests across 14 suites, public API compile checks, 20 executable probes, four OKF validators, host flake check, and validated one-step upgrade blueprint preview pass."
 targetPlan: docs/plans/30-require-complete-diagnostic-dispatch-before-application-startup.md
 origin: mori://tan/notification-hub
 generated:
   by: process:codex
-  at: "2026-10-21T18:35:45Z"
+  at: "2026-10-21T20:05:19Z"
 reviews:
   - kind: model
     reviewer: process:codex
@@ -117,5 +119,31 @@ The related consumer adoption is tracked by
 extraction and CI gating remain owned by `mori://tan/tan-app-infrastructure`; they
 cannot repair an application's diagnostic dispatcher by themselves.
 
-AC-1 through AC-6 define future acceptance. This request records the missing Settei
-change; it does not implement it, claim release readiness, or authorize a deployment.
+AC-1 through AC-6 are satisfied by the implementation and acceptance evidence below.
+Release readiness and downstream deployment remain separate work.
+
+
+## Resolution
+
+[Plan 30](../plans/30-require-complete-diagnostic-dispatch-before-application-startup.md)
+implements complete `prepareDiagnostic` classification, an abstract runtime-only token,
+and token-requiring `resolutionDiagnostic` and `validatedDiagnostic`. Their shared
+`DiagnosticDecision` permits continuation only for successful normal execution. Missing
+contract support rejects both parsed contract flags with fixed safe text before inputs.
+All three reference application wrappers prepare before effects and start only on continue.
+
+Acceptance on 2026-10-21 passed: full Cabal build, 570 tests across 14 suites, positive
+public consumer compilation, two old-API compile failures for the intended token type,
+adapter Haddock at 100% declaration coverage, formatting, all four profile/log bundle
+validators, and host `nix flake check`. Twenty executable probes cover all four static
+flags and missing-file check mode across CLI, service, server, and worker. Static output
+exits 0 without stderr or startup; check exits 3 without false success. Injected-reader,
+validator-role, startup, counter, failure, warning, and secret-sentinel tests cover the
+boundaries that executable success alone cannot prove.
+
+The `settei-upgrade` blueprint validates with lint and previews exactly one 0.2.0.0 to
+0.3.0.0 step with shared guidance, edge instructions, and mounted reference file. Its
+probe reports resolved 0.2.0.0 in this pre-release workspace. Guides, ADR-7, ADR-14,
+capabilities, compatibility notes, changelogs, and release gates document the source
+migration and retained JSON/stream conventions. Numeric version bumps, publication,
+pushes, and downstream adoption remain outside this implementation.

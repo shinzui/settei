@@ -1,14 +1,20 @@
+{-# OPTIONS_GHC -Werror=incomplete-patterns #-}
+
 -- |
 -- Module: Settei.Optparse
 -- Description: optparse-applicative parsers that produce ordered Settei sources.
 --
 -- Applications with validators must consume 'validatedDiagnostic' after 'validate',
--- rather than calling 'resolutionDiagnostic' on the pre-validation result. Static
--- schema and contract dispatch still precedes source acquisition.
+-- rather than calling 'resolutionDiagnostic' on the pre-validation result. Always
+-- use 'prepareDiagnostic' before source acquisition. Only a successful
+-- 'DiagnosticContinue' authorizes application startup.
 module Settei.Optparse
   ( CliOverride,
     DiagnosticMode (..),
-    ValidatedDiagnostic (..),
+    DiagnosticDecision (..),
+    RuntimeDiagnosticMode,
+    DiagnosticPreparation (..),
+    prepareDiagnostic,
     validatedDiagnostic,
     SetteiOptions (..),
     cliOverride,
@@ -156,20 +162,66 @@ diagnosticModeOptions =
     Applicative.<|> Options.flag' DeploymentContractJson (Options.long "deployment-contract-json" <> Options.help "Print the deployment configuration contract as JSON")
     Applicative.<|> pure NoDiagnostic
 
--- | Render a diagnostic that must not load configuration sources.
+-- | Partial schema rendering selector. Nothing means unhandled, never permission
+-- to start. Use 'prepareDiagnostic' for complete dispatch before runtime work.
 schemaDiagnostic :: DiagnosticMode -> Schema -> Maybe Text
 schemaDiagnostic mode schema = case mode of
   DescribeConfigText -> Just (renderSchemaText schema)
   DescribeConfigJson -> Just (renderSchemaJson schema <> "\n")
   _ -> Nothing
 
--- | Render a diagnostic available after resolution.
-resolutionDiagnostic :: DiagnosticMode -> ResolveResult a -> Maybe Text
-resolutionDiagnostic mode result = case mode of
-  ExplainText -> Just (renderResolutionText (result ^. #report))
-  ExplainJson -> Just (renderResolutionJson (result ^. #report) <> "\n")
-  CheckConfig -> Just "configuration valid\n"
-  _ -> Nothing
+-- | Runtime-only permission returned by 'prepareDiagnostic'. Constructors are private;
+-- there is deliberately no Generic or Read instance or unchecked conversion.
+-- Use the token for the invocation that produced it; do not cache or reuse it.
+data RuntimeDiagnosticMode
+  = RuntimeNormal
+  | RuntimeCheck
+  | RuntimeExplainText
+  | RuntimeExplainJson
+
+-- | Complete dispatch before acquiring any runtime inputs.
+data DiagnosticPreparation
+  = DiagnosticRejected !Text
+  | DiagnosticRendered !Text
+  | DiagnosticNeedsRuntime !RuntimeDiagnosticMode
+
+-- | Select the mode before inspecting schema or optional contract support.
+-- Nothing declares unavailable contract support. Runtime permission authorizes input
+-- acquisition and resolution; only 'DiagnosticContinue' authorizes startup.
+prepareDiagnostic :: DiagnosticMode -> Schema -> Maybe (Either (NonEmpty ConfigError) DeploymentContract) -> DiagnosticPreparation
+prepareDiagnostic mode schema contract = case mode of
+  NoDiagnostic -> DiagnosticNeedsRuntime RuntimeNormal
+  CheckConfig -> DiagnosticNeedsRuntime RuntimeCheck
+  ExplainText -> DiagnosticNeedsRuntime RuntimeExplainText
+  ExplainJson -> DiagnosticNeedsRuntime RuntimeExplainJson
+  DescribeConfigText -> DiagnosticRendered (renderSchemaText schema)
+  DescribeConfigJson -> DiagnosticRendered (renderSchemaJson schema <> "\n")
+  DeploymentContractText -> prepareContract renderContractText
+  DeploymentContractJson -> prepareContract ((<> "\n") . renderContractJson)
+  where
+    prepareContract render = case contract of
+      Nothing -> DiagnosticRejected "deployment contract diagnostic is unavailable\n"
+      Just (Left errors) -> DiagnosticRejected (renderErrorsText errors)
+      Just (Right value) -> DiagnosticRendered (render value)
+
+-- | Dispatch a checked runtime request after resolution. This checks resolution only;
+-- applications with invariants must 'validate' and use 'validatedDiagnostic'.
+-- Warnings remain on the result for application-owned stream and exit policy.
+resolutionDiagnostic :: RuntimeDiagnosticMode -> ResolveResult a -> DiagnosticDecision a
+resolutionDiagnostic mode result = case result ^. #answer of
+  Left errors -> DiagnosticFailure $ case mode of
+    RuntimeNormal -> renderErrorsText errors
+    RuntimeCheck -> renderErrorsText errors
+    RuntimeExplainText -> renderErrorsText errors <> explanationText
+    RuntimeExplainJson -> renderErrorsText errors <> explanationJson
+  Right value -> case mode of
+    RuntimeNormal -> DiagnosticContinue value
+    RuntimeCheck -> DiagnosticOutput "configuration valid\n"
+    RuntimeExplainText -> DiagnosticOutput explanationText
+    RuntimeExplainJson -> DiagnosticOutput explanationJson
+  where
+    explanationText = renderResolutionText (result ^. #report)
+    explanationJson = renderResolutionJson (result ^. #report) <> "\n"
 
 -- | Parse the reusable Configuration and Diagnostics option groups.
 setteiOptions :: Parser SetteiOptions
@@ -236,16 +288,17 @@ rawValueAt key value =
     value
     (NonEmpty.toList (keySegments key))
 
--- | Select a static contract renderer. Other modes never force the contract.
+-- | Partial contract rendering selector. Nothing means unhandled, never permission
+-- to start. Other modes never force the contract; use 'prepareDiagnostic' for dispatch.
 contractDiagnostic :: DiagnosticMode -> Either (NonEmpty ConfigError) DeploymentContract -> Maybe (Either (NonEmpty ConfigError) Text)
 contractDiagnostic mode contract = case mode of
   DeploymentContractText -> Just (renderContractText <$> contract)
   DeploymentContractJson -> Just ((<> "\n") . renderContractJson <$> contract)
   _ -> Nothing
 
--- | A complete post-validation dispatch decision. No Show or Eq instance because
+-- | A complete runtime dispatch decision. No Show or Eq instance because
 -- the continue case carries a typed value that may contain secrets.
-data ValidatedDiagnostic a
+data DiagnosticDecision a
   = DiagnosticFailure !Text
   | DiagnosticOutput !Text
   | DiagnosticContinue a
@@ -254,22 +307,19 @@ data ValidatedDiagnostic a
 -- | Share rejection, provenance, and validation outcomes across startup and modes.
 -- Failures go to stderr with the application's resolution exit code; output goes to
 -- stdout with exit zero. Continue starts the application with the validated value.
-validatedDiagnostic :: DiagnosticMode -> ValidatedResult a -> ValidatedDiagnostic a
+validatedDiagnostic :: RuntimeDiagnosticMode -> ValidatedResult a -> DiagnosticDecision a
 validatedDiagnostic mode result =
   case result ^. #answer of
     Left errors -> DiagnosticFailure $ case mode of
-      ExplainText -> renderErrorsText errors <> explanationText
-      ExplainJson -> renderErrorsJson errors <> "\n" <> explanationJson
-      _ -> renderErrorsText errors
+      RuntimeExplainText -> renderErrorsText errors <> explanationText
+      RuntimeExplainJson -> renderErrorsJson errors <> "\n" <> explanationJson
+      RuntimeNormal -> renderErrorsText errors
+      RuntimeCheck -> renderErrorsText errors
     Right value -> case mode of
-      ExplainText -> DiagnosticOutput explanationText
-      ExplainJson -> DiagnosticOutput explanationJson
-      CheckConfig -> DiagnosticOutput "configuration valid\n"
-      NoDiagnostic -> DiagnosticContinue value
-      DescribeConfigText -> DiagnosticContinue value
-      DescribeConfigJson -> DiagnosticContinue value
-      DeploymentContractText -> DiagnosticContinue value
-      DeploymentContractJson -> DiagnosticContinue value
+      RuntimeExplainText -> DiagnosticOutput explanationText
+      RuntimeExplainJson -> DiagnosticOutput explanationJson
+      RuntimeCheck -> DiagnosticOutput "configuration valid\n"
+      RuntimeNormal -> DiagnosticContinue value
   where
     explanationText = renderResolutionText (result ^. #report) <> renderValidationText (result ^. #validation)
     explanationJson = renderValidatedResolutionJson (result ^. #report) (result ^. #validation) <> "\n"

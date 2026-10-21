@@ -2,13 +2,13 @@
 type: Architecture Decision Record
 title: Use internal reference applications as the public-API conformance boundary
 description: Use three internal reference applications as the conformance boundary that proves the public API composes.
-timestamp: 2026-10-21T15:13:00Z
+timestamp: 2026-10-21T20:02:35Z
 docId: ADR-7
 status: Accepted
 date: 2026-07-18
 generated:
   by: human:nadeem
-  at: 2026-07-20T00:00:00Z
+  at: 2026-10-21T20:02:35Z
 ---
 
 # ADR 0007: Use internal reference applications as the public-API conformance boundary
@@ -160,8 +160,34 @@ The deployment server and worker also exercise `settei-preflight` through real
 executables and a normalized rendered-manifest extractor, without cluster access.
 Tests compare file/environment/CLI precedence and in-process check results, mutate
 container wiring, and scan request/report/CLI channels for secret sentinels.
-`runDeploymentWithStartup` injects the resource-acquisition boundary after all diagnostics
-have declined; both check roles skip a failing action and non-check controls enter it.
+`runDeploymentWithStartup` injects the resource-acquisition boundary in successful
+`DiagnosticContinue`; both check roles skip a failing action and normal controls enter it.
 This establishes configuration-only behavior, without claiming connectivity, credentials,
 image identity, or readiness. [ADR-13](0013-deployment-preflight-harness-semantics.md)
 records coverage, secret channels, cleanup, and execution limitations.
+
+
+## Amendment 2026-10-21: preparation is the executable dispatch boundary
+
+All three application runners call `prepareDiagnostic` before environment readers,
+supplied-name validation, files, mounted secrets, resolution, and validators. Snapshot
+entry points delegate to the same environment wrapper with a pure snapshot action.
+Static output succeeds without runtime effects; unsupported or invalid contract support
+rejects with exit 4 and empty stdout. Only the exact returned runtime token reaches the
+appropriate resolution or validation helper, and only `DiagnosticContinue` starts work.
+Deployment resource acquisition lives directly in that branch rather than reconstructing
+permission from a success code and a diagnostic flag.
+
+The adapter's consumer-shaped regression omits contract support and separately counts
+input acquisition and startup across all eight modes. Positive and negative standalone
+public-module compile fixtures prove old static helper calls cannot typecheck. Reference
+tests inject failing readers and startup actions at executable wrappers, while process
+probes combine missing paths and absent credentials. The examples continue to own
+usage/source/configuration exits 2/3/4, successful warnings, and stream routing.
+
+Breaking release migrations are shipped as the repository's `settei-upgrade` Seihou
+blueprint, with one agent-guided edge per release window requiring source changes and a
+read-only resolved-version probe. The 0.2.0.0 to 0.3.0.0 edge covers the whole shared
+break. Release preparation records whether an edge is needed, validates and previews
+it, and verifies its commit is pushed before tagging so git-installing consumers can
+obtain the migration guidance. No downstream migration or deployment is implied.
