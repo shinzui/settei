@@ -51,7 +51,7 @@ affected package artifacts without mixing those test closures.
 
 | Adapter | Maintained contract |
 | --- | --- |
-| Environment | Explicit name-to-key bindings; no prefix discovery. |
+| Environment | Explicit name-to-key bindings; no prefix discovery; opt-in validation of supplied names against bindings and allowances. |
 | optparse-applicative | Ordered overrides with occurrence provenance; 0.19 option groups are used by examples. |
 | YAML | One strict mapping document with exact locations; only case-insensitive `true` and `false` are booleans, YAML 1.1 spellings remain text, exponent magnitudes above 4096 fail, and ambiguous features fail. |
 | KDL | Canonical KDL v2 mapping with exact spans; one argument is scalar, two or more are an array, and numeric exponent magnitudes above 4096 fail. |

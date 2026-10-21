@@ -113,11 +113,12 @@ shell variables such as `PATH` are never part of the checked collection.
       loading any file, and keeps every existing test green;
       `nix develop -c cabal test settei-example-cli-tests --test-show-details=direct`
       passes with the new cases (24 tests, completed 2026-10-21).
-- [ ] Milestone 3 — Documentation and collateral (AC-5): the environment guide shows a
+- [x] Milestone 3 — Documentation and collateral (AC-5): the environment guide shows a
       deployment author checking exactly the variables a container specification supplies
       and explains that a missing variable is not an error; CAP-5, ADR-10, ADR-9, the
       security and compatibility documents, the changelog, and the example README are
-      updated; IR-2 is moved to `completed`; every OKF bundle validates strictly.
+      updated; IR-2 is moved to `completed`; all four OKF bundle validation commands
+      pass (13 ADRs, 12 guides, 15 capabilities, 4 requests; completed 2026-10-21).
 - [ ] Milestone 4 — Full validation and closure: `cabal build all`, `cabal test all`,
       `treefmt`, and `nix flake check` pass; evidence is recorded here; Outcomes &
       Retrospective is written; the ADR distillation pass is done.
@@ -129,6 +130,10 @@ Plan 26 and the deployment preflight work had landed before implementation. The
 existing `inputBindings`, contract dispatch, and source-free environment-reader wrapper
 are preserved; supplied-name validation follows the contract dispatch. The adapter
 baseline consequently contained 21 tests rather than the original 20.
+
+The bare `nix develop -c treefmt` command fails because treefmt-nix generates its
+configuration rather than checking in a treefmt.toml. Use the configured flake wrapper
+`nix fmt -- --fail-on-change --no-cache`; ordinary `nix fmt` formats successfully.
 
 
 ## Decision Log
@@ -716,7 +721,7 @@ Milestone 4:
 ```bash
 nix develop -c cabal build all
 nix develop -c cabal test all --test-show-details=direct
-nix develop -c treefmt --fail-on-change --no-cache
+nix fmt -- --fail-on-change --no-cache
 nix flake check
 ```
 

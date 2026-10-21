@@ -206,6 +206,7 @@ Useful diagnostic modes are:
 
 | Option | Work performed |
 | --- | --- |
+| `--supplied-env NAME` (repeatable, reference CLI) | Compare the named variables with the application's bindings and allowances before loading files; exit 3 on an unsupported or duplicated name. |
 | `--describe-config` | Render `describe appConfig` without reading files or environment values. |
 | `--describe-config-json` | Render the source-free schema as JSON. |
 | `--deployment-contract` | Join bindings, safe defaults, and profile requirements without loading runtime inputs. |
@@ -248,6 +249,8 @@ Choose stable exit codes and document them. The reference application uses:
 | `2` | Command-line usage error. |
 | `3` | File IO, format, or adapter error. |
 | `4` | Missing, malformed, structurally conflicting, or strictly unknown configuration. |
+
+Unsupported or duplicated explicitly supplied environment names also use exit code `3`.
 
 Set the usage code with `Options.failureCode`. Send usage and human-readable failures to
 stderr. Requested JSON reports belong on stdout so scripts can consume them without

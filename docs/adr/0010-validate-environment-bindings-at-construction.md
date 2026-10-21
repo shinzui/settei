@@ -2,7 +2,7 @@
 type: Architecture Decision Record
 title: Validate environment bindings at construction
 description: Validate environment bindings once at construction through an opaque Bindings collection.
-timestamp: 2026-07-20T00:00:00Z
+timestamp: 2026-10-21T16:08:03Z
 docId: ADR-10
 status: Accepted
 date: 2026-07-19
@@ -104,3 +104,39 @@ while duplicate environment names and duplicate or overlapping target keys retai
 ordinary `EnvError` behavior. The definitions live in `settei-kubernetes`, which is the
 adapter package allowed to depend on both core `settei` and `settei-env`; core and
 `settei-env` do not depend on Kubernetes-specific construction vocabulary.
+
+
+## Amendment 2026-10-21: supplied-name validation
+
+The ordinary translator remains permissive: an unbound environment name never becomes
+a source key, so the core's unknown-key policy cannot detect a deployment typo hidden
+by a default. `acceptedNames` validates explicit external-consumer `Allowance` declarations
+together with `Bindings` into an opaque `AcceptedNames` value. Allowance names obey the
+same portable syntax and cannot repeat a binding or another allowance. `EnvError` remains
+the construction-time error vocabulary, and neither opaque type derives `Generic`.
+
+`checkSuppliedNames` compares an explicit list of supplied names with these declarations.
+It reads neither process environment nor values. Absence is not an error: files, defaults,
+and command-line inputs may supply the setting, and requiredness stays in core resolution.
+`acceptedNamesList` exposes the accepted collection with `BoundTo` keys and `ConsumedBy`
+labels; `acceptedBindings` recovers the original validated bindings. The strict builders
+`checkedEnvSource` and `checkedEnvironmentSource` check an injected snapshot's names, then
+delegate to the ordinary translator with unchanged precedence and origin annotations.
+`snapshotNames` is ascending and cannot recover duplicates already collapsed by the map;
+deployment entries must be checked as an ordered list before snapshot construction.
+
+Runtime failures use the separate `SuppliedNameError` type, retaining only original names.
+Unsupported names are reported at first encounter, duplicates once at second encounter,
+in encounter order. Escaped one-line text renderers and the required
+`renderSuppliedNameErrorsJson` renderer follow the
+[ADR-9 amendment](0009-adapter-error-rendering-contract.md#amendment-2026-10-21-supplied-name-diagnostics-and-the-first-adapter-json-document).
+The earlier per-adapter JSON deferral is superseded for this error type: IR-2 requires
+machine-readable diagnostics now; IR-3 is not a prerequisite. `EnvError` remains text-only.
+
+Rejecting the whole inherited process environment by default was rejected because
+platform variables and other SDK consumers are legitimate. Fuzzy suggestions and silent
+normalization were rejected because accepted names must be exact declared names. A
+reusable `Settei.Optparse` flag was deferred pending a fleet-wide harness contract; the
+reference CLI owns its repeatable `--supplied-env` option. That option checks only the
+explicit list, after schema and contract diagnostics but before file loading, and maps
+failures to source exit code 3. Checking an empty list succeeds, preserving opt-in behavior.

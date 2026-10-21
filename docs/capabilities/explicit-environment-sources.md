@@ -19,10 +19,16 @@ requires:
 evidence:
   - kind: test
     resource: settei-env/test/Settei/EnvTest.hs
+    proves: The supplied name validation group checks allowances, deterministic duplicate and unsupported-name ordering, strict versus permissive snapshots, and value-free escaped text and JSON.
+  - kind: example
+    resource: examples/settei-cli/test/Settei/Example/CliTest.hs
+    proves: Repeated --supplied-env names fail before file loading, preserve built-in defaults for absent bindings, and produce safe text and JSON diagnostics.
+  - kind: test
+    resource: settei-env/test/Settei/EnvTest.hs
     proves: Explicit and prefixed bindings validate once, snapshots remain injectable, annotations reach origins, collection merges revalidate conflicts, and secret values stay out of diagnostics.
   - kind: guide
     resource: docs/guides/environment-and-cli.md
-    proves: Static binding construction, process snapshots, pure test snapshots, prefixed names, and security responsibilities are documented for consumers.
+    proves: Static binding construction, snapshots, prefixed names, and the Validate the names a deployment supplies section document explicit scope, allowances, JSON, and absence semantics.
   - kind: example
     resource: examples/settei-service/test/Settei/Example/ServiceTest.hs
     proves: A service resolves annotated environment values at the documented precedence while redacting production secrets.
@@ -50,9 +56,20 @@ Missing variables create no candidate; empty strings are present text values. Bi
 may carry caller annotations or asserted Kubernetes object metadata, and independently
 validated collections can be combined with `mergeBindings`.
 
+`acceptedNames` validates bindings together with external-consumer `Allowance` declarations.
+The pure `checkSuppliedNames` compares exactly an explicit name list and reports unsupported
+or repeated names in encounter order. `checkedEnvironmentSource` and `checkedEnvSource`
+opt into the same check over an injected snapshot's names before ordinary translation.
+Diagnostics retain names only and have escaped one-line text and versioned
+`settei.supplied-names` JSON renderers. The CLI example exercises this through repeated
+`--supplied-env NAME`; inherited process variables stay outside the check unless included.
+
 ## Limits
 
 - Only listed variables are read. There is deliberately no ambient prefix discovery.
+- Absent bound variables are not reported: requiredness belongs to resolution, and other
+  sources or defaults may supply the value. Snapshot maps have already collapsed duplicates;
+  validate ordered deployment entries as a list when duplicates matter.
 - Values enter as `RawText`; the setting decoder decides whether that spelling is valid.
 - Environment values are plaintext at the process boundary and may be visible to child
   processes, debuggers, crash reporters, or privileged inspection despite report

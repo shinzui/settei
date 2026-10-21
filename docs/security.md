@@ -59,6 +59,9 @@ the process boundary. Depending on the operating system and runtime, it may be v
 the process, child processes, crash reporters, debuggers, or privileged inspection tools.
 Redacted reports do not erase those exposures.
 
+Supplied-name validation retains and renders names only, never environment values,
+including values attached to unknown names; nonportable names are escaped for text display.
+
 Use the smallest possible environment, avoid passing secret snapshots to unrelated child
 processes, and configure crash/logging systems not to capture environment variables.
 

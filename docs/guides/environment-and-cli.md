@@ -196,6 +196,114 @@ already validated and can go directly to `envSource`, `environmentSource`, or th
 effectful siblings. Normalization collisions are reported instead of silently selecting
 one binding.
 
+## Validate the names a deployment supplies
+
+The ordinary environment source ignores unbound names, so a deployment typo can leave a
+default active while `--check-config` succeeds. Compare exactly the names your container
+specification supplies with the application's bindings and explicit external consumers:
+
+```haskell
+acceptedEnvironmentNames :: AcceptedNames
+acceptedEnvironmentNames =
+  either (error . Text.unpack . renderEnvErrorsText) id
+    ( acceptedNames environmentBindings
+        [allowance "opentelemetry-sdk" (EnvName "OTEL_EXPORTER_OTLP_ENDPOINT")]
+    )
+
+-- Copied from the container specification's env: entries, in declaration order.
+deploymentNames :: [EnvName]
+deploymentNames =
+  fmap EnvName ["HASKELL_ENV", "DATABASE_HOST", "OTEL_EXPORTER_OTLP_ENDPOINT"]
+
+validateDeployment :: Either (NonEmpty SuppliedNameError) ()
+validateDeployment = checkSuppliedNames acceptedEnvironmentNames deploymentNames
+
+-- Strict in-process path for a deliberately scoped test/preflight snapshot.
+checkedTestEnvironment :: Either (NonEmpty SuppliedNameError) Source
+checkedTestEnvironment =
+  checkedEnvironmentSource acceptedEnvironmentNames
+    (envSnapshot [("HASKELL_ENV", "production"), ("DATABASE_HOST", "db.internal")])
+```
+
+`acceptedNames` validates allowances once: names must be portable, and repeating a
+binding or another allowance is an `EnvError`. `acceptedNamesList` exposes bound names
+and their target keys followed by allowance names and consumer labels;
+`acceptedBindings` recovers the original bindings. These checks never read values or
+the process environment. Do not include `PATH`, `HOME`, or platform-injected variables
+unless you deliberately want them checked. `snapshotNames` makes a snapshot's checked
+collection visible, in ascending order. A map snapshot has already collapsed duplicate
+entries; check ordered deployment entries as a list before constructing the snapshot.
+
+This is a supplied-name check, not a required-value check. A bound variable that is not
+supplied is never reported: its setting may come from YAML or another file, a built-in
+or declared default, or a `--set` override. The core resolver's `MissingRequired` error
+remains the authority on missing values. `environmentSource` remains permissive;
+`checkedEnvironmentSource` opts into checking every name in the injected snapshot before
+delegating to that same translator. `checkedEnvSource` also accepts a source label.
+
+`checkSuppliedNames` reports unsupported names on first encounter and duplicates once
+on second encounter, in collection order. `renderSuppliedNameErrorText` renders one
+physical line; `renderSuppliedNameErrorsText` appends one newline per error. Portable
+names appear verbatim; other names are quoted and escaped so newlines and terminal
+controls cannot forge diagnostic lines. Errors retain only the original names.
+`renderSuppliedNameErrorsJson` independently encodes those names in one compact document,
+without a trailing newline:
+
+```json
+{"schemaVersion":1,"type":"settei.supplied-names","errors":[{"kind":"unsupported-supplied-name","name":"ENVIRONMENT"},{"kind":"duplicate-supplied-name","name":"HASKELL_ENV"}]}
+```
+
+Deployment tooling can inspect `errors` in order, handling `unsupported-supplied-name`
+and `duplicate-supplied-name` by their `kind`. No environment values are retained or
+rendered, including values attached to unknown names.
+
+The reference CLI binds `HASKELL_ENV` and allows `HTTPS_PROXY` for a representative
+`http-client` consumer (the example opens no network connection). From the repository
+root, the following transcripts demonstrate permissive and opt-in checking; Cabal build
+messages are omitted:
+
+```bash
+ENVIRONMENT=production nix develop -c cabal run settei-example-cli -- --check-config; echo "exit $?"
+```
+
+```text
+configuration valid
+exit 0
+```
+
+```bash
+ENVIRONMENT=production nix develop -c cabal run settei-example-cli -- --supplied-env ENVIRONMENT --check-config; echo "exit $?"
+```
+
+```text
+supplied environment variable ENVIRONMENT: no binding or allowance accepts it
+exit 3
+```
+
+```bash
+HASKELL_ENV=production nix develop -c cabal run settei-example-cli -- --supplied-env HASKELL_ENV --supplied-env HTTPS_PROXY --check-config; echo "exit $?"
+```
+
+```text
+configuration valid
+exit 0
+```
+
+```bash
+ENVIRONMENT=production nix develop -c cabal run settei-example-cli -- --supplied-env ENVIRONMENT --explain-config-json; echo "exit $?"
+```
+
+```text
+supplied environment variable ENVIRONMENT: no binding or allowance accepts it
+{"schemaVersion":1,"type":"settei.supplied-names","errors":[{"kind":"unsupported-supplied-name","name":"ENVIRONMENT"}]}
+exit 3
+```
+
+The CLI checks only repeated `--supplied-env` names, after source-free schema and
+contract diagnostics and before opening files. On failure stdout is empty; JSON explain
+mode appends the machine document after the text errors on stderr. The option belongs
+to this reference application, rather than the reusable `Settei.Optparse` parser.
+
 ## Parse reusable command-line options
 
 `setteiOptions` provides:
@@ -312,6 +420,8 @@ or full command-line arguments to adapter or resolution errors.
 
 - Read the environment once during startup and inject snapshots in tests.
 - Bind only supported variables; do not scan arbitrary prefixes at runtime.
+- Check the container specification's supplied names against bindings and explicit
+  external-consumer allowances before resolution; keep inherited variables out of scope.
 - Document the source order and test an override at every layer.
 - Treat an empty environment value as explicit input, not as absence.
 - Make custom decoders accept the textual forms used by environment and CLI sources.

@@ -57,7 +57,7 @@ bounds, and public adoption surface.
 | --- | --- |
 | [`settei`](settei/) | Declaration algebra, hierarchical resolver, provenance, defaults, schemas, errors, and report rendering. |
 | [`settei-preflight`](settei-preflight/) | Isolated application checks on proposed inputs, strict request documents, redaction, and honest gate verdicts (unreleased). |
-| [`settei-env`](settei-env/) | Explicit environment-variable bindings and injectable snapshots. |
+| [`settei-env`](settei-env/) | Explicit environment-variable bindings, injectable snapshots, and opt-in supplied-name validation. |
 | [`settei-optparse-applicative`](settei-optparse-applicative/) | Ordered generic and named CLI overrides for optparse-applicative. |
 | [`settei-formats`](settei-formats/) | Tagged `FORMAT:PATH` inputs and shared YAML, KDL, and Dhall loading. |
 | [`settei-yaml`](settei-yaml/) | Strict YAML input with exact node locations. |

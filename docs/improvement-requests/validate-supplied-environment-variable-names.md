@@ -3,7 +3,9 @@ type: Improvement Request
 title: Validate supplied environment variable names against declared bindings
 description: Catch misspelled or unsupported application environment variables before deployment without rejecting unrelated process variables or exposing values.
 requestId: IR-2
-status: in-progress
+status: completed
+completedAt: "2026-10-21T16:08:03Z"
+resolution: "Implemented by docs/plans/27-validate-supplied-environment-variable-names-against-declared-bindings.md; 42 adapter tests and 24 CLI tests cover names, allowances, strict snapshots, defaults, redaction, and escaped text/JSON diagnostics."
 targetPlan: docs/plans/27-validate-supplied-environment-variable-names-against-declared-bindings.md
 origin: mori://tan/notification-hub
 generated:
@@ -75,5 +77,6 @@ information.
 
 Settei owns the generic helper, safe diagnostics, compatibility tests, and example.
 Extraction from Pulumi container inputs belongs to `mori://tan/tan-app-infrastructure`.
-The structured AC-1 through AC-5 conditions define future acceptance; this request is
-proposed and does not claim any shipped behavior.
+The structured AC-1 through AC-5 conditions are implemented and verified by
+[ExecPlan 27](../plans/27-validate-supplied-environment-variable-names-against-declared-bindings.md).
+The implementation is unreleased; the existing permissive translator remains unchanged.
