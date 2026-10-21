@@ -1,6 +1,14 @@
 # Bundle Update Log
 
 ## 2026-10-21
+* **Add**: IR-2 requests validation of explicitly supplied application environment
+  names against declared bindings, with scoped allowances and value-free diagnostics.
+* **Add**: IR-3 requests a reusable deployment preflight workflow that runs the actual
+  application check mode on proposed container inputs and reports unresolved values
+  and unavailable secrets honestly.
+* **Add**: IR-4 requests structured post-resolution application validation shared by
+  startup, check mode, and text or JSON explanations, preserving safe failure metadata
+  and resolution provenance.
 * **Add**: IR-1 requests a deployment configuration contract that combines declarations,
   environment bindings, default availability and safe values, and explicit deployment
   requirements. The originating use case is the first Pulumi deployment of
