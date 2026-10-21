@@ -49,7 +49,7 @@ uses `prepareDiagnostic mode schema (Just contract)` before all runtime acquisit
 `Nothing` support explicitly rejects either mode. `contractDiagnostic` remains a partial
 rendering selector, whose `Nothing` never permits startup. Existing schema and resolution JSON remain unchanged.
 
-This capability is implemented in the working tree for the next shared 0.3.0.0 release;
+This capability was added in the shared 0.3.0.0 release;
 0.2.0.0 does not include it. Secret values are redacted before retention. Pure decoders
 check winning source defaults, while derived and case computations remain deferred.
 Structural inconsistencies are diagnostics; recursive defaults return existing cycle errors.

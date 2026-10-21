@@ -1,11 +1,20 @@
 # Changelog for settei-env
 
-## Unreleased
+## 0.3.0.0 — 2026-10-21
 
-- Add supplied-name validation against bindings and external-consumer allowances,
-  opt-in checked snapshot source builders, and safe text and versioned JSON diagnostics
-  (additive API; ships in the shared 0.3.0.0 PVP major release).
+### New Features
+
+- Add supplied-name validation against bindings and external-consumer allowances
+  (`acceptedNames`, `allowance`, `checkSuppliedNames`, `snapshotNames`), opt-in checked
+  snapshot source builders (`checkedEnvSource`, `checkedEnvironmentSource`), and safe
+  text and version-1 `settei.supplied-names` JSON diagnostics. Existing source builders
+  remain permissive.
 - Add `inputBindings` to export validated binding metadata without reading environment values.
+
+### Other Changes
+
+- Released in the shared 0.3.0.0 PVP major family release; the `settei` pin moves to
+  `==0.3.0.0`. This package's own API changes are additive.
 
 ## 0.2.0.0 — 2026-07-19
 

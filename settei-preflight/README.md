@@ -1,7 +1,6 @@
 # settei-preflight
 
-Unreleased, targeting the shared 0.3.0.0 family release. Its workspace version remains
-0.2.0.0 until the coordinated bump; this package was not part of that release.
+New in the shared 0.3.0.0 family release; this package was not part of 0.2.0.0.
 
 Run an application's own configuration check against explicitly proposed inputs.
 `Settei.Preflight` isolates the environment, materializes files in a private directory,

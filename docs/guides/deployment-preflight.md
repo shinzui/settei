@@ -20,7 +20,7 @@ harness exercises the actual configuration path.
 
 `Settei.Preflight` is the Haskell library. `Settei.Preflight.Request` is the strict JSON
 interface for deployment tooling; `settei-preflight --request PATH [--json]` runs it.
-This capability targets the next shared 0.3.0.0 release and is absent from released 0.2.0.0.
+This capability was added in the shared 0.3.0.0 release and is absent from 0.2.0.0.
 
 ## Use the Haskell runner
 

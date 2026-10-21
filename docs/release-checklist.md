@@ -1,13 +1,13 @@
 # Release checklist
 
-This checklist prepares the nine publishable Settei packages for the next shared
-**0.3.0.0** release. The four packages beneath `examples/` are internal validation
-artifacts and must not be uploaded. Workspace versions and exact family pins currently
-remain `0.2.0.0`; the coordinated release bump is still pending.
+This checklist records the shared **0.3.0.0** release of the nine publishable Settei
+packages. The four packages beneath `examples/` are internal validation artifacts and
+must not be uploaded. All thirteen workspace versions and every exact family pin are
+`0.3.0.0`.
 
-Checked audit items below were verified on 2026-10-21. Unchecked final-candidate gates
-must be completed against the version-bumped tree; historical 0.1.0.0/0.2.0.0 acceptance
-and completed implementation plans do not substitute for those checks.
+Every item below was verified on 2026-10-21. Final-candidate gates ran against the
+version-bumped tree; historical 0.1.0.0/0.2.0.0 acceptance and completed implementation
+plans do not substitute for those checks.
 
 ## Package scope and order
 
@@ -31,11 +31,11 @@ See the repository's [release workflow](../agents/skills/release/SKILL.md).
 
 | Completed plan | User guide | Public contract and migration | Release notes |
 | --- | --- | --- | --- |
-| [26: deployment contract](plans/26-export-a-deployment-configuration-contract-with-bindings-and-defaults.md) | [First deployment](guides/deployment-contract.md) | [ADR-12](adr/0012-deployment-contract-export-semantics.md), [CAP-14](capabilities/deployment-configuration-contract.md), [compatibility](compatibility.md#unreleased-deployment-contract) | [Core](../settei/CHANGELOG.md), [environment](../settei-env/CHANGELOG.md), [CLI](../settei-optparse-applicative/CHANGELOG.md) |
-| [27: supplied environment names](plans/27-validate-supplied-environment-variable-names-against-declared-bindings.md) | [Bindings and allowances](guides/environment-and-cli.md#validate-the-names-a-deployment-supplies) | [CAP-5](capabilities/explicit-environment-sources.md), [compatibility](compatibility.md#unreleased-supplied-name-validation) | [Environment](../settei-env/CHANGELOG.md) |
-| [28: preflight harness](plans/28-provide-a-reusable-deployment-preflight-harness-around-application-check-mode.md) | [Proposed-input checks](guides/deployment-preflight.md) | [ADR-13](adr/0013-deployment-preflight-harness-semantics.md), [CAP-15](capabilities/deployment-preflight-harness.md), [compatibility](compatibility.md#unreleased-deployment-preflight) | [Preflight](../settei-preflight/CHANGELOG.md) |
-| [29: application invariants](plans/29-integrate-application-validation-into-structured-configuration-diagnostics.md) | [Validation and dispatch](guides/cli-application.md#validate-cross-setting-invariants-after-resolution) | [ADR-14](adr/0014-application-invariant-validation.md), [CAP-16](capabilities/structured-application-validation.md), [compatibility](compatibility.md#unreleased-application-validation) | [Core](../settei/CHANGELOG.md), [CLI](../settei-optparse-applicative/CHANGELOG.md) |
-| [30: checked dispatch](plans/30-require-complete-diagnostic-dispatch-before-application-startup.md) | [Complete dispatch](guides/cli-application.md#add-diagnostics-that-match-user-intent) | [ADR-7](adr/0007-reference-applications-are-the-public-api-conformance-boundary.md), [ADR-14](adr/0014-application-invariant-validation.md), [compatibility](compatibility.md#unreleased-checked-diagnostic-dispatch), [upgrade blueprint](../blueprints/settei-upgrade/README.md) | [CLI adapter](../settei-optparse-applicative/CHANGELOG.md), [deployment example](../examples/settei-deployment/CHANGELOG.md) |
+| [26: deployment contract](plans/26-export-a-deployment-configuration-contract-with-bindings-and-defaults.md) | [First deployment](guides/deployment-contract.md) | [ADR-12](adr/0012-deployment-contract-export-semantics.md), [CAP-14](capabilities/deployment-configuration-contract.md), [compatibility](compatibility.md#0300-deployment-contract) | [Core](../settei/CHANGELOG.md), [environment](../settei-env/CHANGELOG.md), [CLI](../settei-optparse-applicative/CHANGELOG.md) |
+| [27: supplied environment names](plans/27-validate-supplied-environment-variable-names-against-declared-bindings.md) | [Bindings and allowances](guides/environment-and-cli.md#validate-the-names-a-deployment-supplies) | [CAP-5](capabilities/explicit-environment-sources.md), [compatibility](compatibility.md#0300-supplied-name-validation) | [Environment](../settei-env/CHANGELOG.md) |
+| [28: preflight harness](plans/28-provide-a-reusable-deployment-preflight-harness-around-application-check-mode.md) | [Proposed-input checks](guides/deployment-preflight.md) | [ADR-13](adr/0013-deployment-preflight-harness-semantics.md), [CAP-15](capabilities/deployment-preflight-harness.md), [compatibility](compatibility.md#0300-deployment-preflight) | [Preflight](../settei-preflight/CHANGELOG.md) |
+| [29: application invariants](plans/29-integrate-application-validation-into-structured-configuration-diagnostics.md) | [Validation and dispatch](guides/cli-application.md#validate-cross-setting-invariants-after-resolution) | [ADR-14](adr/0014-application-invariant-validation.md), [CAP-16](capabilities/structured-application-validation.md), [compatibility](compatibility.md#0300-application-validation) | [Core](../settei/CHANGELOG.md), [CLI](../settei-optparse-applicative/CHANGELOG.md) |
+| [30: checked dispatch](plans/30-require-complete-diagnostic-dispatch-before-application-startup.md) | [Complete dispatch](guides/cli-application.md#add-diagnostics-that-match-user-intent) | [ADR-7](adr/0007-reference-applications-are-the-public-api-conformance-boundary.md), [ADR-14](adr/0014-application-invariant-validation.md), [compatibility](compatibility.md#0300-checked-diagnostic-dispatch), [upgrade blueprint](../blueprints/settei-upgrade/README.md) | [CLI adapter](../settei-optparse-applicative/CHANGELOG.md), [deployment example](../examples/settei-deployment/CHANGELOG.md) |
 
 - [x] Root README, guide navigation, package READMEs, security guidance, and compatibility
   notes distinguish the released 0.2.0.0 API from the upcoming features.
@@ -67,29 +67,34 @@ See the repository's [release workflow](../agents/skills/release/SKILL.md).
 
 ## Final-candidate metadata and packaging
 
-- [ ] Seihou upgrade blueprint: decide whether this release window needs an edge and
+- [x] Seihou upgrade blueprint: decide whether this release window needs an edge and
   record the decision either way. For a breaking release append the edge, bump
   `blueprints/settei-upgrade/blueprint.dhall` and `seihou-registry.dhall` versions,
   update the blueprint README edge table, pass `seihou validate-blueprint
   blueprints/settei-upgrade --lint`, and retain a debug preview transcript showing
   exactly the intended steps. The 0.3.0.0 edge is 0.2.0.0 to 0.3.0.0.
   Verify the blueprint commit is on the pushed remote before tagging.
+  Decision: 0.3.0.0 needs the 0.2.0.0 to 0.3.0.0 edge. Blueprint version `0.1.0` was
+  introduced in this unreleased window already carrying that edge, so it stays `0.1.0`
+  in both files. Lint passes; the debug preview shows exactly one step,
+  `[1/1] settei-upgrade 0.2.0.0 -> 0.3.0.0`, mounting `checked-dispatch.md`.
 
-- [ ] All nine public versions, internal example versions, and every exact family pin
+- [x] All nine public versions, internal example versions, and every exact family pin
   move together to `0.3.0.0`.
-- [ ] Every public changelog has a dated `0.3.0.0` entry; move existing Unreleased notes
+- [x] Every public changelog has a dated `0.3.0.0` entry; move existing Unreleased notes
   and record lockstep-only changes for otherwise unchanged adapters.
-- [ ] README and compatibility release status match the final artifact versions and
+- [x] README and compatibility release status match the final artifact versions and
   distinguish final acceptance from implementation evidence.
-- [ ] Synopsis, description, homepage, bug tracker, BSD-3-Clause license, maintainer,
+- [x] Synopsis, description, homepage, bug tracker, BSD-3-Clause license, maintainer,
   source repository, and `tested-with` metadata pass `cabal check` in all nine packages.
-- [ ] Exposed modules match the compatibility matrix; no `Settei.Internal` or
+- [x] Exposed modules match the compatibility matrix; no `Settei.Internal` or
   `Settei.Preflight.Internal` module is exposed. `Settei.Prelude` remains family-internal.
-- [ ] Every public source distribution includes its license, changelog, and required
+- [x] Every public source distribution includes its license, changelog, and required
   fixtures/goldens; preflight includes its executable and request/report goldens.
-- [ ] Recheck current Hackage releases and upstream tags before changing dependency
+- [x] Recheck current Hackage releases and upstream tags before changing dependency
   bounds, pins, or compatibility workarounds; inspect dependency APIs through Mori.
-- [ ] Mori registration reflects the final package inventory and current documentation.
+  No third-party bound, pin, or workaround changes in the release commit.
+- [x] Mori registration reflects the final package inventory and current documentation.
 
 ## Checked dispatch implementation evidence — 2026-10-21
 
@@ -104,16 +109,19 @@ version-bumped final-candidate gates below.
 Run from the repository root unless a package directory is specified. Record results
 and platform against the final release commit.
 
-- [ ] `nix fmt`
-- [ ] `nix develop -c cabal build all`
-- [ ] `nix develop -c cabal test all --test-show-details=direct`
-- [ ] `nix develop -c cabal haddock all`
-- [ ] `nix develop -c cabal sdist all`
-- [ ] `nix develop -c cabal check` in each of the nine public package directories.
-- [ ] Unpack all nine public sdists into a fresh temporary workspace and build and test
+Final acceptance on 2026-10-21: GHC 9.12.4 / Cabal 3.16.1.0, `aarch64-darwin`.
+
+- [x] `nix fmt`
+- [x] `nix develop -c cabal build all`
+- [x] `nix develop -c cabal test all --test-show-details=direct`: 570 tests in 14 suites.
+- [x] `nix develop -c cabal haddock all`
+- [x] `nix develop -c cabal sdist all`
+- [x] `nix develop -c cabal check` in each of the nine public package directories.
+- [x] Unpack all nine public sdists into a fresh temporary workspace and build and test
   them using only those unpacked public sources, without original checkout paths or
   internal examples. Then check every package's own fixtures/goldens are present.
-- [ ] Run all four documentation validators and graphs:
+  455 tests in 10 suites pass; every tracked package file is in its tarball.
+- [x] Run all four documentation validators and graphs:
 
 ```bash
 okf validate docs/adr --strict --profile docs/adr/profile.dhall --profile-enforce --log-enforce
@@ -126,19 +134,23 @@ okf validate docs/improvement-requests --strict --profile docs/improvement-reque
 okf graph docs/improvement-requests --json
 ```
 
-- [ ] Re-run the standalone Aeson 2.3 preflight solver/golden check documented in
+- [x] Re-run the standalone Aeson 2.3 preflight solver/golden check documented in
   [plan 28](plans/28-provide-a-reusable-deployment-preflight-harness-around-application-check-mode.md#concrete-steps)
-  without widening Dhall's bounds.
-- [ ] Smoke static describe/contract modes with missing runtime files, supplied-name
+  without widening Dhall's bounds. 89 preflight tests pass on `aeson-2.3.2.0`; the
+  workspace plan keeps `aeson-2.2.5.1`. The same suite passes on nixpkgs'
+  `aeson-2.2.4.1`, so the release widens preflight's lower bound to `>=2.2.4.1`.
+- [x] Smoke static describe/contract modes with missing runtime files, supplied-name
   rejection before loading, both deployment roles, invariant text/JSON rejection,
   and preflight pass/inconclusive/rejection outcomes with fake credentials.
-- [ ] Confirm secret sentinels are absent from text/JSON reports, stdout/stderr, and
+- [x] Confirm secret sentinels are absent from text/JSON reports, stdout/stderr, and
   goldens; Kubernetes Secret fixtures contain placeholders only.
-- [ ] Render every overlay under `examples/settei-service/deploy/` with
+- [x] Render every overlay under `examples/settei-service/deploy/` with
   `kubectl kustomize` or `kustomize build` and run its mounted-fixture check-mode smoke.
-- [ ] `nix flake check` and builds of the public/example Nix outputs, including preflight
+- [x] `nix flake check` and builds of the public/example Nix outputs, including preflight
   and the deployment example. Record supported-platform limits explicitly.
-- [ ] `git diff --check`
+  All 13 package outputs build on `aarch64-darwin`; other flake-exposed systems are
+  not evaluated or release-validated.
+- [x] `git diff --check`
 
 ## Publication
 

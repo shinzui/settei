@@ -1,5 +1,13 @@
 # Changelog for settei-kdl
 
+## 0.3.0.0 — 2026-10-21
+
+### Other Changes
+
+- Released in lockstep with the shared 0.3.0.0 Settei family; exact `settei` family
+  pins move to `==0.3.0.0`. No API or behavior change in this package.
+- Normalize the Cabal file with the configured formatter.
+
 ## 0.2.0.0 — 2026-07-19
 
 - Add `renderKdlErrorText` and `renderKdlErrorsText` for stable, operator-readable,

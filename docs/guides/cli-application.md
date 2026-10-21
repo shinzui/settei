@@ -287,7 +287,7 @@ successful `--check-config` that silently drops warnings is usually less useful 
 
 ## Validate cross-setting invariants after resolution
 
-The next shared 0.3.0.0 release adds `Settei.Validate`. Declare pure rules next to the
+The shared 0.3.0.0 release adds `Settei.Validate`. Declare pure rules next to the
 configuration. Each rule has a stable identifier, declared keys, a fixed expectation,
 and a function over the typed value. For a declaration with pool, concurrency, account,
 and credential fields:

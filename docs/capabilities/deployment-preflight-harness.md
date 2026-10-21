@@ -38,7 +38,7 @@ unavailable, and unenumerated inputs prevent complete coverage. The strict reque
 format carries real secrets by environment/file reference. The executable supports text
 or version 1 JSON reports and gate exit codes.
 
-Implemented for the next shared 0.3.0.0 release; absent from released 0.2.0.0.
+Added in the shared 0.3.0.0 release; absent from 0.2.0.0.
 See the [guide](../guides/deployment-preflight.md) and
 [ADR-13](../adr/0013-deployment-preflight-harness-semantics.md).
 

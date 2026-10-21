@@ -198,7 +198,7 @@ one binding.
 
 ## Validate the names a deployment supplies
 
-This opt-in API targets the next shared 0.3.0.0 release; it is absent from 0.2.0.0.
+This opt-in API was added in the shared 0.3.0.0 release; it is absent from 0.2.0.0.
 
 The ordinary environment source ignores unbound names, so a deployment typo can leave a
 default active while `--check-config` succeeds. Compare exactly the names your container

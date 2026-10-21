@@ -50,7 +50,7 @@ errorsText = either renderErrorsText (const "") (result ^. #answer)
 The public `ReportedValue` interface can render its safe display form but cannot recover
 an underlying secret.
 
-The next shared 0.3.0.0 release adds `invariant` errors with stable rules, keys,
+The shared 0.3.0.0 release adds `invariant` errors with stable rules, keys,
 expectations, and optional public details. `renderValidationText` lists each rule's
 outcome; `renderValidatedResolutionJson` adds optional `invariants` to version-1
 resolution JSON. Bare resolution rendering remains unchanged. See

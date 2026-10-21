@@ -4,8 +4,8 @@
 configuration libraries for Haskell. It owns the inspectable declaration language,
 hierarchical resolution semantics, provenance model, derived defaults, and secret-safe
 text and JSON reports. It also exports source-free deployment contracts (`Settei.Contract`)
-and pure post-resolution application validation (`Settei.Validate`). These additions target
-the unreleased shared 0.3.0.0 version; workspace manifests retain 0.2.0.0 until release.
+and pure post-resolution application validation (`Settei.Validate`). Both were added
+in the shared 0.3.0.0 release.
 
 Use `deploymentContract` to inspect input bindings, safe defaults, and explicit profile
 requirements. Use `validators` to check rule declarations once, then `validate` to retain

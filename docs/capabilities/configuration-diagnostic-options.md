@@ -34,8 +34,8 @@ evidence:
 
 The 0.2.0.0 command-line surface adds a standard `DiagnosticMode` for
 `--describe-config`, `--describe-config-json`, `--check-config`,
-`--explain-config`, and `--explain-config-json`. The next 0.3.0.0 release also adds
-`--deployment-contract` and `--deployment-contract-json`. The unreleased checked API
+`--explain-config`, and `--explain-config-json`. The 0.3.0.0 release also adds
+`--deployment-contract` and `--deployment-contract-json`. The 0.3.0.0 checked API
 uses `prepareDiagnostic mode schema contractSupport` before all input acquisition.
 It renders schema or [deployment contract (CAP-14)](deployment-configuration-contract.md)
 output, rejects unavailable contract support, or returns a private runtime-only token.

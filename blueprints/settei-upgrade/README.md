@@ -2,7 +2,7 @@
 
 Version: `0.1.0`. Agent-guided Settei source migration, one edge per release window
 requiring judgement. This blueprint applies no baseline modules and entails no other
-blueprints. The first edge targets the upcoming shared 0.3.0.0 release.
+blueprints. The first edge covers the shared 0.3.0.0 release.
 
 ## For consumers
 

@@ -1,16 +1,16 @@
 # Compatibility matrix
 
-This matrix describes the working tree for the unreleased shared 0.3.0.0 release,
-including the deployment features and checked diagnostic dispatch implemented on 2026-10-21. The workspace still
-uses version 0.2.0.0 until the coordinated bump; that released version does not include
+This matrix describes the shared 0.3.0.0 release, including the deployment features
+and checked diagnostic dispatch. The earlier 0.2.0.0 release does not include
 `Settei.Contract`, `Settei.Validate`, supplied-name validation, or `settei-preflight`.
 
 The 2026-10-21 documentation audit re-ran all 561 tests in 14 suites on the toolchain
 below. Dependency versions come from that Cabal solver plan; declared bounds describe
 the intended solver range, not a claim that every point in a range has been tested.
 Plan 30 subsequently revalidated 570 tests across the same 14 suites, adding checked
-dispatch and startup regressions. See the [release checklist](release-checklist.md)
-for remaining final-candidate gates.
+dispatch and startup regressions. Final 0.3.0.0 acceptance re-ran the same suites on
+the version-bumped tree, including from the unpacked public source distributions; see the
+[release checklist](release-checklist.md).
 
 
 ## Toolchain
@@ -46,7 +46,7 @@ The host's unrelated GHC 9.10 installation cannot satisfy `base >=4.21`; use
 | Freshness timestamps | `time-1.14` | Kubernetes adapter: `>=1.14 && <1.17` |
 | Preflight subprocesses | `process-1.6.26.1` | `>=1.6.19 && <1.7`; Linux/macOS SIGTERM and pipe semantics |
 | Preflight private directories | `temporary-1.3` | `>=1.3 && <1.4`; explicit cleanup verification in addition to bracket fallback |
-| Preflight tooling JSON | `aeson-2.2.5.1`, `aeson-2.3.2.0` | `>=2.2.5.1 && <2.4`; separate solver tests preserve other adapters' bounds |
+| Preflight tooling JSON | `aeson-2.2.4.1`, `aeson-2.2.5.1`, `aeson-2.3.2.0` | `>=2.2.4.1 && <2.4`; 2.2.4.1 is the locked nixpkgs version; separate solver tests preserve other adapters' bounds |
 | Test framework | `tasty-1.5.5` | `>=1.5 && <1.6` |
 
 Nix overrides Dhall and dhall-json to the pinned optparse-applicative 0.19 derivation so
@@ -70,7 +70,7 @@ affected package artifacts without mixing those test closures.
 
 ## Public modules
 
-The supported adoption surface for the next release is:
+The supported adoption surface for 0.3.0.0 is:
 
 - Core umbrella: `Settei`.
 - Core focused modules: `Settei.Config`, `Settei.Contract`, `Settei.Default`, `Settei.Error`, `Settei.Key`,
@@ -82,7 +82,7 @@ The supported adoption surface for the next release is:
 - `settei-kubernetes` adapter: `Settei.Kubernetes` and
   `Settei.Kubernetes.Bindings`.
 
-The unreleased preflight package exposes `Settei.Preflight` and `Settei.Preflight.Request`.
+The preflight package, new in 0.3.0.0, exposes `Settei.Preflight` and `Settei.Preflight.Request`.
 Its `Settei.Preflight.Internal` module is private.
 
 Modules beneath `Settei.Internal` and all packages beneath `examples/` are not public API.
@@ -91,7 +91,7 @@ documented modules and their release notes.
 
 ### Versioning policy
 
-The next shared release, 0.3.0.0, adds `InvariantError` to `ConfigError`, requiring
+Release 0.3.0.0 adds `InvariantError` to `ConfigError`, requiring
 adopters to update exhaustive matches. `Settei.Validate`, validation report types, and
 `validatedDiagnostic` add a post-resolution boundary; the existing `resolve` API stays
 unchanged. Version-1 error JSON gains kind `invariant`; the validated resolution renderer
@@ -114,9 +114,9 @@ announced with a `DEPRECATED` pragma and a changelog entry at least one major re
 before removal.
 
 
-## Unreleased deployment contract
+## 0.3.0.0 deployment contract
 
-The next shared release targets 0.3.0.0. Core adds `Settei.Contract`,
+Core adds `Settei.Contract`,
 `renderContractText`, and `renderContractJson`; environment bindings gain an
 `inputBindings` conversion. `DiagnosticMode` gains `DeploymentContractText` and
 `DeploymentContractJson`, a major PVP change for exhaustive pattern matches.
@@ -129,7 +129,7 @@ separate version 1 document, reusing setting metadata and origin encodings. Exis
 bounds or pins change for this feature.
 
 
-## Unreleased supplied-name validation
+## 0.3.0.0 supplied-name validation
 
 `Settei.Env` adds `acceptedNames`, external-consumer `allowance` declarations,
 `checkSuppliedNames`, `snapshotNames`, `checkedEnvSource`, and
@@ -139,7 +139,7 @@ are not errors; other sources and defaults can supply them. Validate ordered dep
 entries before translating them into a snapshot or extracting effective names if you need
 to catch duplicates. See the [environment guide](guides/environment-and-cli.md#validate-the-names-a-deployment-supplies).
 
-## Unreleased application validation
+## 0.3.0.0 application validation
 
 `Settei.Validate` adds checked pure rule collections and `validate`, preserving the
 resolved report and warnings. `Settei.Report` adds the invariant outcome trace;
@@ -159,11 +159,10 @@ stderr and exits 4. Successful JSON explanation emits one resolution document to
 Validator metadata and public details are author-supplied text, with the
 [security obligations](security.md#application-validators) described separately.
 
-## Unreleased deployment preflight
+## 0.3.0.0 deployment preflight
 
-`settei-preflight` joins the family for the next shared 0.3.0.0 release; it is not in
-the released 0.2.0.0 package set. Its Cabal manifest uses the current workspace family
-version until the coordinated release bump. Reports expose sanitized fields through
+`settei-preflight` joins the family in the shared 0.3.0.0 release; it was not in the
+0.2.0.0 package set. Reports expose sanitized fields through
 read-only accessors and carry no public lens types. Request and input types deliberately
 lack Show. Execution targets are Linux and macOS; acceptance was run on aarch64-darwin.
 
@@ -174,12 +173,12 @@ order and byte-identical goldens; existing core schema/resolution documents are 
 The standalone Aeson 2.3 suite excludes the Dhall adapter rather than widening its bounds.
 
 
-## Unreleased checked diagnostic dispatch
+## 0.3.0.0 checked diagnostic dispatch
 
 The shared 0.3.0.0 release requires source migration for both runtime helpers:
 `resolutionDiagnostic :: RuntimeDiagnosticMode -> ResolveResult a -> DiagnosticDecision a`
 and `validatedDiagnostic :: RuntimeDiagnosticMode -> ValidatedResult a -> DiagnosticDecision a`.
-The unreleased `ValidatedDiagnostic` is renamed `DiagnosticDecision`, retaining
+The never-released `ValidatedDiagnostic` name is now `DiagnosticDecision`, retaining
 `DiagnosticFailure`, `DiagnosticOutput`, and `DiagnosticContinue`. Decisions still have
 no `Show` or `Eq`. `RuntimeDiagnosticMode` is abstract, with no `Generic` or `Read`.
 

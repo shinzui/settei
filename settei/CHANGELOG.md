@@ -1,24 +1,32 @@
 # Changelog for settei
 
-## Unreleased
+## 0.3.0.0 — 2026-10-21
 
-- Breaking (next shared PVP major 0.3.0.0): add `InvariantError` to `ConfigError`;
-  update exhaustive matches. Family versions and exact pins change together at release.
+### Breaking Changes
+
+- Add `InvariantError` to `ConfigError`; update exhaustive matches. Version-1 error JSON
+  gains kind `invariant`. Use the `settei-upgrade` Seihou blueprint to migrate from
+  0.2.0.0 (`seihou agent migrate settei-upgrade`).
+
+### New Features
+
 - Add `Settei.Validate`: checked opaque rule collections, ordered accumulation,
   prerequisite skipping, role composition, and `ValidatedResult` preserving provenance.
   Validator metadata must be safe to publish; details are not automatically sanitised.
 - Add validation report types, `renderValidationText`, and
-  `renderValidatedResolutionJson`. Version-1 errors gain kind `invariant`; validated
-  resolution JSON gains an `invariants` array (empty when no rules are declared).
-  Existing bare report output is unchanged.
-
+  `renderValidatedResolutionJson`. Validated resolution JSON gains an `invariants` array
+  (empty when no rules are declared). Existing bare report output is unchanged.
 - Add public `Settei.Contract` and re-export it from `Settei`: adapter-neutral input
   bindings, explicit default sources, deployment profiles, occurrence-aware input
   verdicts, and safe default availability/provenance metadata.
 - Add `renderContractText` and version 1 `settei.contract` JSON via `renderContractJson`.
   Existing schema and resolution JSON are unchanged. Derived/case computations remain
   deferred; secret defaults are redacted before storage.
+
+### Other Changes
+
 - Share cycle preflight through an internal module; resolver behavior is unchanged.
+- All family packages move to 0.3.0.0 with exact intra-family pins.
 
 ## 0.2.0.0 — 2026-07-19
 

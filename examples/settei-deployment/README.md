@@ -67,7 +67,7 @@ controls prove it is reached.
 
 ## Rejection lines changed
 
-The next shared 0.3.0.0 release moves the existing checks to role-specific `Validators`.
+The shared 0.3.0.0 release moves the existing checks to role-specific `Validators`.
 Valid inputs, typed values, and rejection exit 4 are unchanged. The old worker line was:
 
 ```text

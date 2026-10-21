@@ -22,8 +22,8 @@ application guide that match your program:
 | Guide | Use it when |
 | --- | --- |
 | [Getting started](getting-started.md) | You are adding Settei to an application or learning its core types. |
-| [Validate cross-setting invariants](cli-application.md#validate-cross-setting-invariants-after-resolution) | You need shared application rules for startup, check, and explain modes (unreleased 0.3.0.0). |
-| [Validate supplied environment names](environment-and-cli.md#validate-the-names-a-deployment-supplies) | You need to detect unsupported or repeated deployment names against bindings and allowances (unreleased 0.3.0.0). |
+| [Validate cross-setting invariants](cli-application.md#validate-cross-setting-invariants-after-resolution) | You need shared application rules for startup, check, and explain modes (new in 0.3.0.0). |
+| [Validate supplied environment names](environment-and-cli.md#validate-the-names-a-deployment-supplies) | You need to detect unsupported or repeated deployment names against bindings and allowances (new in 0.3.0.0). |
 | [Environment and command-line configuration](environment-and-cli.md) | You need explicit environment bindings, `--set` overrides, or configuration diagnostics. |
 | [YAML configuration](yaml.md) | You want strict YAML files with line and column provenance. |
 | [KDL configuration](kdl.md) | You want KDL v2 files with exact source spans. |

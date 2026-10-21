@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0.0 — 2026-10-21
 
 - Prepare diagnostics before input acquisition and pass the checked token through
   validation. Start resources directly inside successful `DiagnosticContinue`; static

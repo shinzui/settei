@@ -53,8 +53,8 @@ collections. `describe` and deployment contracts stay source-free and unchanged.
 explanations. JSON errors carry kind `invariant`, rule, keys, expectation, and optional
 detail. The validated resolution renderer adds an optional ordered `invariants` trace
 to version 1. Bare report rendering is unchanged. JSON explain failures emit the error
-and resolution documents on separate stderr lines. The next shared release is 0.3.0.0;
-0.2.0.0 does not include this capability.
+and resolution documents on separate stderr lines. Added in the shared 0.3.0.0
+release; 0.2.0.0 does not include this capability.
 
 ## Limits
 

@@ -111,8 +111,8 @@ nix develop -c cabal run settei-example-deployment-worker -- --config examples/s
 Both exit 4, respectively:
 
 ```text
-server.webhookSecret: must be at least 16 characters
-workers.visibilityTimeoutSeconds: must be at least twice workers.concurrency
+server.webhookSecret: invariant server-webhook-secret-length failed: must be at least 16 characters
+workers.visibilityTimeoutSeconds, workers.concurrency: invariant worker-visibility-covers-concurrency failed: workers.visibilityTimeoutSeconds must be at least twice workers.concurrency
 ```
 
 Neither message echoes the rejected value. The worker also rejects the development
@@ -196,8 +196,8 @@ static discovery with application check mode and operational validation.
 The existing `settei.schema` and `settei.resolution` documents are unchanged. Consumers
 of `--describe-config-json` keep working. `settei.contract` is a separate version 1
 JSON document that reuses schema field names and resolution origin encoding.
-`DiagnosticMode` gains constructors, so exhaustive matches need updating in the next
-major PVP release. This feature is unreleased and targets the shared 0.3.0.0 version.
+`DiagnosticMode` gains constructors, so exhaustive matches need updating for the
+0.3.0.0 major PVP release. This feature was added in the shared 0.3.0.0 release.
 
 Secret defaults expose availability and origin metadata, with their values absent or
 redacted before storage in the contract. Keys, variable names, caller-supplied

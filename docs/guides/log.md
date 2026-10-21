@@ -1,6 +1,7 @@
 # Bundle Update Log
 
 ## 2026-10-21
+* **Update**: Release 0.3.0.0 marks contract, supplied-name, preflight, and invariant guides as shipped in 0.3.0.0; DOC-11 shows the actual invariant rejection text.
 * **Update**: DOC-2, DOC-4 and DOC-11 migrate diagnostic dispatch to exhaustive preparation and checked runtime decisions.
 * **Update**: Release documentation audit links all four deployment features, states their unreleased status, uses public record patterns, fixes CLI output dispatch, and demonstrates the Haskell preflight runner.
 * **Update**: Explain validator declarations, role migration, and diagnostic dispatch

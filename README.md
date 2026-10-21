@@ -9,12 +9,11 @@ to “where did this value come from?”
 
 ## Release status
 
-The working tree targets the next shared **0.3.0.0** release, following 0.2.0.0.
-It contains nine publishable packages and four internal example packages. Cabal versions
-and exact intra-family pins still read `0.2.0.0` until the coordinated release bump;
-the features below are unreleased.
+The current shared release is **0.3.0.0**, following 0.2.0.0. It contains nine
+publishable packages, all at 0.3.0.0 with exact intra-family pins, and four internal
+example packages that are not published.
 
-Five completed ExecPlans add a deployment workflow and checked startup boundary:
+Five completed ExecPlans add the 0.3.0.0 deployment workflow and checked startup boundary:
 
 | Feature | What it provides | Guide |
 | --- | --- | --- |
@@ -24,11 +23,11 @@ Five completed ExecPlans add a deployment workflow and checked startup boundary:
 | [Application validation (plan 29)](docs/plans/29-integrate-application-validation-into-structured-configuration-diagnostics.md) | Apply pure cross-setting rules to one resolved value for startup, check, and explanation modes. | [Declare invariants](docs/guides/cli-application.md#validate-cross-setting-invariants-after-resolution) |
 | [Checked dispatch (plan 30)](docs/plans/30-require-complete-diagnostic-dispatch-before-application-startup.md) | Complete diagnostics before runtime inputs; start only on successful normal continuation. | [Migrate diagnostic dispatch](docs/guides/cli-application.md#add-diagnostics-that-match-user-intent) |
 
-The 2026-10-21 implementation acceptance records GHC 9.12.4 on `aarch64-darwin`,
-workspace build and tests, formatting, the four documentation bundle validations, and
-`nix flake check`. See the [release checklist](docs/release-checklist.md) for current
-verification and the remaining release gates; earlier source-distribution acceptance
-does not validate these new packages and APIs.
+Final 0.3.0.0 release acceptance on 2026-10-21 used GHC 9.12.4 on `aarch64-darwin`:
+workspace build, tests, and Haddocks, per-package `cabal check`, an isolated build and
+test of the nine unpacked source distributions, the four documentation bundle
+validations, executable smoke checks, and `nix flake check`. Other systems remain
+unvalidated. See the [release checklist](docs/release-checklist.md) for the evidence.
 
 Version 0.3.0.0 requires updates to exhaustive matches on `ConfigError` and
 `DiagnosticMode`. Existing bare schema and resolution JSON remain unchanged; validated
@@ -36,9 +35,9 @@ explanations can include an invariant trace. The family remains experimental. Se
 [compatibility and migration notes](docs/compatibility.md) for the supported modules,
 JSON contracts, toolchain, and dependency bounds.
 
-The upcoming shared 0.3.0.0 API requires `prepareDiagnostic` before input acquisition;
+The 0.3.0.0 API requires `prepareDiagnostic` before input acquisition;
 only a successful `DiagnosticContinue` permits application startup. See the
-[checked dispatch migration](docs/compatibility.md#unreleased-checked-diagnostic-dispatch).
+[checked dispatch migration](docs/compatibility.md#0300-checked-diagnostic-dispatch).
 After updating dependencies together and resolving the build plan, upgrade source with:
 
 ```bash
@@ -54,7 +53,7 @@ The [blueprint](blueprints/settei-upgrade/README.md) ships the complete 0.3.0.0 
 | Package | Role |
 | --- | --- |
 | [`settei`](settei/) | Declaration algebra, hierarchical resolver, provenance, defaults, schemas, application invariants, errors, and report rendering. |
-| [`settei-preflight`](settei-preflight/) | Isolated application checks on proposed inputs, strict request documents, redaction, and honest gate verdicts (unreleased). |
+| [`settei-preflight`](settei-preflight/) | Isolated application checks on proposed inputs, strict request documents, redaction, and honest gate verdicts (new in 0.3.0.0). |
 | [`settei-env`](settei-env/) | Explicit environment-variable bindings, injectable snapshots, and opt-in supplied-name validation. |
 | [`settei-optparse-applicative`](settei-optparse-applicative/) | Ordered generic and named CLI overrides for optparse-applicative. |
 | [`settei-formats`](settei-formats/) | Tagged `FORMAT:PATH` inputs and shared YAML, KDL, and Dhall loading. |

@@ -24,12 +24,12 @@ independently:
 | [CAP-11](tagged-multi-format-loading.md) | Tagged YAML, KDL, and Dhall loading | settei-formats | 0.2.0.0 |
 | [CAP-12](kubernetes-mounted-directory-sources.md) | Kubernetes mounted-directory sources | settei-kubernetes | 0.2.0.0 |
 | [CAP-13](kubernetes-environment-bindings.md) | Kubernetes-derived environment bindings | settei-kubernetes, settei-env | 0.2.0.0 |
-| [CAP-14](deployment-configuration-contract.md) | Deployment configuration contract | settei, settei-env, settei-optparse-applicative | 0.3.0.0 (unreleased) |
-| [CAP-15](deployment-preflight-harness.md) | Deployment preflight harness | settei-preflight | 0.3.0.0 (unreleased) |
-| [CAP-16](structured-application-validation.md) | Structured application validation | settei, settei-optparse-applicative | 0.3.0.0 (unreleased) |
+| [CAP-14](deployment-configuration-contract.md) | Deployment configuration contract | settei, settei-env, settei-optparse-applicative | 0.3.0.0 |
+| [CAP-15](deployment-preflight-harness.md) | Deployment preflight harness | settei-preflight | 0.3.0.0 |
+| [CAP-16](structured-application-validation.md) | Structured application validation | settei, settei-optparse-applicative | 0.3.0.0 |
 
 Every record is `status: shipped` and `stability: experimental`. The package family is
-released and usable at 0.2.0.0; CAP-14, CAP-15, and CAP-16 are implemented for the next 0.3.0.0 release. The
+released and usable at 0.3.0.0; CAP-14, CAP-15, and CAP-16 were added in 0.3.0.0. The
 compatibility policy explicitly makes no semantic-stability promise beyond the documented modules and release notes.
 
 ## Deliberately excluded

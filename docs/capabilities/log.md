@@ -1,6 +1,7 @@
 # Capability catalog log
 
 ## 2026-10-21
+* **Update**: Release 0.3.0.0 marks CAP-14, CAP-15, and CAP-16 as shipped and updates CAP-3 and CAP-7 release wording.
 * **Update**: CAP-7, CAP-14 and CAP-16 record implemented checked preparation, explicit unavailable support and startup-only-on-continue.
 * **Update**: Document structured application validation and diagnostic integration
 * **Update**: CAP-5 records supplied-name validation with allowances and its evidence.
