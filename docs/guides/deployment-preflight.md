@@ -22,6 +22,47 @@ harness exercises the actual configuration path.
 interface for deployment tooling; `settei-preflight --request PATH [--json]` runs it.
 This capability targets the next shared 0.3.0.0 release and is absent from released 0.2.0.0.
 
+## Use the Haskell runner
+
+Add `settei-preflight`, `settei`, `settei-env`, and `text` to your application's
+`build-depends`. A Haskell caller can assemble the same proposal directly. For the
+reference server's production check:
+
+```haskell
+{-# LANGUAGE OverloadedStrings #-}
+
+import Data.Text (Text)
+import Settei (Sensitivity (Public, Secret))
+import Settei.Env (EnvName (..))
+import Settei.Preflight
+
+checkDeployment :: FilePath -> Text -> Text -> Text -> IO PreflightReport
+checkDeployment executablePath databaseUrl webhookSecret emailCredentials =
+  runPreflight defaultPreflightOptions
+    (RoleLabel "server")
+    (CheckCommand executablePath [literalArgument "--check-config"])
+    ( emptyProposedInputs
+        { environment =
+            [ (EnvName "ENVIRONMENT", SuppliedValue Public "production"),
+              (EnvName "DATABASE_URL", SuppliedValue Secret databaseUrl),
+              (EnvName "WEBHOOK_SECRET", SuppliedValue Secret webhookSecret),
+              (EnvName "EMAIL_CREDENTIALS_JSON", SuppliedValue Secret emailCredentials)
+            ]
+        }
+    )
+```
+
+Obtain secrets through your application's existing secure input path and pass them as
+values; never place them in command arguments or log the proposal. Only
+`preflightVerdict report == Pass` passes a gate. Inspect `preflightCoverage` and
+`preflightOutcome`, or render the sanitized report with `renderPreflightReportText` or
+`renderPreflightReportJson`. Supplied fake credentials can exercise configuration
+acceptance in tests, but even a complete pass establishes no provider authentication.
+
+Use `ProposedFile` with `fileArgument` or composed `ArgumentPart` references when the
+application reads files. The JSON interface below represents the same channels and
+adds harness-side secret-reference resolution for deployment tools.
+
 ## Describe proposed inputs
 
 A request names a role, host executable, check arguments, and every proposed environment
@@ -245,8 +286,9 @@ instrumented to fail if entered. Check mode prints exactly `configuration valid`
 skips startup; non-check controls trigger the action. These are configuration-only checks,
 without cluster, database, or provider access. They do not prove connectivity, credentials,
 deployed image identity, or readiness. A renamed unbound variable such as `HASKELL_ENV`
-can also remain invisible; supplied-name validation from plan 27 is the complementary
-check, not a feature the harness automatically invokes.
+can also remain invisible. Run [supplied-name validation](environment-and-cli.md#validate-the-names-a-deployment-supplies)
+on the ordered deployment entries before extraction collapses duplicate names; the
+harness does not invoke that check automatically.
 
 After provisioning, use the [init-container check gate](kubernetes-cookbook.md#6-gate-rollouts-with---check-config)
 with actual mounted files and secrets. Then use live authentication, connectivity, image

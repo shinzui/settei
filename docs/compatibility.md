@@ -1,8 +1,14 @@
 # Compatibility matrix
 
-This matrix records the workspace actually validated for Settei 0.2.0.0 on 2026-07-20.
-Dependency bounds describe the intended solver range; they do not claim that every point
-in a range has been tested.
+This matrix describes the working tree for the unreleased shared 0.3.0.0 release,
+including all four deployment features implemented on 2026-10-21. The workspace still
+uses version 0.2.0.0 until the coordinated bump; that released version does not include
+`Settei.Contract`, `Settei.Validate`, supplied-name validation, or `settei-preflight`.
+
+The 2026-10-21 documentation audit re-ran all 561 tests in 14 suites on the toolchain
+below. Dependency versions come from that Cabal solver plan; declared bounds describe
+the intended solver range, not a claim that every point in a range has been tested.
+See the [release checklist](release-checklist.md) for remaining final-candidate gates.
 
 
 ## Toolchain
@@ -12,8 +18,8 @@ in a range has been tested.
 | GHC | 9.12.4 | Packages use `GHC2024` and require `base >=4.21`. |
 | `base` | 4.21.2.0 | Supplied by GHC 9.12.4. |
 | Cabal CLI | 3.16.1.0 | Used for workspace build, tests, Haddocks, checks, and source distributions. |
-| Cabal library in GHC package set | 3.14.2.0 | Used by the Nix package builder. |
-| Nix | 2.33.3 | Flake inputs are pinned by `flake.lock`. |
+| Cabal library in solver plan | 3.16.1.0 | Recorded by the workspace Cabal build. |
+| Nix | 2.35.2 (Determinate Nix 3.23.0) | Flake inputs are pinned by `flake.lock`. |
 | Validation system | `aarch64-darwin` | Other flake-exposed systems are not yet release-validated. |
 
 The host's unrelated GHC 9.10 installation cannot satisfy `base >=4.21`; use
@@ -30,16 +36,16 @@ The host's unrelated GHC 9.10 installation cannot satisfy `base >=4.21`; use
 | KDL parsing | `kdl-hs-1.1.1` | `>=1.1.1 && <1.2` |
 | Dhall evaluation | `dhall-1.42.3` | `>=1.42.3 && <1.43` |
 | Dhall JSON conversion | `dhall-json-1.7.12` | `==1.7.12` plus the documented Hackage-revision compatibility allowances in `cabal.project` |
-| JSON values/reports | `aeson-2.2.5.0` | Dhall adapter: `>=2.2 && <2.3` |
-| Exact numeric conversion | `scientific-0.3.8.1` | YAML, KDL, and Dhall adapters: `>=0.3.7 && <0.4` |
-| Dhall parse positions | `megaparsec-9.8.1` | Dhall adapter: `>=9 && <10` |
+| JSON values/reports | `aeson-2.2.5.1` | Dhall adapter: `>=2.2 && <2.3` |
+| Exact numeric conversion | `scientific-0.3.9.0` | YAML, KDL, and Dhall adapters: `>=0.3.7 && <0.4` |
+| Dhall parse positions | `megaparsec-9.8.3` | Dhall adapter: `>=9 && <10` |
 | Mounted-directory traversal | `directory-1.3.10.1` | Kubernetes adapter: `>=1.3.8 && <1.4` |
 | Mounted path handling | `filepath-1.5.5.0` | Kubernetes adapter: `>=1.5.4 && <1.6` |
 | Freshness timestamps | `time-1.14` | Kubernetes adapter: `>=1.14 && <1.17` |
 | Preflight subprocesses | `process-1.6.26.1` | `>=1.6.19 && <1.7`; Linux/macOS SIGTERM and pipe semantics |
 | Preflight private directories | `temporary-1.3` | `>=1.3 && <1.4`; explicit cleanup verification in addition to bracket fallback |
 | Preflight tooling JSON | `aeson-2.2.5.1`, `aeson-2.3.2.0` | `>=2.2.5.1 && <2.4`; separate solver tests preserve other adapters' bounds |
-| Test framework | `tasty-1.5.4` | `>=1.5 && <1.6` |
+| Test framework | `tasty-1.5.5` | `>=1.5 && <1.6` |
 
 Nix overrides Dhall and dhall-json to the pinned optparse-applicative 0.19 derivation so
 reference applications have one CLI ABI. Cabal is the complete test authority because the
@@ -62,7 +68,7 @@ affected package artifacts without mixing those test closures.
 
 ## Public modules
 
-The supported adoption surface is:
+The supported adoption surface for the next release is:
 
 - Core umbrella: `Settei`.
 - Core focused modules: `Settei.Config`, `Settei.Contract`, `Settei.Default`, `Settei.Error`, `Settei.Key`,
@@ -78,7 +84,7 @@ The unreleased preflight package exposes `Settei.Preflight` and `Settei.Prefligh
 Its `Settei.Preflight.Internal` module is private.
 
 Modules beneath `Settei.Internal` and all packages beneath `examples/` are not public API.
-Version 0.2.0.0 is experimental and does not promise semantic stability beyond these
+The family is experimental and does not promise semantic stability beyond these
 documented modules and their release notes.
 
 ### Versioning policy
@@ -87,7 +93,7 @@ The next shared release, 0.3.0.0, adds `InvariantError` to `ConfigError`, requir
 adopters to update exhaustive matches. `Settei.Validate`, validation report types, and
 `validatedDiagnostic` add a post-resolution boundary; the existing `resolve` API stays
 unchanged. Version-1 error JSON gains kind `invariant`; the validated resolution renderer
-adds optional `invariants`, while bare resolution JSON remains byte-identical. The release
+adds an `invariants` array, while bare resolution JSON remains byte-identical. The release
 workflow updates all family versions and exact intra-family pins together.
 
 
@@ -99,8 +105,8 @@ import baseline, its re-exports track the `lens` package, and it may change in a
 release without a corresponding major version bump — do not import it from adopting
 code. Modules beneath `Settei.Internal` and all packages beneath `examples/` remain
 non-public. No lens type appears in any public signature (verified by the EP-20
-signature audit); adopting code never needs `lens` in its own build-depends. The family
-releases in lockstep from one repository, and adapter packages pin the core exactly
+signature audit); record patterns can read public result fields without adding `lens`
+to application dependencies. The family releases in lockstep from one repository, and adapter packages pin the core exactly
 (`settei ==X.Y.Z.W`); mixed-version family installs are unsupported. Deprecations are
 announced with a `DEPRECATED` pragma and a changelog entry at least one major release
 before removal.
@@ -119,6 +125,36 @@ separate version 1 document, reusing setting metadata and origin encodings. Exis
 `--describe-config-json` consumers require no migration. No third-party dependency
 bounds or pins change for this feature.
 
+
+## Unreleased supplied-name validation
+
+`Settei.Env` adds `acceptedNames`, external-consumer `allowance` declarations,
+`checkSuppliedNames`, `snapshotNames`, `checkedEnvSource`, and
+`checkedEnvironmentSource`, with text and version-1 `settei.supplied-names` JSON
+renderers. Existing environment source builders remain permissive. Missing bound names
+are not errors; other sources and defaults can supply them. Validate ordered deployment
+entries before translating them into a snapshot or extracting effective names if you need
+to catch duplicates. See the [environment guide](guides/environment-and-cli.md#validate-the-names-a-deployment-supplies).
+
+## Unreleased application validation
+
+`Settei.Validate` adds checked pure rule collections and `validate`, preserving the
+resolved report and warnings. `Settei.Report` adds the invariant outcome trace;
+`renderValidationText` and `renderValidatedResolutionJson` render it.
+`Settei.Optparse.validatedDiagnostic` consumes the validated answer for startup, check,
+and explain modes. Applications with validators must use it after validation so
+`--check-config` cannot report success early. Static describe/contract dispatch remains
+before input loading. See the [migration example](guides/cli-application.md#validate-cross-setting-invariants-after-resolution).
+
+Update exhaustive `ConfigError` matches for `InvariantError`, and JSON error consumers
+for kind `invariant`. Bare `renderResolutionJson` remains unchanged. The validated
+renderer always adds an `invariants` array, including `[]` for an empty collection.
+JSON explain rejection through `validatedDiagnostic` returns two newline-separated documents (`settei.errors`, then
+`settei.resolution`), including base resolution failures with rules `not-run`. The
+application owns stream routing and exit codes; the deployment example sends both to
+stderr and exits 4. Successful JSON explanation emits one resolution document to stdout.
+Validator metadata and public details are author-supplied text, with the
+[security obligations](security.md#application-validators) described separately.
 
 ## Unreleased deployment preflight
 

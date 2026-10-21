@@ -198,6 +198,8 @@ one binding.
 
 ## Validate the names a deployment supplies
 
+This opt-in API targets the next shared 0.3.0.0 release; it is absent from 0.2.0.0.
+
 The ordinary environment source ignores unbound names, so a deployment typo can leave a
 default active while `--check-config` succeeds. Compare exactly the names your container
 specification supplies with the application's bindings and explicit external consumers:
@@ -365,24 +367,22 @@ Compose custom diagnostic flags directly with `Options.flag'`; the reusable
 ## Resolve files, environment, and CLI overrides
 
 After the parser has run and file sources have been loaded, assemble one visibly ordered
-list. This example uses generic-lens field access; record pattern matching works as well.
+list. This example uses public record patterns without a lens dependency.
 
 ```haskell
-import Data.Generics.Labels ()
 import Data.Text qualified as Text
-import Settei.Prelude ((^.))
 
 resolveApplication
   :: [Source]
   -> Source
   -> SetteiOptions
   -> ResolveResult AppConfig
-resolveApplication fileSources environmentSource options =
+resolveApplication fileSources environmentSource SetteiOptions {overrides = optionOverrides} =
   resolve
     defaultResolveOptions
     ( fileSources
         <> [environmentSource]
-        <> cliSources "arguments" (options ^. #overrides)
+        <> cliSources "arguments" optionOverrides
     )
     appConfig
 ```
@@ -403,11 +403,11 @@ Select a report renderer from the total result:
 
 ```haskell
 renderRequestedExplanation :: SetteiOptions -> ResolveResult a -> Maybe Text
-renderRequestedExplanation options result =
-  resolutionDiagnostic (options ^. #diagnosticMode) result
+renderRequestedExplanation SetteiOptions {diagnosticMode = mode} result =
+  resolutionDiagnostic mode result
 ```
 
-Render errors from `result ^. #answer` with `renderErrorsText` or `renderErrorsJson`, and
+Render errors from the result's `answer` field with `renderErrorsText` or `renderErrorsJson`, and
 warnings with `renderWarningsText` or `renderWarningsJson`. The report and warnings remain
 available when the answer is an error. Send human-readable diagnostics to stderr; reserve
 stdout for requested machine-readable JSON on success or the application's normal output.

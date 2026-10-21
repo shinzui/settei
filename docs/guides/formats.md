@@ -83,7 +83,6 @@ import Settei
   )
 import Settei.Dhall qualified as Dhall
 import Settei.Formats
-import Settei.Prelude ((&))
 
 loadInputs
   :: LoadOptions
@@ -95,11 +94,10 @@ loadInputs options inputs = do
 
 mountedOptions :: FilePath -> LoadOptions
 mountedOptions allowedDhallDirectory =
-  defaultLoadOptions
-    & annotateLoadOptions (Map.singleton "deployment" "production")
-    & fromKubernetesMountedFile mountedReference
-    & withDhallImportPolicy
-        (Dhall.LocalImportsWithin allowedDhallDirectory)
+  withDhallImportPolicy (Dhall.LocalImportsWithin allowedDhallDirectory)
+    ( fromKubernetesMountedFile mountedReference
+        (annotateLoadOptions (Map.singleton "deployment" "production") defaultLoadOptions)
+    )
 
 mountedReference :: KubernetesRef
 mountedReference =
@@ -128,7 +126,6 @@ application needs local imports, opt in with
 directory explicitly.
 
 The [CLI application](cli-application.md) and
-[Kubernetes service](kubernetes-service.md) guides currently show the dispatch policy in
-full so each adapter call remains visible. The reference applications adopt this package
-and remove that duplicated code in
-[EP-21](../plans/21-extend-reusable-cli-options-and-complete-the-ergonomics-docs-sweep.md).
+[Kubernetes service](kubernetes-service.md) guides and reference applications use this
+shared loader. Applications can still use the individual adapters when they need a
+narrower input policy.

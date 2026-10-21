@@ -24,14 +24,13 @@ default-language: GHC2024
 
 build-depends:
   , containers
-  , generic-lens
   , settei
   , text
 ```
 
-The Haskell excerpts use GHC2024 plus `OverloadedStrings`; excerpts with generic record
-lenses also use `OverloadedLabels`. Enable those extensions per module or in the Cabal
-component.
+The Haskell excerpts use GHC2024 plus `OverloadedStrings` and
+`DisambiguateRecordFields`. Enable those extensions per module or in the Cabal component.
+Record patterns use the public constructors; adopting applications do not need `Settei.Prelude` or a lens dependency.
 
 Add only the adapters used by the executable:
 
@@ -49,16 +48,14 @@ declares configuration can depend on `settei` without depending on file parsers 
 
 ```haskell
 {-# LANGUAGE DerivingStrategies #-}
-{-# LANGUAGE OverloadedLabels #-}
+{-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE OverloadedStrings #-}
 
-import Data.Generics.Labels ()
 import Data.List.NonEmpty (NonEmpty (..))
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as Text
 import Settei
-import Settei.Prelude ((^.))
 ```
 
 ## Declare application types and settings
@@ -285,24 +282,23 @@ strictOptions = ResolveOptions {unknownKeyPolicy = RejectUnknownKeys}
 ## Use the typed result and diagnostics
 
 Every `ResolveResult` contains an `answer` (the application value or non-empty errors), a
-redacted report, and non-fatal warnings. With `OverloadedLabels` and
-`Data.Generics.Labels`, the fields can be read as follows:
+redacted report, and non-fatal warnings. Read them with public record patterns:
 
 ```haskell
 handleResult :: ResolveResult AppConfig -> IO AppConfig
-handleResult result = do
-  let warningText = renderWarningsText (result ^. #warnings)
+handleResult ResolveResult {answer = configAnswer, warnings = configWarnings} = do
+  let warningText = renderWarningsText configWarnings
   -- Send warningText to stderr or the application's logger when non-empty.
   either
     (fail . Text.unpack . renderErrorsText)
     pure
-    (result ^. #answer)
+    configAnswer
 
 explanationText :: ResolveResult a -> Text
-explanationText result = renderResolutionText (result ^. #report)
+explanationText ResolveResult {report = configReport} = renderResolutionText configReport
 
 explanationJson :: ResolveResult a -> Text
-explanationJson result = renderResolutionJson (result ^. #report)
+explanationJson ResolveResult {report = configReport} = renderResolutionJson configReport
 ```
 
 Render the error side of `answer` with `renderErrorsText` or `renderErrorsJson`. These

@@ -48,7 +48,9 @@ inter-package `build-depends`. Each depends only on packages listed above it.
    `settei-env`.
 7. **settei-optparse-applicative** — `settei-optparse-applicative/` — depends on
    `settei` and `settei-env`.
-8. **settei-formats** — `settei-formats/` — depends on `settei`, `settei-dhall`,
+8. **settei-preflight** — `settei-preflight/` — depends on `settei` and
+   `settei-env`; ships both public modules and the `settei-preflight` executable.
+9. **settei-formats** — `settei-formats/` — depends on `settei`, `settei-dhall`,
    `settei-kdl`, `settei-yaml`, and `settei-optparse-applicative` (publish last).
 
 The following packages are **NOT released** to Hackage — they are internal
@@ -59,6 +61,8 @@ reference and conformance artifacts under `examples/`:
   reference service.
 - **settei-example-conformance** (`examples/settei-conformance/`) — cross-format
   conformance test suite.
+- **settei-example-deployment** (`examples/settei-deployment/`) — server/worker
+  contract, validation, and deployment-preflight reference workflow.
 
 ## Arguments
 
@@ -93,6 +97,10 @@ Present a summary showing:
 - If `$ARGUMENTS` is `major`, `minor`, or `patch`, use that bump level.
 - Otherwise, analyze the commits to determine the appropriate bump:
   - "breaking", "remove", "rename", "change type", `!`/`BREAKING CHANGE` → major.
+  - Check exported sum types as well: the pending `InvariantError` addition to
+    `ConfigError` and deployment-contract constructors in `DiagnosticMode` require
+    a shared PVP major release, currently targeted as `0.3.0.0`. Do not treat these
+    additions as minor solely because commit subjects use `feat:`.
   - "add", "new", "feat", "export" → minor.
   - "fix", "docs", "refactor", "test", "chore", "internal" → patch.
 - For an **initial release** where the current version is already the intended
@@ -115,8 +123,11 @@ Edit the `version:` field in every publishable cabal file to the new version:
 - `settei-kubernetes/settei-kubernetes.cabal`
 - `settei-optparse-applicative/settei-optparse-applicative.cabal`
 - `settei-formats/settei-formats.cabal`
+- `settei-preflight/settei-preflight.cabal`
 
-Verify every publishable package is at the target version before committing.
+Update the four internal example versions too, keeping all thirteen workspace
+packages aligned. Verify all nine public versions and every exact family pin before
+committing.
 
 #### Internal dependency bounds
 
@@ -130,15 +141,17 @@ version, update every internal `settei*` bound to `==<new-version>`:
   test-suite sections).
 - In `settei-optparse-applicative`: the `settei` and `settei-env` bounds
   (library and test-suite sections).
+- In `settei-preflight`: the `settei` and `settei-env` bounds in its library,
+  executable, shared stanzas, and tests as applicable.
 - In `settei-formats`: the `settei`, `settei-dhall`, `settei-kdl`,
   `settei-yaml`, and `settei-optparse-applicative` bounds (library and
   test-suite sections).
 - In the internal example packages (`examples/*`): update their `settei*`
   bounds too, so the workspace continues to build even though they are not
-  published. Grep for `, settei` across all cabal files to catch every site:
+  published. Search every Cabal file to catch comma-first and comma-last layouts:
 
   ```bash
-  grep -rn ", settei" --include='*.cabal' .
+  rg -n 'settei[^[:space:]]* *==|^version:' --glob '*.cabal'
   ```
 
 Keep the existing `==<version>` style; do not switch to `^>=` unless the user
@@ -148,7 +161,8 @@ asks.
 
 - For each publishable package with a `CHANGELOG.md`
   (`settei/`, `settei-env/`, `settei-dhall/`, `settei-kdl/`, `settei-yaml/`,
-  `settei-kubernetes/`, `settei-optparse-applicative/`, `settei-formats/`), add
+  `settei-kubernetes/`, `settei-optparse-applicative/`, `settei-formats/`,
+  `settei-preflight/`), add
   a new section for the new version above previous entries, using today's date
   in `YYYY-MM-DD` format.
 - Move any content from an "Unreleased" section into the new version section.
@@ -159,7 +173,11 @@ asks.
   - **Bug Fixes**
   - **Other Changes** (docs, refactoring, tests, chores)
 
-Show the user ALL changes (version bumps, internal bounds, changelog entries)
+Update README release status, compatibility notes, and the release checklist to
+reflect the candidate version and actual acceptance evidence. Cover all four new
+features and the error/diagnostic constructor and JSON migration details.
+
+Show the user ALL changes (version bumps, internal bounds, changelog entries, release docs)
 for review before committing.
 
 ### 4. Verify (format, build, test, check gates)
@@ -174,8 +192,13 @@ any failure before proceeding.
 - `nix develop -c cabal haddock all` — confirm documentation builds.
 - `nix develop -c cabal sdist all` — confirm every source distribution packs.
 - `cabal check` in each **publishable** package directory (see step 6).
-- Unpack each publishable sdist into a fresh temporary directory and confirm it
-  builds from its own contents (catches missing `extra-source-files`/goldens).
+- Unpack all nine public sdists into a fresh temporary workspace and build and
+  test from those unpacked sources alone. Exclude checkout paths and internal
+  examples; check that each package includes its own fixtures/goldens.
+- Run the four OKF bundle validators and link graphs, standalone Aeson 2.3
+  preflight check, deployment CLI smoke checks, and Nix package-output checks
+  specified in `docs/release-checklist.md`. `nix flake check` does not run the
+  host-provided OKF validators; those are direct gates.
 - `nix flake check` — treefmt + pre-commit gates. Note: newly created files must
   be `git add`-ed first, since Nix evaluates the git tree.
 - `git diff --check` — no whitespace errors or conflict markers.
@@ -194,7 +217,7 @@ any failure before proceeding.
 
 For EACH publishable package, in this order —
 `settei` → `settei-env` → `settei-dhall` → `settei-kdl` → `settei-yaml` →
-`settei-kubernetes` → `settei-optparse-applicative` → `settei-formats`:
+`settei-kubernetes` → `settei-optparse-applicative` → `settei-preflight` → `settei-formats`:
 
 1. `cd <pkg-dir>`.
 2. `cabal check` — verify no packaging issues.
@@ -217,32 +240,19 @@ After all packages are published, present a summary table:
 | settei-yaml | X.Y.Z.W | https://hackage.haskell.org/package/settei-yaml-X.Y.Z.W |
 | settei-kubernetes | X.Y.Z.W | https://hackage.haskell.org/package/settei-kubernetes-X.Y.Z.W |
 | settei-optparse-applicative | X.Y.Z.W | https://hackage.haskell.org/package/settei-optparse-applicative-X.Y.Z.W |
+| settei-preflight | X.Y.Z.W | https://hackage.haskell.org/package/settei-preflight-X.Y.Z.W |
 | settei-formats | X.Y.Z.W | https://hackage.haskell.org/package/settei-formats-X.Y.Z.W |
 
 ### 7. Create the GitHub release
 
 After all Hackage uploads succeed, create a GitHub release for the tag:
 
+Write the release body to a temporary file with real newlines, including a Hackage
+link for each of the nine public packages, the four feature summaries, migration
+notes, and validated platforms. Pass that file directly:
+
 ```bash
-gh release create v<version> --title "v<version>" --notes "$(cat <<'EOF'
-## Packages
-
-| Package | Hackage |
-|---------|---------|
-| settei | https://hackage.haskell.org/package/settei-X.Y.Z.W |
-| settei-env | https://hackage.haskell.org/package/settei-env-X.Y.Z.W |
-| settei-dhall | https://hackage.haskell.org/package/settei-dhall-X.Y.Z.W |
-| settei-kdl | https://hackage.haskell.org/package/settei-kdl-X.Y.Z.W |
-| settei-yaml | https://hackage.haskell.org/package/settei-yaml-X.Y.Z.W |
-| settei-kubernetes | https://hackage.haskell.org/package/settei-kubernetes-X.Y.Z.W |
-| settei-optparse-applicative | https://hackage.haskell.org/package/settei-optparse-applicative-X.Y.Z.W |
-| settei-formats | https://hackage.haskell.org/package/settei-formats-X.Y.Z.W |
-
-## What's Changed
-
-<changelog entries for this version>
-EOF
-)"
+gh release create v<version> --title "v<version>" --notes-file <release-notes-file>
 ```
 
 - Use the per-package changelog entries for the release-notes body.
@@ -255,9 +265,9 @@ EOF
   committing. The commit and tag are created only AFTER user approval.
 - Always publish in dependency order:
   `settei` → `settei-env` → `settei-dhall` → `settei-kdl` → `settei-yaml` →
-  `settei-kubernetes` → `settei-optparse-applicative` → `settei-formats`.
+  `settei-kubernetes` → `settei-optparse-applicative` → `settei-preflight` → `settei-formats`.
 - Never publish the `examples/*` packages (`settei-example-cli`,
-  `settei-example-service`, `settei-example-conformance`).
+  `settei-example-service`, `settei-example-conformance`, `settei-example-deployment`).
 - Never skip the check gates: `nix fmt`, `cabal build/test/haddock/sdist all`,
   per-package `cabal check`, the sdist unpack-and-build check, `nix flake check`,
   and `git diff --check`.

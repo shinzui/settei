@@ -9,47 +9,31 @@ to “where did this value come from?”
 
 ## Release status
 
-Settei 0.2.0.0 is the current released package family. The eight
-publishable packages have aligned version, license, changelog, dependency-bound, and
-`tested-with` metadata. The
-[original build MasterPlan](docs/masterplans/1-build-settei-as-a-provenance-aware-configuration-library-for-haskell.md)
-and the
-[fleet-adoption correctness MasterPlan](docs/masterplans/2-harden-settei-correctness-before-fleet-wide-adoption.md)
-are complete.
+The working tree targets the next shared **0.3.0.0** release, following 0.2.0.0.
+It contains nine publishable packages and four internal example packages. Cabal versions
+and exact intra-family pins still read `0.2.0.0` until the coordinated release bump;
+the features below are unreleased.
 
-The release candidate was first validated on 2026-07-18, re-validated after the
-correctness-hardening pass on 2026-07-19, and re-validated after the Kubernetes
-integration on 2026-07-20, with GHC 9.12.4 and Cabal 3.16.1.0 on `aarch64-darwin`:
+Four completed ExecPlans add a deployment workflow:
 
-- All eleven workspace packages build, including the three internal example packages.
-- All 333 workspace tests pass across 12 suites; the eight publishable packages also pass
-  all 293 of their tests from isolated unpacked source distributions.
-- Package checks, Haddocks, source distributions, formatting, Mori inventory, example
-  Nix outputs, CLI smoke tests, and `nix flake check` pass.
-- Package-family guides, security guidance, compatibility policy, release metadata, and
-  the automated release checklist are complete.
+| Feature | What it provides | Guide |
+| --- | --- | --- |
+| [Deployment contracts (plan 26)](docs/plans/26-export-a-deployment-configuration-contract-with-bindings-and-defaults.md) | Discover input bindings, safe defaults, and profile requirements without reading runtime inputs. | [Author a first deployment](docs/guides/deployment-contract.md) |
+| [Supplied environment names (plan 27)](docs/plans/27-validate-supplied-environment-variable-names-against-declared-bindings.md) | Reject unsupported or duplicate supplied names against explicit bindings and external-consumer allowances. | [Check supplied names](docs/guides/environment-and-cli.md#validate-the-names-a-deployment-supplies) |
+| [Deployment preflight (plan 28)](docs/plans/28-provide-a-reusable-deployment-preflight-harness-around-application-check-mode.md) | Run application check mode against proposed inputs with controlled secret channels and explicit coverage. | [Run preflight checks](docs/guides/deployment-preflight.md) |
+| [Application validation (plan 29)](docs/plans/29-integrate-application-validation-into-structured-configuration-diagnostics.md) | Apply pure cross-setting rules to one resolved value for startup, check, and explanation modes. | [Declare invariants](docs/guides/cli-application.md#validate-cross-setting-invariants-after-resolution) |
 
-Since the first validation, conflicting sensitivities have become structured errors with
-most-restrictive redaction, YAML and KDL reject impractically large numeric exponents,
-YAML booleans follow the 1.2 core schema, failed resolutions retain provenance reports,
-and custom-source construction plus YAML/Dhall diagnostics have been hardened.
-The Kubernetes initiative added a mounted ConfigMap/Secret directory adapter, derived
-environment bindings, namespace-specific runnable manifests and cookbook, and end-to-end
-reference-service integration without adding cluster access to application processes.
+The 2026-10-21 implementation acceptance records GHC 9.12.4 on `aarch64-darwin`,
+workspace build and tests, formatting, the four documentation bundle validations, and
+`nix flake check`. See the [release checklist](docs/release-checklist.md) for current
+verification and the remaining release gates; earlier source-distribution acceptance
+does not validate these new packages and APIs.
 
-The unreleased deployment contract joins bindings, safe defaults, and explicit profile
-requirements without loading runtime inputs; see the [first-deployment guide](docs/guides/deployment-contract.md).
-The unreleased ninth public package, `settei-preflight`, runs application check mode on
-proposed inputs with explicit secret references and coverage; see the
-[preflight guide](docs/guides/deployment-preflight.md). Both additions target the next
-shared 0.3.0.0 release.
-
-The annotated `v0.2.0.0` tag and all eight public packages are available from Hackage.
-The [release checklist](docs/release-checklist.md) remains the historical record of the
-initial release preparation. Version 0.2.0.0 is experimental; consult the
-[compatibility matrix](docs/compatibility.md) for the validated platform, dependency
-bounds, and public adoption surface.
-
+Version 0.3.0.0 requires updates to exhaustive matches on `ConfigError` and
+`DiagnosticMode`. Existing bare schema and resolution JSON remain unchanged; validated
+explanations can include an invariant trace. The family remains experimental. See the
+[compatibility and migration notes](docs/compatibility.md) for the supported modules,
+JSON contracts, toolchain, and dependency bounds.
 
 ## Package map
 
@@ -95,7 +79,8 @@ file, environment variable, or command-line argument is read.
 ## Assemble ordered sources
 
 Sources are passed from lowest to highest precedence. The resolver selects the rightmost
-candidate and retains every shadowed origin in the report.
+candidate and retains every shadowed origin in the report. The record pattern below
+uses `DisambiguateRecordFields`.
 
 ```haskell
 let environmentSource = Settei.Env.environmentSource environmentBindings snapshot
@@ -104,10 +89,11 @@ let environmentSource = Settei.Env.environmentSource environmentBindings snapsho
         <> [environmentSource]
         <> cliSources "arguments" overrides
 
-let result = resolve defaultResolveOptions orderedSources serviceConfig
--- result ^. #report and result ^. #warnings exist even when resolution fails.
+let result@ResolveResult {answer = configAnswer} =
+      resolve defaultResolveOptions orderedSources serviceConfig
+-- The report and warnings in result exist even when resolution fails.
 config <-
-  either (fail . Text.unpack . renderErrorsText) pure (result ^. #answer)
+  either (fail . Text.unpack . renderErrorsText) pure configAnswer
 ```
 
 The reference CLI demonstrates the complete order:
@@ -146,6 +132,7 @@ not receive a recoverable secret value.
 - [Getting started](docs/guides/getting-started.md)
 - [Guide index](docs/guides/README.md)
 - [Environment and CLI sources](docs/guides/environment-and-cli.md)
+- [Validate supplied environment names](docs/guides/environment-and-cli.md#validate-the-names-a-deployment-supplies)
 - [Tagged multi-format sources](docs/guides/formats.md)
 - [YAML adapter](docs/guides/yaml.md)
 - [KDL v2 adapter](docs/guides/kdl.md)
@@ -153,6 +140,7 @@ not receive a recoverable secret value.
 - [Authoring a first deployment](docs/guides/deployment-contract.md)
 - [Preflight-checking deployment inputs](docs/guides/deployment-preflight.md)
 - [Building a CLI application](docs/guides/cli-application.md)
+- [Validate cross-setting invariants](docs/guides/cli-application.md#validate-cross-setting-invariants-after-resolution)
 - [Building a Kubernetes-shaped service](docs/guides/kubernetes-service.md)
 - [Deploying one image across Kubernetes namespaces](docs/guides/kubernetes-cookbook.md)
 - [Capability catalog](docs/capabilities/index.md)

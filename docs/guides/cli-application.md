@@ -25,7 +25,6 @@ A CLI that accepts all supported file formats needs:
 ```cabal
 build-depends:
   , containers
-  , generic-lens
   , optparse-applicative
   , settei
   , settei-env
@@ -43,17 +42,19 @@ Use fewer adapter packages when the application supports fewer formats.
 The code excerpts below use these imports in addition to application modules:
 
 ```haskell
-import Data.Generics.Labels ()
+{-# LANGUAGE DisambiguateRecordFields #-}
+{-# LANGUAGE OverloadedStrings #-}
+
 import Data.Map.Strict qualified as Map
 import Data.Text (Text)
 import Data.Text qualified as Text
+import Data.Text.IO qualified as TextIO
 import Options.Applicative qualified as Options
 import Settei
 import Settei.Env
 import Settei.Formats
 import Settei.Formats.Optparse
 import Settei.Optparse
-import Settei.Prelude ((^.))
 ```
 
 Keep these responsibilities separate:
@@ -128,7 +129,7 @@ derivation.
 ## Parse configuration options
 
 For a single file format, `setteiOptions` supplies repeated `--config PATH`, repeated
-`--set KEY=VALUE`, and mutually exclusive explanation flags:
+`--set KEY=VALUE`, and mutually exclusive diagnostic flags:
 
 ```haskell
 optionsInfo :: Options.ParserInfo SetteiOptions
@@ -228,18 +229,20 @@ case schemaDiagnostic diagnosticMode (describe appConfig) of
   Nothing -> loadResolveAndRun
 ```
 
-After `result ^. #answer` yields a configuration:
+After checking the `answer` field of `ResolveResult` and obtaining a configuration:
 
 ```haskell
 renderSuccess mode config result =
-  maybe (runApplication config) id (resolutionDiagnostic mode result)
+  case resolutionDiagnostic mode result of
+    Just output -> TextIO.putStr output
+    Nothing -> runApplication config
 ```
 
 Do not print the typed result after an explanation. The typed record contains real secret
 values, while report renderers receive only redacted representations. Normal application
 output should use an allowlist of known-public fields.
 
-Also render `result ^. #warnings` or reject unknown keys with `RejectUnknownKeys`. A
+Also render the result's `warnings` field or reject unknown keys with `RejectUnknownKeys`. A
 successful `--check-config` that silently drops warnings is usually less useful to users.
 
 ## Validate cross-setting invariants after resolution
@@ -303,20 +306,21 @@ After static schema and contract dispatch and source loading, replace the earlie
 ```haskell
 let resolved = resolve defaultResolveOptions sources appConfig
     validated = validate workerValidators resolved
+    ValidatedResult {warnings = validationWarnings} = validated
 case validatedDiagnostic mode validated of
   DiagnosticFailure output -> do
     TextIO.hPutStr stderr output
     exitWith (ExitFailure 4)
   DiagnosticOutput output -> do
     TextIO.putStr output
-    TextIO.hPutStr stderr (renderWarningsText (validated ^. #warnings))
+    TextIO.hPutStr stderr (renderWarningsText validationWarnings)
   DiagnosticContinue config -> do
-    TextIO.hPutStr stderr (renderWarningsText (validated ^. #warnings))
+    TextIO.hPutStr stderr (renderWarningsText validationWarnings)
     runApplication config
 ```
 
-Import `Data.Text.IO qualified as TextIO`, `System.IO (stderr)`, and
-`System.Exit (ExitCode(..), exitWith)` for this dispatch. In a multi-role program select
+Also import `System.IO (stderr)` and `System.Exit (ExitCode(..), exitWith)`
+for this dispatch. In a multi-role program select
 the appropriate collection before `validate`; share each domain rule once across role
 lists. The [deployment example](../../examples/settei-deployment/src/Settei/Example/Deployment.hs)
 migrates its original server and worker checks this way, including overflow-safe timeout
@@ -359,8 +363,8 @@ resources. Successful JSON explain emits one resolution document on stdout. With
 helper, missing and decode failures also emit two JSON documents in JSON explain mode,
 with outcomes marked `not-run`; source-load failures retain their adapter text path.
 Bare `renderResolutionJson` stays byte-identical; `renderValidatedResolutionJson` adds
-optional `invariants` to the existing version-1 representation. `ConfigError` gains a
-constructor, so update exhaustive matches for 0.3.0.0.
+an `invariants` array to the existing version-1 representation, even when it is empty.
+`ConfigError` gains a constructor, so update exhaustive matches for 0.3.0.0.
 
 ## Distinguish exit behavior
 
@@ -379,7 +383,7 @@ Set the usage code with `Options.failureCode`. Send usage and human-readable fai
 stderr. Requested JSON reports belong on stdout so scripts can consume them without
 log-prefix contamination.
 
-The report and warnings remain available when `result ^. #answer` contains errors. In an
+The report and warnings remain available when the result's `answer` contains errors. In an
 explain mode, render the errors first and append the requested redacted text or JSON report
 to stderr; keep the resolution exit code at `4` and stdout empty. Non-explain failures
 should continue to print only their errors. This makes an in-pod

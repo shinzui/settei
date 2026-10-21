@@ -92,6 +92,8 @@ data InvariantOutcome = InvariantOutcome
   }
   deriving stock (Generic, Eq, Show)
 
+-- | Ordered application-rule outcomes, without retaining typed configuration values.
+-- Resolution failure records every declared rule as not run.
 newtype ValidationReport = ValidationReport
   { invariants :: [InvariantOutcome]
   }

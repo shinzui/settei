@@ -28,46 +28,75 @@ import System.IO.Temp (withSystemTempDirectory)
 import System.Process qualified as P
 import System.Timeout (timeout)
 
+-- | An operator-facing application role. Labels must be nonblank and credential-free.
 newtype RoleLabel = RoleLabel Text deriving stock (Generic, Eq, Show)
 
+-- | A path relative to the private input directory. Validation rejects absolute,
+-- empty, dot, parent, NUL, and backslash path segments.
 newtype FileName = FileName Text deriving stock (Generic, Eq, Ord, Show)
 
+-- | A public literal or symbolic reference to a proposed file or directory.
+-- References are replaced with private absolute paths when the command runs.
 data ArgumentPart = LiteralPart !Text | FilePart !FileName | DirectoryPart !FileName deriving stock (Generic, Eq)
 
+-- | One command-line argument assembled from ordered parts, without invoking a shell.
+-- Never put credentials in literal parts; use environment or file channels.
 newtype Argument = Argument [ArgumentPart] deriving stock (Generic, Eq)
 
+-- | One public literal argument. Known secrets in assembled arguments are rejected.
 literalArgument :: Text -> Argument
 literalArgument t = Argument [LiteralPart t]
 
+-- | One argument naming a declared proposed file in the private directory.
 fileArgument :: FileName -> Argument
 fileArgument f = Argument [FilePart f]
 
+-- | The caller-selected host executable and arguments for an application check.
+-- The runner cannot establish its equivalence to a deployed image or sandbox it.
 data CheckCommand = CheckCommand {executable :: !FilePath, arguments :: ![Argument]} deriving stock (Generic, Eq)
 
+-- | A supplied value, fake synthetic stand-in with reason, unresolved input, or
+-- unavailable secret. Only supplied values count toward complete coverage.
+-- Sensitivity controls exact-value redaction; raw values deliberately lack Show.
 data ProposedValue = SuppliedValue !Sensitivity !Text | SyntheticValue !Sensitivity !Text !Text | UnresolvedValue !Text | UnavailableSecret !Text deriving stock (Generic, Eq)
 
+-- | A named UTF-8 file input. Unresolved and unavailable contents are not written.
 data ProposedFile = ProposedFile {name :: !FileName, content :: !ProposedValue} deriving stock (Generic, Eq)
 
+-- | The complete proposal: ordered environment entries, UTF-8 files, an explicit
+-- inherited-variable allowlist, and extraction notes. Every note reduces coverage.
+-- The child otherwise starts with an empty environment.
 data ProposedInputs = ProposedInputs {environment :: ![(EnvName, ProposedValue)], files :: ![ProposedFile], inherited :: ![EnvName], notes :: ![Text]} deriving stock (Generic, Eq)
 
+-- | Default execution context: PATH, LANG, LC_ALL, and LC_CTYPE. Inherited names
+-- are not deployment coverage and cannot overlap proposed environment entries.
 defaultInherited :: [EnvName]
 defaultInherited = fmap EnvName ["PATH", "LANG", "LC_ALL", "LC_CTYPE"]
 
+-- | No proposed values or notes, with only 'defaultInherited' execution context.
 emptyProposedInputs :: ProposedInputs
 emptyProposedInputs = ProposedInputs [] [] defaultInherited []
 
+-- | Disjoint child exit-code categories, with one accepted code. Every code must
+-- be in 0..255; unlisted codes are classified as unknown rejection.
 data ExitCodeMapping = ExitCodeMapping {accepted :: !Int, usage :: ![Int], sourceFailure :: ![Int], rejected :: ![Int]} deriving stock (Generic, Eq, Show)
 
+-- | Accepted 0, usage 2, source failure 3, and configuration rejection 4.
 defaultExitCodes :: ExitCodeMapping
 defaultExitCodes = ExitCodeMapping 0 [2] [3] [4]
 
+-- | A positive timeout in seconds and the application-owned exit-code convention.
 data PreflightOptions = PreflightOptions {timeoutSeconds :: !Int, exitCodes :: !ExitCodeMapping} deriving stock (Generic, Eq, Show)
 
+-- | A 60-second timeout with 'defaultExitCodes'.
 defaultPreflightOptions :: PreflightOptions
 defaultPreflightOptions = PreflightOptions 60 defaultExitCodes
 
+-- | An environment name, relative file name, or zero-based extraction-note index.
 data InputRef = EnvironmentInput !EnvName | FileInput !FileName | ExtractionNote !Int deriving stock (Generic, Eq, Show)
 
+-- | A structural request problem retaining metadata rather than input values.
+-- Use the public validation/runner boundary to sanitize known secrets in metadata.
 data PreflightProblem
   = InvalidEnvironmentName !EnvName
   | DuplicateEnvironmentName !EnvName
@@ -88,31 +117,51 @@ data PreflightProblem
   | EmptyRoleLabel
   deriving stock (Generic, Eq, Show)
 
+-- | Sanitized executable and symbolic arguments; temporary paths are not retained.
 data CommandSummary = CommandSummary {executable :: !FilePath, arguments :: ![Text]} deriving stock (Generic, Eq, Show)
 
+-- | Sanitized input identity, coverage classification, and whether it was supplied
+-- to a successfully spawned child. This does not prove the application consumed it.
 data InputSummary = InputSummary {input :: !InputRef, classification :: !Classification, passed :: !Bool} deriving stock (Generic, Eq, Show)
 
+-- | Whether an input is supplied, synthetic, unresolved, or unavailable, preserving
+-- public/secret classification without retaining its value.
 data Classification = SuppliedPublic | SuppliedSecret | SyntheticPublic | SyntheticSecret | Unresolved | UnavailableSecretInput deriving stock (Generic, Eq, Show)
 
+-- | Application acceptance, categorized rejection with child exit code, or a harness
+-- failure. Partial coverage affects the verdict even when the application accepts.
 data Outcome = Accepted | Rejected !RejectionCategory !Int | NotRun !NotRunReason deriving stock (Generic, Eq, Show)
 
+-- | Child exit classification under the caller's 'ExitCodeMapping'.
 data RejectionCategory = UsageError | SourceFailure | ConfigurationRejected | UnknownExitCode deriving stock (Generic, Eq, Show)
 
+-- | A sanitized harness failure. A timeout or capture/cleanup failure may occur
+-- after the child started; execution details are retained when available.
 data NotRunReason = RequestInvalid !(NonEmpty PreflightProblem) | ExecutableNotFound !FilePath | SpawnFailed !Text | MaterializationFailed !Text | CaptureFailed !Text | CleanupFailed !Text | TimedOut !Int deriving stock (Generic, Eq, Show)
 
+-- | Complete proposed-input coverage or a nonempty list of limitations.
+-- This does not establish deployed credentials, connectivity, or readiness.
 data Coverage = CompleteCoverage | PartialCoverage !(NonEmpty Limitation) deriving stock (Generic, Eq, Show)
 
+-- | One sanitized input or extraction-note reason preventing complete coverage.
 data Limitation = Limitation {input :: !InputRef, kind :: !LimitationKind, reason :: !Text} deriving stock (Generic, Eq, Show)
 
+-- | Synthetic, unresolved, unavailable-secret, or incomplete-extraction coverage.
 data LimitationKind = SyntheticStandIn | NotYetResolved | SecretUnavailable | ExtractionIncomplete deriving stock (Generic, Eq, Show)
 
+-- | Only Pass passes a gate. Accepted checks with partial coverage are Inconclusive;
+-- application rejection or harness failure is Fail regardless of coverage.
 data Verdict = Pass | Inconclusive | Fail deriving stock (Generic, Eq, Show)
 
+-- | Sanitized child exit/timeout information and captured output. Output is buffered
+-- in memory and redacts exact known nonempty secrets, not transformed values.
 data Execution = Execution {exitCode :: !(Maybe Int), timedOut :: !Bool, standardOutput :: !Text, standardError :: !Text} deriving stock (Generic, Eq, Show)
 
 -- Private captured bytes decoded as text, before redaction; deliberately no Show.
 data CapturedExecution = CapturedExecution !(Maybe Int) !Bool !Text !Text
 
+-- | A sanitized report with private constructors at the public boundary. Inspect
+-- using Settei.Preflight accessors and render only the safe report, not raw inputs.
 data PreflightReport = PreflightReport
   {role :: !RoleLabel, command :: !CommandSummary, inputs :: ![InputSummary], inherited :: ![(EnvName, Bool)], notes :: ![Text], outcome :: !Outcome, coverage :: !Coverage, verdict :: !Verdict, execution :: !(Maybe Execution)}
   deriving stock (Generic, Eq, Show)
@@ -182,6 +231,8 @@ mapProblem f = \case
   where
     en = EnvName . f . envText; fn = FileName . f . fileText
 
+-- | Pure request validation: names, paths, references, timeout, exit codes, and
+-- known-secret command exposure. It performs no IO or application execution.
 validatePreflight :: PreflightOptions -> RoleLabel -> CheckCommand -> ProposedInputs -> Either (NonEmpty PreflightProblem) ()
 validatePreflight opts role cmd p = case validatePreflightRaw opts role cmd p of
   Left ps -> Left (fmap (mapProblem (redact (secretValues p))) ps)
@@ -257,6 +308,10 @@ materializedArguments root cmd = fmap (\(Argument ps) -> foldMap (\case LiteralP
 tryIO :: IO a -> IO (Either IOException a)
 tryIO = try
 
+-- | Validate, materialize in a fresh 0700 directory, run the check, redact output,
+-- and verify cleanup before returning. Timeout includes pipe draining and requests
+-- SIGTERM; resistant children/descendants are not force-killed. Use trusted checks
+-- with bounded output. This runner is not a sandbox.
 runPreflight :: PreflightOptions -> RoleLabel -> CheckCommand -> ProposedInputs -> IO PreflightReport
 runPreflight = runPreflightWith defaultRunOperations
 
@@ -403,6 +458,7 @@ problemFields = \case
   where
     named k n = (k, Just n, Nothing, Nothing); bare k = (k, Nothing, Nothing, Nothing)
 
+-- | Render one sanitized structural problem as one physical line.
 renderPreflightProblemText :: PreflightProblem -> Text
 renderPreflightProblemText p = let (k, n, a, r) = problemFields p in k <> maybe "" ((": " <>) . oneLine) n <> maybe "" (\i -> " (argument " <> tshow i <> ")") a <> maybe "" ((" conflicts with " <>) . oneLine) r
 
@@ -410,6 +466,7 @@ renderPreflightProblemText p = let (k, n, a, r) = problemFields p in k <> maybe 
 oneLine :: Text -> Text
 oneLine = T.concatMap (\case '\n' -> "\\n"; '\r' -> "\\r"; '\t' -> "\\t"; '\0' -> "\\0"; c -> T.singleton c)
 
+-- | Render sanitized request problems in order, one per line.
 renderPreflightProblemsText :: NonEmpty PreflightProblem -> Text
 renderPreflightProblemsText = T.unlines . fmap renderPreflightProblemText . NE.toList
 
@@ -444,6 +501,7 @@ limitationText = \case SyntheticStandIn -> "synthetic-stand-in"; NotYetResolved 
 limitations :: Coverage -> [Limitation]
 limitations = \case CompleteCoverage -> []; PartialCoverage ls -> NE.toList ls
 
+-- | Render a deterministic human-readable verdict, coverage, inputs, and safe output.
 renderPreflightReportText :: PreflightReport -> Text
 renderPreflightReportText r =
   T.unlines $
@@ -472,6 +530,8 @@ refFields ref = [("channel", json channel), ("name", json name)]
   where
     (channel, name) = case ref of EnvironmentInput n -> ("environment" :: Text, envText n); FileInput f -> ("file", fileText f); ExtractionNote n -> ("extraction", tshow n)
 
+-- | Render deterministic settei.preflight schema-version-1 JSON. Report fields
+-- contain sanitized metadata and output, without proposed raw values.
 renderPreflightReportJson :: PreflightReport -> Text
 renderPreflightReportJson r =
   encodingText $

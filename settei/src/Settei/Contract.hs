@@ -59,10 +59,13 @@ import Settei.Value (decodeFailureExpected)
 data InputChannel = EnvironmentVariable | CustomInput !Text
   deriving stock (Generic, Eq, Show)
 
+-- | One external input name mapped to a declared key. This is descriptive metadata,
+-- not a value reader; names and annotations must be safe to publish.
 data InputBinding = InputBinding
   {channel :: !InputChannel, name :: !Text, key :: !Key, annotations :: !(Map Text Text)}
   deriving stock (Generic, Eq, Show)
 
+-- | Construct a binding with no annotations. No source is read or key membership checked.
 inputBinding :: InputChannel -> Text -> Key -> InputBinding
 inputBinding channel name key = InputBinding {channel, name, key, annotations = Map.empty}
 
@@ -70,27 +73,37 @@ inputBinding channel name key = InputBinding {channel, name, key, annotations = 
 annotateInputBinding :: Map Text Text -> InputBinding -> InputBinding
 annotateInputBinding additions binding = binding & #annotations %~ (additions <>)
 
+-- | The adapter-neutral channel carrying this external input.
 inputBindingChannel :: InputBinding -> InputChannel
 inputBindingChannel binding = binding ^. #channel
 
+-- | The external name, such as an environment-variable name.
 inputBindingName :: InputBinding -> Text
 inputBindingName binding = binding ^. #name
 
+-- | The declaration key targeted by this binding.
 inputBindingKey :: InputBinding -> Key
 inputBindingKey binding = binding ^. #key
 
+-- | Trusted descriptive metadata, without candidate values.
 inputBindingAnnotations :: InputBinding -> Map Text Text
 inputBindingAnnotations binding = binding ^. #annotations
 
+-- | Explicit deployment policy: a name and reasons that selected keys need external
+-- input even when defaults exist. Exporting a profile does not enforce it at runtime.
 data DeploymentProfile = DeploymentProfile {name :: !Text, requirements :: !(Map Key Text)}
   deriving stock (Generic, Eq, Show)
 
+-- | Build a named profile. Repeated keys keep the last reason; all text must be
+-- safe to publish. Undeclared keys are diagnosed by 'deploymentContract'.
 deploymentProfile :: Text -> [(Key, Text)] -> DeploymentProfile
 deploymentProfile name requirements = DeploymentProfile {name, requirements = Map.fromList requirements}
 
+-- | The operator-facing profile name.
 profileName :: DeploymentProfile -> Text
 profileName value = value ^. #name
 
+-- | Keys requiring deliberate external input, mapped to their policy reasons.
 profileRequirements :: DeploymentProfile -> Map Key Text
 profileRequirements value = value ^. #requirements
 
@@ -100,25 +113,35 @@ data ContractInputs = ContractInputs
   {inputs :: ![InputBinding], defaultSources :: ![Source], profile :: !(Maybe DeploymentProfile)}
   deriving stock (Generic)
 
+-- | No bindings, default sources, or deployment profile.
 emptyContractInputs :: ContractInputs
 emptyContractInputs = ContractInputs [] [] Nothing
 
+-- | A deterministic, secret-redacted deployment description. Derived computations
+-- are deferred; its verdicts do not establish runtime acceptance or connectivity.
 data DeploymentContract = DeploymentContract
   {settings :: ![ContractSetting], conditions :: ![Condition], profile :: !(Maybe Text), diagnostics :: ![ContractDiagnostic]}
   deriving stock (Generic, Eq, Show)
 
+-- | Per-key entries in deterministic key order.
 contractSettings :: DeploymentContract -> [ContractSetting]
 contractSettings value = value ^. #settings
 
+-- | Conditional declaration relationships in declaration order.
 contractConditions :: DeploymentContract -> [Condition]
 contractConditions value = value ^. #conditions
 
+-- | The selected profile name, when one was supplied.
 contractProfile :: DeploymentContract -> Maybe Text
 contractProfile value = value ^. #profile
 
+-- | Nonfatal structural, sensitivity, or undeclared-input inconsistencies.
+-- Default cycles instead fail construction with a configuration error.
 contractDiagnostics :: DeploymentContract -> [ContractDiagnostic]
 contractDiagnostics value = value ^. #diagnostics
 
+-- | Merged schema metadata and every binding/default for one key. The external-input
+-- verdict accounts for individual requests and may differ from merged requiredness.
 data ContractSetting = ContractSetting
   { key :: !Key,
     description :: !Text,
@@ -133,31 +156,46 @@ data ContractSetting = ContractSetting
   }
   deriving stock (Generic, Eq, Show)
 
+-- | A fallback rule and its safe static shape, without evaluating its computation.
 data DeclaredDefault = DeclaredDefault {rule :: !RuleName, explanation :: !Text, shape :: !DefaultShape}
   deriving stock (Generic, Eq, Show)
 
+-- | A constant display, derived dependency keys, or case dependency keys with
+-- alternative count and fallback presence. Coverage does not prove evaluation succeeds.
 data DefaultShape = ConstantShape !DefaultValue | DerivedShape ![Key] | CaseShape ![Key] !Int !Bool
   deriving stock (Generic, Eq, Show)
 
+-- | A safe constant display: public rendered text, a redacted secret, or a public
+-- value whose setting has no renderer.
 data DefaultValue = VisibleDefault !Text | RedactedDefault | UnrenderableDefault
   deriving stock (Generic, Eq, Show)
 
+-- | The winning explicit default candidate, its shadowed origins, safe reported
+-- value, and decoder validity. Invalid winners never reveal a lower fallback.
 data SourceDefault = SourceDefault
   {origin :: !Origin, shadowed :: ![Origin], value :: !ReportedValue, validity :: !DefaultValidity}
   deriving stock (Generic, Eq, Show)
 
+-- | Whether all applicable decoders accept the winning default candidate.
+-- Invalid text describes decoder expectations rather than rejected secret values.
 data DefaultValidity = ValidDefault | InvalidDefault !Text
   deriving stock (Generic, Eq, Show)
 
+-- | Whether external input is required, conditional, covered by a default, or optional.
+-- A conditional input may still be required on the selected runtime path.
 data ExternalInput = InputRequired !InputReason | InputConditional !InputReason | InputDefaulted !DefaultCoverage | InputOptional
   deriving stock (Generic, Eq, Show)
 
+-- | Why the contract requires external input or marks it conditional.
 data InputReason = NoDefault | InvalidSourceDefault | RequiredRequest | ProfileRequirement
   deriving stock (Generic, Eq, Show)
 
+-- | Coverage from an explicit source or a declared fallback with dependency keys.
+-- Declared coverage does not establish that dependencies or computations will succeed.
 data DefaultCoverage = CoveredBySource | CoveredByDeclaration ![Key]
   deriving stock (Generic, Eq, Show)
 
+-- | An inconsistency retained in a useful contract rather than a fatal cycle error.
 data ContractDiagnostic
   = ConflictingSensitivity !Key
   | DefaultStructuralConflict !StructuralError

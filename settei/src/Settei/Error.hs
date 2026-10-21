@@ -83,6 +83,7 @@ data SensitivityConflictProblem = SensitivityConflictProblem
 newtype InvariantRule = InvariantRule Text
   deriving stock (Generic, Eq, Ord, Show)
 
+-- | The stable identifier spelling used in structured errors and validation traces.
 renderInvariantRule :: InvariantRule -> Text
 renderInvariantRule (InvariantRule name) = name
 

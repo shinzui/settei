@@ -9,7 +9,8 @@
   Validator metadata must be safe to publish; details are not automatically sanitised.
 - Add validation report types, `renderValidationText`, and
   `renderValidatedResolutionJson`. Version-1 errors gain kind `invariant`; validated
-  resolution JSON gains optional `invariants`. Existing bare report output is unchanged.
+  resolution JSON gains an `invariants` array (empty when no rules are declared).
+  Existing bare report output is unchanged.
 
 - Add public `Settei.Contract` and re-export it from `Settei`: adapter-neutral input
   bindings, explicit default sources, deployment profiles, occurrence-aware input

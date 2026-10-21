@@ -35,6 +35,9 @@ import Settei.Prelude
 import System.Environment qualified as Env
 
 -- No Show on any request-bearing type: callers must not log unresolved/raw inputs.
+
+-- | A version-one tooling request before secret-reference resolution. Inline values
+-- must be public or fake stand-ins. No Show instance prevents accidental raw logging.
 data PreflightRequest = PreflightRequest
   { role :: !RoleLabel,
     command :: !CheckCommand,
@@ -47,8 +50,11 @@ data PreflightRequest = PreflightRequest
   }
   deriving stock (Generic, Eq)
 
+-- | A proposed environment/file name with exactly one value form.
 data RequestEntry = RequestEntry {name :: !Text, form :: !EntryForm} deriving stock (Generic, Eq)
 
+-- | A public inline value, secret reference, fake synthetic value with sensitivity
+-- and reason, unresolved input, or unavailable secret. Real secrets use references.
 data EntryForm
   = InlineValue !Text
   | SecretFromEnvironment !EnvName
@@ -58,14 +64,19 @@ data EntryForm
   | UnavailableSecretEntry !Text
   deriving stock (Generic, Eq)
 
+-- | A safe schema path and fixed diagnostic, without input excerpts or values.
 newtype RequestError = RequestError Text deriving stock (Generic, Eq, Show)
 
+-- | Render one safe request error without raw parser details.
 renderRequestErrorText :: RequestError -> Text
 renderRequestErrorText (RequestError t) = t
 
+-- | Render request errors in order, one per line.
 renderRequestErrorsText :: NonEmpty RequestError -> Text
 renderRequestErrorsText = T.unlines . fmap renderRequestErrorText . NE.toList
 
+-- | Construct a request with a 60-second timeout, default exit codes, no notes,
+-- and the default inheritance policy. The runner validates the assembled proposal.
 preflightRequest :: RoleLabel -> CheckCommand -> [RequestEntry] -> [RequestEntry] -> PreflightRequest
 preflightRequest r c es fs = PreflightRequest r c es fs Nothing 60 defaultExitCodes []
 
@@ -100,6 +111,9 @@ optional path o key fallback parse = maybe (Right fallback) (parse (path <> "." 
 field :: Text -> A.Object -> Text -> (Text -> A.Value -> Parsed a) -> Parsed a
 field path o key parse = required path o key >>= parse (path <> "." <> key)
 
+-- | Parse strict settei.preflight-request schema-version-1 UTF-8 JSON. Reject
+-- unknown keys, conflicting forms, and unsupported versions without source excerpts.
+-- Structural proposal validation still occurs at the runner boundary.
 parsePreflightRequest :: BS.ByteString -> Either (NonEmpty RequestError) PreflightRequest
 parsePreflightRequest bytes = case A.eitherDecodeStrict bytes of
   Left _ -> Left (RequestError "request: invalid JSON" :| [])
@@ -187,6 +201,8 @@ parseCodes path value = do
   codes <- ExitCodeMapping <$> field path o "accepted" intAt <*> field path o "usage" (\p -> arrayAt p intAt) <*> field path o "sourceFailure" (\p -> arrayAt p intAt) <*> field path o "rejected" (\p -> arrayAt p intAt)
   if validExitCodes codes then Right codes else bad path "exit codes must be distinct integers in 0..255"
 
+-- | Serialize a request deterministically without resolving secret references.
+-- Inline public/fake values are retained, so this is not a redaction or logging API.
 renderPreflightRequestJson :: PreflightRequest -> Text
 renderPreflightRequestJson r =
   encodingText $
@@ -211,16 +227,25 @@ renderPreflightRequestJson r =
             UnavailableSecretEntry t -> [("unavailableSecret", json t)]
         )
 
+-- | Injectable harness-side variable lookup and UTF-8 secret-file reads.
+-- References do not imply inheritance into the checked child.
 data RequestEnvironment = RequestEnvironment {lookupVariable :: !(EnvName -> IO (Maybe Text)), readSecretFile :: !(FilePath -> IO (Either Text Text))} deriving stock (Generic)
 
+-- | Resolved proposal and run options. It may contain real secrets and has no Show
+-- instance; pass it to the runner rather than logging it.
 data ResolvedRequest = ResolvedRequest {role :: !RoleLabel, command :: !CheckCommand, inputs :: !ProposedInputs, options :: !PreflightOptions} deriving stock (Generic, Eq)
 
+-- | Resolve against the harness process and working directory. Secret files use
+-- strict UTF-8 without trimming; read failures become unavailable secret inputs.
 processRequestEnvironment :: RequestEnvironment
 processRequestEnvironment =
   RequestEnvironment
     (\(EnvName n) -> fmap T.pack <$> Env.lookupEnv (T.unpack n))
     (\p -> tryIO (BS.readFile p) >>= \case Left _ -> pure (Left "secret file could not be read"); Right bytes -> pure (case TE.decodeUtf8' bytes of Left _ -> Left "secret file is not UTF-8"; Right t -> Right t))
 
+-- | Resolve references using the injected harness environment. Missing/unreadable
+-- secrets remain unavailable inputs; public values and fake stand-ins retain their
+-- classification. This neither runs the application nor proves complete coverage.
 resolveRequest :: RequestEnvironment -> PreflightRequest -> IO ResolvedRequest
 resolveRequest env r = do
   es <- traverse (\e -> (EnvName (e ^. #name),) <$> resolve (e ^. #form)) (r ^. #environment)

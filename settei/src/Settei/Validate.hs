@@ -59,6 +59,10 @@ violationWithDetail :: Text -> Violation
 violationWithDetail = Violation . Just
 
 -- No Generic instance: generic conversion would expose private implementation.
+
+-- | One pure application rule with declared keys, a fixed expectation, and optional
+-- prerequisites. Construct with 'invariant' or 'check'; validate collections once
+-- with 'validators'. Rule functions must be total and return finite lists.
 data Validator a = Validator !InvariantRule ![Key] !Text ![InvariantRule] (a -> [Violation])
 
 -- | Declare a named rule over declared setting keys, with a fixed expectation.
@@ -86,6 +90,7 @@ data ValidatorError
   | CyclicDeclaration !DefaultCycleProblem
   deriving stock (Generic, Eq, Show)
 
+-- | Render one static declaration error without inspecting application values.
 renderValidatorErrorText :: ValidatorError -> Text
 renderValidatorErrorText = \case
   InvalidInvariantRule rule -> "invalid invariant rule " <> escapedRule rule
@@ -100,11 +105,15 @@ renderValidatorErrorText = \case
 escapedRule :: InvariantRule -> Text
 escapedRule = Text.pack . show . renderInvariantRule
 
+-- | Render static declaration errors in order, one per line.
 renderValidatorErrorsText :: NonEmpty ValidatorError -> Text
 renderValidatorErrorsText = Text.unlines . fmap renderValidatorErrorText . NonEmpty.toList
 
 -- Opaque and deliberately without Generic or writable optics: all public values
 -- have passed the construction checks below.
+
+-- | An opaque, checked rule collection paired by the caller with the same 'Config'
+-- used for resolution. An empty collection is valid; use 'validate' after resolution.
 newtype Validators a = Validators [Validator a]
 
 -- | Check every rule and possible key, including conditional keys, without sources.
