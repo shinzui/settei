@@ -19,4 +19,5 @@ okf_version: "0.2"
 - [Give every source adapter an operator-readable error renderer](0009-adapter-error-rendering-contract.md) - Give every source adapter a shared operator-readable error rendering contract.
 - [Validate environment bindings at construction](0010-validate-environment-bindings-at-construction.md) - Validate environment bindings once at construction through an opaque Bindings collection.
 - [Map Kubernetes mounted directories through explicit file bindings](0011-kubernetes-mounted-directory-input-semantics.md) - Map Kubernetes mounted directories to Settei keys through explicit validated file bindings.
+- [Export deployment contracts from declarations and explicit default sources](0012-deployment-contract-export-semantics.md) - Define source-free deployment contract inspection with occurrence-aware input verdicts, deferred computations, and redaction before retention.
 

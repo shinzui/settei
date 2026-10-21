@@ -14,10 +14,10 @@ tests =
     "Settei.Contract"
     [ testCase "renders the golden contract text" $ do
         expected <- TextIO.readFile "test/golden/contract.txt"
-        renderContractText golden @?= expected,
+        renderContractText comprehensive @?= expected,
       testCase "renders the golden contract JSON" $ do
         expected <- TextIO.readFile "test/golden/contract.json"
-        renderContractJson golden <> "\n" @?= expected,
+        renderContractJson comprehensive <> "\n" @?= expected,
       testCase "joins bindings in supplied order and keeps unbound keys" $ do
         let contract = comprehensive
         fmap inputBindingName (entry "required" contract ^. #inputs) @?= ["FIRST", "SECOND"]
@@ -85,12 +85,20 @@ tests =
         assertBool "selected invalid branch succeeded" (isFailure (resolve defaultResolveOptions (environment "production" : sources) declaration)),
       testCase "necessary acceptance plus conditional rejection remains conditional" $ do
         let declaration = (,) <$> required x <*> conditional integerX
-            contract = build (ContractInputs [] [pairs "bad" [("x", RawText "bad")]] Nothing) declaration
-        assertVerdict "x" (InputConditional InvalidSourceDefault) contract,
+            sources = [pairs "bad" [("x", RawText "bad")]]
+            contract = build (ContractInputs [] sources Nothing) declaration
+        assertVerdict "x" (InputConditional InvalidSourceDefault) contract
+        assertBool "necessary accepting request failed" (not (isFailure (resolve defaultResolveOptions (environment "development" : sources) declaration)))
+        assertBool "conditional rejecting request succeeded" (isFailure (resolve defaultResolveOptions (environment "production" : sources) declaration)),
       testCase "later necessary rejection outranks earlier conditional rejection" $ do
         let declaration = (,) <$> conditional integerX <*> required integerX
             contract = build (ContractInputs [] [pairs "bad" [("x", RawText "bad")]] Nothing) declaration
         assertVerdict "x" (InputRequired InvalidSourceDefault) contract,
+      testCase "secret constants never force their renderer or value" $ do
+        let settingSpec = withRenderer (\_ -> error "secret renderer invoked") (secretSetting (validKey "poison") "secret" textDecoder)
+            contract = build emptyContractInputs (withDefault settingSpec (constantDefault (RuleName "poison") "secret" (error "secret value forced")))
+        assertBool "secret default unavailable" ("redacted" `Text.isInfixOf` renderContractJson contract)
+        assertBool "secret default unavailable in Show" ("RedactedDefault" `Text.isInfixOf` Text.pack (show contract)),
       testCase "cycle preflight avoids all source hooks" $ do
         let cyclic = withDefault x (derivedDefault (RuleName "cycle") "recursive" cyclic id)
             poison = locateSource (\_ -> error "source hook evaluated") (pairs "poison" [("x", RawText sentinel)])
@@ -150,9 +158,6 @@ assertVerdict target expected contract = do
 sentinel :: Text
 sentinel = "SECRET-CONTRACT-SENTINEL-雪"
 
-golden :: DeploymentContract
-golden = build (ContractInputs [inputBinding EnvironmentVariable "NAME" (validKey "name")] [] Nothing) (required (publicText "name"))
-
 comprehensive :: DeploymentContract
 comprehensive = build comprehensiveInputs comprehensiveConfig
 
@@ -179,6 +184,8 @@ comprehensiveConfig =
       () <$ withDefault (publicText "case") (caseDefault (RuleName "case-rule") "case" (required (publicText "required")) (("development", error "case evaluated") :| []) Nothing),
       () <$ withDefault (publicText "caseFallback") (caseDefault (RuleName "fallback-rule") "fallback" (required (publicText "required")) (("development", error "case evaluated") :| []) (Just (error "fallback evaluated"))),
       () <$ conditional (publicText "conditional"),
+      () <$ required (publicText "requiredDefault"),
+      () <$ withDefault (publicText "requiredDefault") (constantDefault (RuleName "competing-default") "fallback on another request" "fallback"),
       () <$ required (publicText "source"),
       () <$ required (publicInt "invalid"),
       () <$ required (secretSetting (validKey "secretSource") "secret source" textDecoder),

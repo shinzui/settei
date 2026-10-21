@@ -1,5 +1,15 @@
 # Changelog for settei
 
+## Unreleased
+
+- Add public `Settei.Contract` and re-export it from `Settei`: adapter-neutral input
+  bindings, explicit default sources, deployment profiles, occurrence-aware input
+  verdicts, and safe default availability/provenance metadata.
+- Add `renderContractText` and version 1 `settei.contract` JSON via `renderContractJson`.
+  Existing schema and resolution JSON are unchanged. Derived/case computations remain
+  deferred; secret defaults are redacted before storage.
+- Share cycle preflight through an internal module; resolver behavior is unchanged.
+
 ## 0.2.0.0 — 2026-07-19
 
 - `Settei.Prelude` is now documented as internal to the settei package family and is

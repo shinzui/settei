@@ -130,3 +130,16 @@ a safe import root.
 
 Report a suspected vulnerability through the repository's private security-reporting
 channel when available; do not include a real credential in a public issue.
+
+
+## Deployment contracts
+
+Secret constant and source defaults are redacted before retention in a
+`DeploymentContract`, including keys declared with conflicting sensitivities. Derived
+and case defaults expose metadata without running their computation. Contract output
+still reveals keys, environment-variable names, public defaults, profile reasons, and
+dependency topology; treat it as operational metadata. Keep descriptions, rule
+explanations, source names, annotations, and profile reasons free of secrets.
+Application entry points must dispatch static diagnostics before reading environment
+values or runtime files. A contract does not validate credentials or deployment wiring;
+use application check mode and operational checks for those responsibilities.

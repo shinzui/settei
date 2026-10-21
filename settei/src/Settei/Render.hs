@@ -518,8 +518,10 @@ renderContractText contract =
     inputText entry = case entry ^. #externalInput of
       InputRequired reason -> "required (" <> reasonText entry reason <> ")"
       InputConditional reason -> "conditional (" <> reasonText entry reason <> ")"
-      InputDefaulted CoveredBySource -> "defaulted (built-in source)"
-      InputDefaulted (CoveredByDeclaration dependencies) -> "defaulted (declaration fallback; dependencies: " <> commaKeys dependencies <> "; value not computed)"
+      InputDefaulted CoveredBySource -> case entry ^? #sourceDefault . _Just . #origin . #kind of
+        Just BuiltInSource -> "defaulted (built-in source)"
+        _ -> "defaulted (source)"
+      InputDefaulted (CoveredByDeclaration _) -> "defaulted (declaration fallback)"
       InputOptional -> "optional"
     reasonText entry = \case
       NoDefault -> "no default"

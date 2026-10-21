@@ -206,6 +206,8 @@ one binding.
 | repeated `--set KEY=VALUE` | ordered `[CliOverride]` values |
 | `--explain-config` | `ExplainText` |
 | `--explain-config-json` | `ExplainJson` |
+| `--deployment-contract` | `DeploymentContractText` |
+| `--deployment-contract-json` | `DeploymentContractJson` |
 
 Add it to an ordinary optparse-applicative parser:
 
@@ -320,3 +322,14 @@ or full command-line arguments to adapter or resolution errors.
 See [Building a CLI application](cli-application.md) for a complete executable structure
 and [Building a Kubernetes service](kubernetes-service.md) for Secret-backed environment
 bindings.
+
+
+### Deployment contract
+
+Use `deploymentContract (ContractInputs (inputBindings environmentBindings)
+[builtInDefaultsSource] Nothing) appConfig` to join the existing declaration, bindings,
+and explicit default sources. Dispatch `contractDiagnostic` after `schemaDiagnostic`
+and before running the environment reader or opening files. Its two modes are
+`--deployment-contract` and `--deployment-contract-json`; a cyclic declaration returns
+core errors. The [first-deployment guide](deployment-contract.md) explains profile
+requirements, deferred defaults, and the runtime check workflow.

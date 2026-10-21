@@ -2,7 +2,7 @@
 type: Architecture Decision Record
 title: Adopt the Haskell project conventions
 description: Adopt a shared repository-wide Haskell convention baseline drawn from the shinzui/haskell-jitsurei corpus.
-timestamp: 2026-07-19T00:00:00Z
+timestamp: 2026-10-21T14:40:00Z
 docId: ADR-1
 status: Accepted
 date: 2026-07-16
@@ -198,3 +198,19 @@ demotion gives adopters a clear PVP contract without adding Haddock, Nix, and so
 distribution tooling risk. Replacing `lens` with microlens and generic-lens-lite was
 rejected because the canonical convention corpus mandates `lens` and `generic-lens`, and
 the fleet-wide dependency-closure reduction does not justify the unrequested churn.
+
+
+## Amendment 2026-10-21: separate host documentation gates from sandbox checks
+
+Use the configured `nix fmt` wrapper for repository formatting; the dev-shell
+`treefmt` binary has no standalone configuration file. The independent treefmt flake
+check remains enabled. Cabal-gild normalizes package files as part of that gate.
+
+The installed `okf-documentation-check` git hook requires the host's `okf` executable
+and may resolve pinned Dhall profiles over the network. It cannot run in a Nix build
+sandbox with a clean PATH. `flake.module.nix` therefore disables the git-hooks.nix
+sandbox derivation through `pre-commit.check.enable`, while retaining the installed
+commit hooks and the separate pure formatting check. Documentation acceptance still
+requires direct validation and graph checks for all four profiled bundles; a passing
+`nix flake check` alone does not establish documentation validity. Re-enable the
+sandbox hook derivation when OKF and profile imports have a hermetic packaged closure.

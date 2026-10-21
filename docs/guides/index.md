@@ -5,6 +5,7 @@ okf_version: "0.2"
 # Guide
 
 - [Building a CLI application](cli-application.md) - Build a CLI application that layers files, environment variables, overrides, and safe diagnostics with Settei.
+- [Authoring a first deployment from the configuration contract](deployment-contract.md) - Discover environment bindings and safe defaults before assembling proposed inputs and running application configuration checks.
 - [Dhall configuration](dhall.md) - Load typed Dhall configuration through explicit import policies and resolve it with Settei.
 - [Environment and command-line configuration](environment-and-cli.md) - Bind environment variables and command-line overrides explicitly, then render Settei diagnostics safely.
 - [Tagged multi-format configuration](formats.md) - Accept explicitly tagged YAML, KDL, and Dhall configuration inputs through one ordered loader.

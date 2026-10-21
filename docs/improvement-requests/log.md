@@ -1,6 +1,7 @@
 # Bundle Update Log
 
 ## 2026-10-21
+* **Update**: IR-1 completed by docs/plans/26-export-a-deployment-configuration-contract-with-bindings-and-defaults.md.
 * **Update**: IR-4 accepted after validation against the core resolver and renderer seams and the notification-hub post-resolution checks; targetPlan set to docs/plans/29-integrate-application-validation-into-structured-configuration-diagnostics.md (planned, not yet implemented).
 * **Update**: IR-3 accepted after validation against the notification-hub check paths and the Pulumi deployment library; targetPlan set to docs/plans/28-provide-a-reusable-deployment-preflight-harness-around-application-check-mode.md (planned, not yet implemented).
 * **Update**: IR-1 accepted; targetPlan set to docs/plans/26-export-a-deployment-configuration-contract-with-bindings-and-defaults.md (planned and reviewed, not yet implemented).

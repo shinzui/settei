@@ -208,6 +208,8 @@ Useful diagnostic modes are:
 | --- | --- |
 | `--describe-config` | Render `describe appConfig` without reading files or environment values. |
 | `--describe-config-json` | Render the source-free schema as JSON. |
+| `--deployment-contract` | Join bindings, safe defaults, and profile requirements without loading runtime inputs. |
+| `--deployment-contract-json` | Render the source-free versioned `settei.contract` document. |
 | `--check-config` | Load and resolve configuration, print a short success message, then exit. |
 | `--explain-config` | Load and resolve, then render the redacted text report. |
 | `--explain-config-json` | Load and resolve, then render the versioned JSON report. |
@@ -286,3 +288,13 @@ Pass `envSnapshot` to the runner and capture its exit code, stdout, and stderr. 
 The full composition is in
 [`Settei.Example.Cli`](../../examples/settei-cli/src/Settei/Example/Cli.hs), with
 [end-to-end tests](../../examples/settei-cli/test/Settei/Example/CliTest.hs).
+
+
+### Deployment contract
+
+For deployment authoring, dispatch `contractDiagnostic` after `schemaDiagnostic` and
+before source loading or executing an environment-reader action. Build its contract
+from `appConfig`, `inputBindings environmentBindings`, explicit built-in default
+sources, and an optional deployment profile. The [deployment guide](deployment-contract.md)
+shows the complete discovery-to-check workflow, and the reference CLI's
+`runCliWithEnvironment` demonstrates the static dispatch boundary used by `main`.

@@ -34,7 +34,10 @@ evidence:
 
 The 0.2.0.0 command-line surface adds a standard `DiagnosticMode` for
 `--describe-config`, `--describe-config-json`, `--check-config`,
-`--explain-config`, and `--explain-config-json`. `schemaDiagnostic` renders the
+`--explain-config`, and `--explain-config-json`. The next 0.3.0.0 release also adds
+`--deployment-contract` and `--deployment-contract-json`: `contractDiagnostic` renders
+the [deployment contract (CAP-14)](deployment-configuration-contract.md) before any
+runtime input loading. `schemaDiagnostic` renders the
 [source-free declaration (CAP-1)](typed-inspectable-declarations.md) before any input is
 loaded. `resolutionDiagnostic` consumes a [resolution result (CAP-2)](layered-resolution-and-provenance.md)
 and delegates explanations to the [safe renderers (CAP-3)](secret-safe-diagnostics.md).
@@ -54,7 +57,7 @@ the lower-level parsers remain available for customized applications.
   routing, stdout/stderr selection, and exit codes.
 - `CheckConfig` can only confirm the `ResolveResult` supplied by the caller. It does not
   independently reload or watch configuration.
-- Describe modes are source-free only when the application dispatches them before its
+- Describe and contract modes are source-free only when the application dispatches them before its
   own loading code, as the reference applications do.
 - The option vocabulary is experimental and the 0.2.0.0 release already replaced the
   earlier `ExplainMode` API.

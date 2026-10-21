@@ -1,3 +1,62 @@
-name [required, necessary, public] name
+blocked.child [required, necessary, public] blocked.child
   input: required (no default)
-  bound: environment variable NAME
+case [optional, necessary, public] case
+  input: defaulted (declaration fallback)
+  default: declaration rule case-rule, case on required, 1 alternatives, no fallback; value not computed
+caseFallback [optional, necessary, public] caseFallback
+  input: defaulted (declaration fallback)
+  default: declaration rule fallback-rule, case on required, 1 alternatives, fallback; value not computed
+conditional [required, conditional, public] conditional
+  input: conditional (no default)
+constant [optional, necessary, public] constant
+  input: defaulted (declaration fallback)
+  default: declaration rule constant-rule, constant 42
+derived [optional, necessary, public] derived
+  input: defaulted (declaration fallback)
+  default: declaration rule derived-rule, derived from required; value not computed
+environment [required, necessary, public] environment
+  input: required (no default)
+invalid [required, necessary, public] invalid
+  input: required (invalid source default)
+  default: "bad" from built-in source low (invalid; expected integer between -9223372036854775808 and 9223372036854775807)
+mixed [optional, necessary, secret] mixed
+  input: defaulted (declaration fallback)
+  default: declaration rule mixed-rule, constant <redacted>
+opaque [optional, necessary, public] opaque
+  input: defaulted (declaration fallback)
+  default: declaration rule opaque-rule, constant <unrenderable>
+optional [optional, necessary, public] optional
+  input: optional
+profiled [optional, necessary, public] profiled
+  input: required (deployment profile production: state explicitly)
+  default: declaration rule profile-rule, constant "default"
+required [required, necessary, public] required
+  input: required (no default)
+  bound: environment variable FIRST
+  bound: mounted SECOND
+requiredDefault [required, necessary, public] requiredDefault
+  input: required (required request despite declaration default)
+  default: declaration rule competing-default, constant "fallback"
+requiredSecret [required, necessary, secret] secret
+  input: required (no default)
+secret [optional, necessary, secret] secret
+  input: defaulted (declaration fallback)
+  default: declaration rule secret-rule, constant <redacted>
+secretSource [required, necessary, secret] secret source
+  input: defaulted (built-in source)
+  default: <redacted> from built-in source low
+source [required, necessary, public] source
+  input: defaulted (built-in source)
+  default: "high" from built-in source high
+  shadowed: built-in source middle
+  shadowed: built-in source low
+condition 1: derived -> required
+condition 2: case -> required
+condition 3: caseFallback -> required
+condition 4: environment -> conditional
+diagnostic: mixed: declared with both public and secret sensitivity; treated as secret
+diagnostic: blocked.child: cannot traverse blocked through scalar in built-in source low
+diagnostic: blocked: unknown key in built-in source low
+diagnostic: unknown: unknown key in built-in source low
+diagnostic: ORPHAN: binding targets undeclared key nothing.here
+diagnostic: unknownProfile: deployment profile targets undeclared key

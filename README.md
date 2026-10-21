@@ -37,6 +37,9 @@ The Kubernetes initiative added a mounted ConfigMap/Secret directory adapter, de
 environment bindings, namespace-specific runnable manifests and cookbook, and end-to-end
 reference-service integration without adding cluster access to application processes.
 
+The unreleased deployment contract joins bindings, safe defaults, and explicit profile
+requirements without loading runtime inputs; see the [first-deployment guide](docs/guides/deployment-contract.md).
+
 The annotated `v0.2.0.0` tag and all eight public packages are available from Hackage.
 The [release checklist](docs/release-checklist.md) remains the historical record of the
 initial release preparation. Version 0.2.0.0 is experimental; consult the
@@ -58,7 +61,8 @@ bounds, and public adoption surface.
 | [`settei-kubernetes`](settei-kubernetes/) | Mounted ConfigMap/Secret directory source with explicit file bindings, derived env bindings, and freshness provenance. |
 
 The non-published [`examples/`](examples/) workspace contains a layered CLI, a
-Kubernetes-shaped service, and a YAML/KDL/Dhall conformance suite.
+Kubernetes-shaped service, a [deployment server/worker workflow](examples/settei-deployment/),
+and a YAML/KDL/Dhall conformance suite.
 
 
 ## Declare configuration once
@@ -141,6 +145,7 @@ not receive a recoverable secret value.
 - [YAML adapter](docs/guides/yaml.md)
 - [KDL v2 adapter](docs/guides/kdl.md)
 - [Dhall adapter and import policy](docs/guides/dhall.md)
+- [Authoring a first deployment](docs/guides/deployment-contract.md)
 - [Building a CLI application](docs/guides/cli-application.md)
 - [Building a Kubernetes-shaped service](docs/guides/kubernetes-service.md)
 - [Deploying one image across Kubernetes namespaces](docs/guides/kubernetes-cookbook.md)

@@ -120,6 +120,9 @@ tests =
             let (helpText, _) = Options.renderFailure failure "settei-example"
             assertBool "Configuration group missing" ("Configuration" `Text.isInfixOf` Text.pack helpText)
             assertBool "Diagnostics group missing" ("Diagnostics" `Text.isInfixOf` Text.pack helpText)
+            mapM_
+              (\flag -> assertBool "contract flag missing from help" (flag `Text.isInfixOf` Text.pack helpText))
+              ["--deployment-contract", "--deployment-contract-json"]
           _ -> fail "expected --help to produce parser help"
     ]
 

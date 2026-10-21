@@ -165,6 +165,11 @@
       # machine-authored capability catalog does not claim the profile's recommended
       # review provenance. `okf` is not in nixpkgs, so this system hook uses the copy
       # already available on PATH.
+      # OKF is a host-provided tool and its pinned Dhall profiles may require
+      # network access. Keep documentation enforcement in the installed git hook
+      # and direct acceptance gates; the separate treefmt flake check stays pure.
+      # git-hooks.nix supports disabling its sandbox derivation for such hooks.
+      pre-commit.check.enable = false;
       pre-commit.settings.hooks.okf-documentation-check = {
         enable = true;
         name = "okf-documentation-check";

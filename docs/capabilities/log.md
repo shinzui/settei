@@ -1,5 +1,9 @@
 # Capability catalog log
 
+## 2026-10-21
+
+* **Add**: CAP-14 deployment configuration contract; CAP-7 lists the contract diagnostic flags.
+
 ## 2026-09-21
 
 * **Adopt**: Authored the initial capability catalog under the shared

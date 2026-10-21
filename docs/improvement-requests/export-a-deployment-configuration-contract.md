@@ -3,7 +3,9 @@ type: Improvement Request
 title: Export a deployment configuration contract with bindings and defaults
 description: Combine configuration declarations, environment bindings, default sources, and deployment requirements into a safe contract for authoring a service's first deployment.
 requestId: IR-1
-status: accepted
+status: completed
+completedAt: "2026-10-21T14:30:00Z"
+resolution: "Implemented by docs/plans/26-export-a-deployment-configuration-contract-with-bindings-and-defaults.md; core occurrence, default, golden, cycle and sentinel tests, adapter diagnostics, source-free executable wrappers, and the server/worker deployment workflow verify AC-1 through AC-7."
 targetPlan: docs/plans/26-export-a-deployment-configuration-contract-with-bindings-and-defaults.md
 origin: mori://tan/notification-hub
 generated:

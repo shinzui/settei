@@ -61,7 +61,7 @@ affected package artifacts without mixing those test closures.
 The supported adoption surface is:
 
 - Core umbrella: `Settei`.
-- Core focused modules: `Settei.Config`, `Settei.Default`, `Settei.Error`, `Settei.Key`,
+- Core focused modules: `Settei.Config`, `Settei.Contract`, `Settei.Default`, `Settei.Error`, `Settei.Key`,
   `Settei.Origin`, `Settei.Provenance`, `Settei.Render`, `Settei.Report`, `Settei.Resolve`,
   `Settei.Schema`, `Settei.Setting`, `Settei.Source`, and `Settei.Value`.
 - Adapters: `Settei.Env`, `Settei.Optparse`, `Settei.Yaml`, `Settei.Kdl`, and
@@ -89,3 +89,17 @@ releases in lockstep from one repository, and adapter packages pin the core exac
 (`settei ==X.Y.Z.W`); mixed-version family installs are unsupported. Deprecations are
 announced with a `DEPRECATED` pragma and a changelog entry at least one major release
 before removal.
+
+
+## Unreleased deployment contract
+
+The next shared release targets 0.3.0.0. Core adds `Settei.Contract`,
+`renderContractText`, and `renderContractJson`; environment bindings gain an
+`inputBindings` conversion. `DiagnosticMode` gains `DeploymentContractText` and
+`DeploymentContractJson`, a major PVP change for exhaustive pattern matches.
+`contractDiagnostic` dispatches those modes without changing the existing helpers.
+
+`settei.schema` and `settei.resolution` JSON are unchanged. `settei.contract` is a
+separate version 1 document, reusing setting metadata and origin encodings. Existing
+`--describe-config-json` consumers require no migration. No third-party dependency
+bounds or pins change for this feature.

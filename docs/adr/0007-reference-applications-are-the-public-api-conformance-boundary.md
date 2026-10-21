@@ -2,7 +2,7 @@
 type: Architecture Decision Record
 title: Use internal reference applications as the public-API conformance boundary
 description: Use three internal reference applications as the conformance boundary that proves the public API composes.
-timestamp: 2026-07-20T00:00:00Z
+timestamp: 2026-10-21T14:30:00Z
 docId: ADR-7
 status: Accepted
 date: 2026-07-18
@@ -137,3 +137,18 @@ This exercises every maintained package through an application composition witho
 changing the process boundary. No example or adapter contacts a cluster. Mounted-source
 mapping, trusted identity, one-shot reads, and restart-to-reload are governed by
 [ADR 0011](0011-kubernetes-mounted-directory-input-semantics.md).
+
+
+## Amendment 2026-10-21: deployment contracts join the conformance boundary
+
+A fourth internal example package, `examples/settei-deployment`, adds a
+notification-hub-shaped declaration with a built-in defaults source, environment
+bindings, a defaulted secret, a production profile, and separate server/worker checks.
+All three application examples expose text and JSON deployment contracts. Every
+executable defers environment access until after schema and contract dispatch; tests
+inject failing reader actions at that same entry point and nonexistent runtime paths.
+The independent conformance suite scans contract outputs for secret sentinels.
+
+[ADR-12](0012-deployment-contract-export-semantics.md) defines contract semantics and
+uncertainty. Static discovery is paired with application check mode; the example does
+not contact a database, provider, or cluster.

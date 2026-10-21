@@ -24,14 +24,15 @@ independently:
 | [CAP-11](tagged-multi-format-loading.md) | Tagged YAML, KDL, and Dhall loading | settei-formats | 0.2.0.0 |
 | [CAP-12](kubernetes-mounted-directory-sources.md) | Kubernetes mounted-directory sources | settei-kubernetes | 0.2.0.0 |
 | [CAP-13](kubernetes-environment-bindings.md) | Kubernetes-derived environment bindings | settei-kubernetes, settei-env | 0.2.0.0 |
+| [CAP-14](deployment-configuration-contract.md) | Deployment configuration contract | settei, settei-env, settei-optparse-applicative | 0.3.0.0 (unreleased) |
 
 Every record is `status: shipped` and `stability: experimental`. The package family is
-released and usable at 0.2.0.0, while the compatibility policy explicitly makes no
-semantic-stability promise beyond the documented modules and release notes.
+released and usable at 0.2.0.0; CAP-14 is implemented for the next 0.3.0.0 release. The
+compatibility policy explicitly makes no semantic-stability promise beyond the documented modules and release notes.
 
 ## Deliberately excluded
 
-- The three packages under `examples/` are internal conformance and reference
+- The four packages under `examples/` are internal conformance and reference
   applications. They provide evidence for public capabilities but are not themselves
   consumer dependencies.
 - Individual decoders, declaration combinators, source accessors, renderer functions,
@@ -40,5 +41,5 @@ semantic-stability promise beyond the documented modules and release notes.
 - The namespace deployment manifests and cookbook compose Settei with Kubernetes
   deployment machinery. The repository provides the mounted-file and binding adapters;
   it does not claim cluster deployment as a library capability.
-- No planned behavior is listed. A feature without shipped repository evidence belongs
-  in an improvement request, not this catalog.
+- Records require implemented repository evidence; unreleased additions state their target
+  version. A feature without that evidence belongs in an improvement request, not this catalog.

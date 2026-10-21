@@ -100,7 +100,7 @@ demonstrates the feature (see docs/adr/0007-reference-applications-are-the-publi
       profile; `Settei.Render` renders it as text and as versioned `settei.contract`
       JSON; `nix develop -c cabal test settei-tests --test-show-details=direct` passes
       with the new `Settei.ContractTest` group and goldens, including the no-evaluation,
-      sentinel-redaction, and determinism cases. Verified 2026-10-21: all 121 core tests pass; existing schema goldens remain unchanged.
+      sentinel-redaction, and determinism cases. Verified 2026-10-21: all 122 core tests pass; existing schema goldens remain unchanged.
 - [x] Milestone 2 — Adapter and CLI integration (AC-1 bindings join, AC-4 source-free
       modes): `Settei.Env.inputBindings` converts validated `Bindings` into contract
       bindings; `Settei.Optparse` adds the `--deployment-contract` and
@@ -118,17 +118,33 @@ demonstrates the feature (see docs/adr/0007-reference-applications-are-the-publi
       check-mode validations, and a test suite whose transcript proves the contract
       exports without credentials and that check mode rejects incomplete proposed
       inputs; registered in `cabal.project`, `flake.module.nix`, and `mori.dhall`.
-- [ ] Milestone 5 — Documentation and collateral (AC-6 documented example, AC-7 limits
+- [x] Milestone 5 — Documentation and collateral (AC-6 documented example, AC-7 limits
       and compatibility): guide DOC-11 under docs/guides/, capability CAP-14 and an
       updated CAP-7 under docs/capabilities/, ADR-12 plus an ADR-7 amendment under
       docs/adr/, README, compatibility, security, and changelog updates, and IR-1 moved to
-      `completed` with acceptance evidence; every OKF bundle validates strictly.
+      `completed` with acceptance evidence; every OKF bundle validates strictly. Verified 2026-10-21: 12 ADRs, 11 guides, 14 capabilities, and 4 improvement requests pass their prescribed profile and log enforcement checks.
 - [ ] Milestone 6 — Full validation and closure: `cabal build all`, `cabal test all`,
-      `treefmt`, `cabal check` for the new package, and `nix flake check` pass; evidence
+      `nix fmt`, `cabal check` for the new package, and `nix flake check` pass; evidence
       recorded here; Outcomes & Retrospective written; ADR distillation done.
 
 
 ## Surprises & Discoveries
+
+- Implementation evidence (2026-10-21): `treefmt` on the dev-shell PATH has no
+  repository configuration file. The repository configures formatting through
+  treefmt-nix and `nix fmt`; final validation uses `nix fmt -- --fail-on-change
+  --no-cache`, the same configured wrapper used by the commit hook. No formatter or
+  dependency pins were changed.
+- Final-gate evidence (2026-10-21): whole-workspace cabal-gild validation required
+  formatting ten pre-existing Cabal manifests; the formatting-only change is isolated
+  in commit `ffa9d3a`. A subsequent Nix sandbox hook run failed because host `okf` is
+  absent from its clean PATH. The documented git-hooks.nix `pre-commit.check.enable`
+  setting now separates those host-only documentation hooks from the pure treefmt
+  flake check. Installed commit hooks and all four direct OKF acceptance gates remain
+  enforced; ADR-1 records the boundary.
+- Concurrent work (2026-10-21): an unrelated plan 29 and IR-4 edits are being authored
+  in the shared worktree. They are preserved and excluded from plan 26 commits;
+  final cleanliness means no outstanding plan 26 changes, allowing that independent work.
 
 - Review evidence (2026-10-21): the existing core suite passes all 105 tests. Runtime
   probes show that `optional x` composed with a conditional `required x` has merged
@@ -145,6 +161,16 @@ demonstrates the feature (see docs/adr/0007-reference-applications-are-the-publi
 
 
 ## Decision Log
+
+- Decision: Keep host-provided OKF validation in installed commit hooks and direct
+  acceptance commands, and disable only git-hooks.nix's sandbox hook derivation.
+  Retain the independent pure treefmt flake check. This uses the upstream-supported
+  setting for hooks that cannot run in a sandbox; it adds no package or tool pins.
+  Rationale: the sandbox cannot access host `okf` or network-resolved profiles. Running
+  the real validators locally preserves their acceptance obligations without making
+  the deployment-contract feature depend on packaging another project. ADR-1 captures
+  the durable limitation and restoration condition.
+  Date: 2026-10-21
 
 - Decision: The contract is built inside the core `settei` package, in a new public
   module `Settei.Contract`, and is re-exported by the `Settei` umbrella module. Adapter
@@ -889,7 +915,7 @@ Milestone 6:
 ```bash
 nix develop -c cabal build all
 nix develop -c cabal test all --test-show-details=direct
-nix develop -c treefmt --fail-on-change --no-cache
+nix fmt -- --fail-on-change --no-cache
 nix flake check
 ```
 
@@ -964,38 +990,61 @@ Required gates before the plan is complete: all commands in Milestone 6 pass; th
 `okf validate` commands pass; `cabal check` in examples/settei-deployment reports no
 errors; `git status --short` is empty after the final commit.
 
-Expected setting excerpts from the deployment example's text contract (replace with the
-complete real transcript during Milestone 4; omitted settings and condition rows must
-still appear in the full output). Vocabulary, key order, and redaction are requirements;
-exact spacing is not. Conditions must match `renderSchemaText (describe deploymentConfig)`
-in full, including the conditional dependencies of declaration defaults.
+Observed deployment contract transcript (2026-10-21), from the actual server
+executable with no credentials. Conditions match the existing schema renderer,
+including conditional declaration-default dependencies.
 
 ```text
 database.poolSize [required, necessary, public] Database pool size
   input: defaulted (built-in source)
   default: 10 from built-in source built-in defaults
-  bound: environment variable DATABASE_POOL_SIZE
+  bound: environment variable DATABASE_POOL_SIZE [environment.variable=DATABASE_POOL_SIZE]
 database.url [required, necessary, secret] PostgreSQL connection string
   input: required (no default)
-  bound: environment variable DATABASE_URL
+  bound: environment variable DATABASE_URL [environment.variable=DATABASE_URL]
 email.credentials [required, conditional, secret] Email account credentials as JSON
   input: conditional (no default)
-  bound: environment variable EMAIL_CREDENTIALS_JSON
+  bound: environment variable EMAIL_CREDENTIALS_JSON [environment.variable=EMAIL_CREDENTIALS_JSON]
 runtime.environment [required, necessary, public] Runtime environment
   input: required (deployment profile production: state the deployment's environment explicitly)
   default: "development" from built-in source built-in defaults
-  bound: environment variable ENVIRONMENT
+  bound: environment variable ENVIRONMENT [environment.variable=ENVIRONMENT]
+server.host [required, necessary, public] HTTP bind host
+  input: defaulted (built-in source)
+  default: "127.0.0.1" from built-in source built-in defaults
+  bound: environment variable HTTP_HOST [environment.variable=HTTP_HOST]
+server.port [required, necessary, public] HTTP port
+  input: defaulted (built-in source)
+  default: 8080 from built-in source built-in defaults
+  bound: environment variable PORT [environment.variable=PORT]
 server.webhookSecret [required, necessary, secret] Delivery webhook HMAC secret
   input: required (deployment profile production: the development webhook secret must never reach production)
   default: <redacted> from built-in source built-in defaults
-  bound: environment variable WEBHOOK_SECRET
+  bound: environment variable WEBHOOK_SECRET [environment.variable=WEBHOOK_SECRET]
 telemetry.serviceName [optional, necessary, public] OpenTelemetry service name
-  input: defaulted (declaration rule telemetry-service-name-by-environment, derived from runtime.environment; value not computed)
-  bound: environment variable OTEL_SERVICE_NAME
+  input: defaulted (declaration fallback)
+  default: declaration rule telemetry-service-name-by-environment, derived from runtime.environment; value not computed
+  bound: environment variable OTEL_SERVICE_NAME [environment.variable=OTEL_SERVICE_NAME]
 workers.concurrency [optional, necessary, public] Concurrent delivery handlers
-  input: defaulted (declaration rule worker-concurrency-by-environment, case on runtime.environment, 3 alternatives, no fallback)
-  bound: environment variable WORKER_CONCURRENCY
+  input: defaulted (declaration fallback)
+  default: declaration rule worker-concurrency-by-environment, case on runtime.environment, 3 alternatives, no fallback; value not computed
+  bound: environment variable WORKER_CONCURRENCY [environment.variable=WORKER_CONCURRENCY]
+workers.deliveryEndpoint [required, necessary, public] Delivery endpoint
+  input: required (deployment profile production: the loopback endpoint is a local development default)
+  default: "http://127.0.0.1:18091" from built-in source built-in defaults
+  bound: environment variable DELIVERY_ENDPOINT [environment.variable=DELIVERY_ENDPOINT]
+workers.visibilityTimeoutSeconds [optional, necessary, public] Delivery visibility timeout in seconds
+  input: defaulted (declaration fallback)
+  default: declaration rule worker-visibility-timeout, constant 180
+  bound: environment variable WORKER_VISIBILITY_TIMEOUT_SECONDS [environment.variable=WORKER_VISIBILITY_TIMEOUT_SECONDS]
+condition 1: workers.concurrency -> runtime.environment
+condition 2: telemetry.serviceName -> runtime.environment
+condition 3: runtime.environment -> email.credentials
 ```
+
+The server and worker test suites reproduce missing-input failures and both passing
+production checks from the guide. `cabal check` in the new package reports
+`No errors or warnings could be found in the package.`
 
 Proposed, not required: a settei-kubernetes converter from `FileBindings` to
 `InputBinding` values (`CustomInput "kubernetes-mounted-file"`), and a `mina`/`mori`
