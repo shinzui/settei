@@ -39,6 +39,14 @@ in  Schema.Project::{
         , dependencies = [ Schema.Dependency.ByName "settei" ]
         }
       , Schema.Package::{
+        , name = "settei-preflight"
+        , type = Schema.PackageType.Library
+        , language = Schema.Language.Haskell
+        , path = Some "settei-preflight"
+        , description = Some "Run application check mode against proposed deployment inputs"
+        , dependencies = [ Schema.Dependency.ByName "settei", Schema.Dependency.ByName "settei-env" ]
+        }
+      , Schema.Package::{
         , name = "settei-formats"
         , type = Schema.PackageType.Library
         , language = Schema.Language.Haskell

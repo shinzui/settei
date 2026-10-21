@@ -1,0 +1,9 @@
+preflight server: fail (configuration rejected, exit 4)
+coverage: complete
+inputs: (none)
+inherited: (none)
+command: /fixture
+stdout:
+  (empty)
+stderr:
+  database.url: required value is missing

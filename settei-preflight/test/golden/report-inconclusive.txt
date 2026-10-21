@@ -1,0 +1,11 @@
+preflight worker: inconclusive (accepted with partial coverage; not a deployment validation)
+coverage: partial
+  POD_NAMESPACE: synthetic stand-in (downward API namespace)
+inputs:
+  POD_NAMESPACE: synthetic public
+inherited: (none)
+command: /fixture --check-config
+stdout:
+  configuration valid
+stderr:
+  (empty)

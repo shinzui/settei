@@ -10,6 +10,7 @@ packages:
   settei-kdl
   settei-kubernetes
   settei-optparse-applicative
+  settei-preflight
   settei-yaml
 
 package settei
@@ -51,4 +52,7 @@ package settei-example-service
 allow-newer: dhall-json:aeson, dhall-json:bytestring, dhall-json:text
 
 package settei-example-deployment
+  tests: True
+
+package settei-preflight
   tests: True

@@ -44,6 +44,11 @@
         haskellPackages.callCabal2nix "settei-env" ./settei-env {
           settei = setteiPackage;
         };
+      setteiPreflightPackage =
+        haskellPackages.callCabal2nix "settei-preflight" ./settei-preflight {
+          settei = setteiPackage;
+          settei-env = setteiEnvPackage;
+        };
       setteiYamlPackage =
         haskellPackages.callCabal2nix "settei-yaml" ./settei-yaml {
           settei = setteiPackage;
@@ -153,6 +158,7 @@
       packages.settei-example-deployment = setteiExampleDeploymentPackage;
       packages.settei-dhall = setteiDhallPackage;
       packages.settei-env = setteiEnvPackage;
+      packages.settei-preflight = setteiPreflightPackage;
       packages.settei-formats = setteiFormatsPackage;
       packages.settei-kdl = setteiKdlPackage;
       packages.settei-kubernetes = setteiKubernetesPackage;

@@ -16,6 +16,11 @@ provenance:
       at: 2026-10-21T13:50:52Z
       mode: "update"
       note: "Validate and repair coverage, secret-safe errors, process cleanup, extraction semantics, acceptance instrumentation, and milestone dependencies."
+    - model: "gpt-6.1-sol"
+      harness: "codex-cli"
+      at: 2026-10-21T14:43:25Z
+      mode: "implement"
+      note: "Implement preflight harness, strict request interface, reference extraction workflow, and acceptance gates."
   reviews:
     - model: "gpt-6-astra"
       harness: "codex-cli"
@@ -116,14 +121,14 @@ pre-provisioning half of that pair.
 ## Progress
 
 
-- [ ] Milestone 1 — Harness library (AC-1, AC-3, AC-4, AC-5 at the library boundary):
+- [x] Milestone 1 — Harness library (AC-1, AC-3, AC-4, AC-5 at the library boundary):
       the new `settei-preflight` package with `Settei.Preflight` builds, validates,
       materializes, executes, redacts, classifies, and renders; the package is registered
       in `cabal.project`, `flake.module.nix`, and `mori.dhall`;
       `nix develop -c cabal test settei-preflight-tests --test-show-details=direct`
       passes with the fixture-application tests covering every classification, every
       execution-failure path, output redaction, environment isolation, cleanup, and the
-      startup-marker instrumentation.
+      startup-marker instrumentation. Verified 2026-10-21: all 60 harness tests pass, including native environment isolation, concurrent capture, timeout/pipe-drain cleanup, injected IO failures, secret-channel scans, and four report goldens.
 - [ ] Milestone 2 — Request document and executable (AC-2 interface, AC-4 channels):
       `Settei.Preflight.Request` parses and renders the strict `settei.preflight-request`
       document, resolves secret references through an injectable environment, and the
@@ -151,6 +156,14 @@ pre-provisioning half of that pair.
 
 
 ## Surprises & Discoveries
+
+- Implementation evidence (2026-10-21): macOS CoreFoundation synthesizes
+  `__CF_USER_TEXT_ENCODING` inside the GHC fixture even with an empty spawn
+  environment. A separate native `/usr/bin/env` test proves the exact proposed
+  environment at exec; the Haskell fixture assertion permits only this runtime-added
+  variable. Ambient application values remain excluded.
+- Prerequisite verification (2026-10-21): plan 26 is complete, the deployment roles
+  and runner signatures match this plan, and the baseline workspace suites pass.
 
 
 - Planning evidence (2026-10-21): the solver plan in dist-newstyle/cache/plan.json
